@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terrarium Studio</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+
+      <!-- top-center mode tabs, like the reference game -->
+      <nav class="tabs" id="tabs">
+        <button class="tab" data-tab="sculpt">ভাস্কর্য</button>
+        <button class="tab" data-tab="paint">পেইন্টিং</button>
+        <button class="tab is-active" data-tab="decor">সাজানো</button>
+        <button class="tab" data-tab="scene">দৃশ্য</button>
+      </nav>
+
+      <!-- scene settings panel (opens from the দৃশ্য tab) -->
+      <div class="scene-panel hidden" id="scene-panel">
+        <div class="sp-row">
+          <span class="sp-label" data-i18n="পরিবেশ">পরিবেশ</span>
+          <div class="sp-moods">
+            <button class="hud-btn mood-btn is-active" data-mood="day" title="দিন">☀️</button>
+            <button class="hud-btn mood-btn" data-mood="dusk" title="গোধূলি">🌆</button>
+            <button class="hud-btn mood-btn" data-mood="night" title="রাত">🌙</button>
+            <button class="hud-btn mood-btn" data-mood="library" title="লাইব্রেরি">🕯️</button>
+            <button class="hud-btn mood-btn" data-mood="garden" title="বাগান">🌿</button>
+            <button class="hud-btn mood-btn" data-mood="beach" title="সৈকত">🏖️</button>
+            <button class="hud-btn mood-btn" data-mood="space" title="মহাকাশ">🌌</button>
+            <button class="hud-btn mood-btn" data-mood="mountain" title="পাহাড়">⛰️</button>
+            <button class="hud-btn mood-btn" data-mood="rain" title="বৃষ্টি">🌧️</button>
+          </div>
+        </div>
+        <div class="sp-row">
+          <span class="sp-label" data-i18n="অন্যান্য">অন্যান্য</span>
+          <button id="sound" class="hud-btn" title="শান্ত সুর">🔕</button>
+          <button id="photo" class="hud-btn" title="ছবি তোলো">📷</button>
+          <button id="undo" class="hud-btn" title="আগের ধাপে ফেরো">↶</button>
+          <button id="reset" class="hud-btn hud-btn--danger" title="আবার শুরু">↺</button>
+          <button id="lang" class="hud-btn hud-btn--lang" title="ভাষা">EN</button>
+        </div>
+      </div>
+
+      <!-- brush parameter sliders (sculpt/paint tabs) -->
+      <div class="sliders" id="sliders">
+        <div class="slider-chip" data-param="radius">
+          <span class="s-label">ব্যাসার্ধ</span>
+          <div class="s-fill"></div>
+          <span class="s-val">50</span>
+          <input type="range" min="0" max="100" value="50" />
+        </div>
+        <div class="slider-chip" data-param="strength">
+          <span class="s-label">শক্তি</span>
+          <div class="s-fill"></div>
+          <span class="s-val">50</span>
+          <input type="range" min="0" max="100" value="50" />
+        </div>
+        <div class="slider-chip" data-param="falloff">
+          <span class="s-label">ফলঅফ</span>
+          <div class="s-fill"></div>
+          <span class="s-val">50</span>
+          <input type="range" min="0" max="100" value="50" />
+        </div>
+      </div>
+
+      <!-- left tool list (contents depend on the active tab) -->
+      <aside class="hud-tools" id="tool-items"></aside>
+
+      <!-- hint pill -->
+      <aside class="hint" id="hint">
+        <span class="hint-step">১</span>
+        <p></p>
+      </aside>
+
+      <!-- category flyout (opens above the bottom bar) -->
+      <div class="cat-flyout hidden" id="cat-flyout"></div>
+
+      <!-- bottom bar: category button + search + item cards -->
+      <footer class="hud-bottom" id="hud-bottom">
+        <button class="cat-btn" id="cat-btn">
+          <span class="cat-icon">🌿</span>
+          <span class="cat-name">গাছপালা</span>
+          <span class="cat-caret">▾</span>
+        </button>
+        <div class="hud-search">
+          <span>🔍</span>
+          <input id="search" type="text" placeholder="খোঁজো…" autocomplete="off" />
+        </div>
+        <div class="hud-items" id="item-strip"></div>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

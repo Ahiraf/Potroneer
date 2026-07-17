@@ -1,0 +1,18 @@
+{
+  "name": "terrarium-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A cozy, handmade-feeling virtual terrarium designer built with Three.js.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
