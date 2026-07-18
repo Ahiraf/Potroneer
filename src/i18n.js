@@ -99,8 +99,8 @@ const EN = {
   "উষ্ণ": "Warm",
   "শীতল": "Cool",
   // hints
-  "আসল টেরারিয়ামের মতো শুরু করো — প্রথমে লেকা বল বা নুড়ি দিয়ে ড্রেনেজ স্তর বানাও।":
-    "Start like a real terrarium — lay a drainage layer of LECA balls or pebbles first.",
+  "বেস উপাদান বেছে ট্যাপ করো (গোল স্তর) বা ড্র্যাগ করে ইচ্ছেমতো আকৃতিতে মাটি আঁকো।":
+    "Pick a base material, then tap for a full layer — or drag to paint substrate in any shape you like.",
   "এবার স্ফ্যাগনাম মসের পাতলা স্তর দাও — এটা মাটিকে নিচের ড্রেনেজে মিশে যাওয়া থেকে আটকায়।":
     "Now add a thin sphagnum moss barrier — it keeps soil out of the drainage below.",
   "এক চিমটি চারকোল ছড়াও — বন্ধ জারের ভেতরটা তাজা রাখে।":

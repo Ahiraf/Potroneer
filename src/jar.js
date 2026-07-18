@@ -152,7 +152,7 @@ export const JAR_TYPES = [
     glyph: "⊘",
     none: true,
     lid: false,
-    interior: { innerRadius: 1.02, bodyHeight: 2.4, floorY: -1.15, wallThickness: 0.05 },
+    interior: { innerRadius: 1.45, bodyHeight: 2.4, floorY: -1.15, wallThickness: 0.05 },
     profile: null,
   },
   // Whole-terrarium GLB models as ready-made vessels (added by the user).

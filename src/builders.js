@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { BASE_BY_ID, DECOR_BY_ID } from "./catalog.js";
-import { JAR, heightAt } from "./state.js";
+import { BASE_BY_ID, BASE_LAYERS, DECOR_BY_ID } from "./catalog.js";
+import { JAR, heightAt, jarGridR, TERRAIN_N } from "./state.js";
 
 // ---------------------------------------------------------------------------
 // Small shared helpers
@@ -183,6 +183,9 @@ export function buildTerrainCap(def) {
   mesh.receiveShadow = true;
   mesh.castShadow = false;
   mesh.userData.jitters = jitters;
+  // per-vertex random seeds so painted materials keep a stable grain
+  mesh.userData.seeds = jitters.map(() => (Math.random() * 1024) | 0);
+  mesh.userData.fallbackDef = def;
   return mesh;
 }
 
@@ -197,6 +200,28 @@ export function updateTerrainCap(mesh, state, baseY) {
   }
   pos.needsUpdate = true;
   mesh.geometry.computeVertexNormals();
+
+  // recolor vertices from the painted-material map, so soil brushed here and
+  // sand brushed there each show their own grain
+  const colors = mesh.geometry.attributes.color;
+  const seeds = mesh.userData.seeds;
+  const fallback = mesh.userData.fallbackDef;
+  const R = jarGridR();
+  const n = TERRAIN_N;
+  for (let i = 0; i < pos.count; i++) {
+    const gi = Math.round(((pos.getX(i) + R) / (2 * R)) * (n - 1));
+    const gj = Math.round(((pos.getZ(i) + R) / (2 * R)) * (n - 1));
+    let def = fallback;
+    if (gi >= 0 && gj >= 0 && gi < n && gj < n) {
+      const mi = state.terrainMat[gj * n + gi];
+      if (mi !== 255 && BASE_LAYERS[mi]) def = BASE_LAYERS[mi];
+    }
+    const hex = def.colors[seeds[i] % def.colors.length];
+    _c.set(hex);
+    const k = 0.9 + ((seeds[i] % 37) / 37) * 0.2;
+    colors.setXYZ(i, _c.r * k, _c.g * k, _c.b * k);
+  }
+  colors.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@ import {
   setJarInterior,
   heightAt,
   sculpt,
+  paintMaterial,
   JAR,
 } from "./state.js";
 import { toggleAmbience } from "./ambience.js";
@@ -215,9 +216,12 @@ function rebuildSubstrate(animateLast = false) {
     }
     y += layer.height;
   });
-  // The sculptable terrain cap rides on the top layer, tinted like it.
-  if (state.layers.length) {
-    const topDef = BASE_BY_ID[state.layers[state.layers.length - 1].type];
+  // The sculptable terrain cap rides on the top layer — or, for free-form
+  // cursor-painted substrate, directly on the jar floor.
+  if (state.layers.length || state.painted) {
+    const topDef = state.layers.length
+      ? BASE_BY_ID[state.layers[state.layers.length - 1].type]
+      : BASE_BY_ID.soil;
     terrainCap = buildTerrainCap(topDef);
     updateTerrainCap(terrainCap, state, substrateTop(state));
     substrateGroup.add(terrainCap);
@@ -246,6 +250,8 @@ function snapshot() {
       layers: state.layers,
       decorations: state.decorations,
       terrain: Array.from(state.terrain),
+      terrainMat: Array.from(state.terrainMat),
+      painted: state.painted,
     }),
   );
   if (history.length > 60) history.shift();
@@ -278,6 +284,8 @@ function undo() {
   state.decorations.length = 0;
   state.decorations.push(...d.decorations);
   state.terrain.set(d.terrain);
+  if (d.terrainMat) state.terrainMat.set(d.terrainMat);
+  state.painted = d.painted ?? false;
   rebuildAll();
   studio.markInteraction();
 }
@@ -378,7 +386,37 @@ function applyBrush(screen) {
   }
 }
 
+// Free-form substrate painting: with a base material selected, dragging lays
+// that material wherever the cursor goes — any size, any shape.
+let basePainting = false;
+function applyBaseBrush(screen) {
+  const hit = studio.raycast(screen, surfaceTargets());
+  if (!hit) return;
+  const local = studio.world.worldToLocal(hit.point.clone());
+  const mi = BASE_LAYERS.findIndex((b) => b.id === selected.id);
+  sculpt(state, local.x, local.z, brushStrength() * 0.8, brushRadius(), brushFalloff());
+  paintMaterial(state, local.x, local.z, brushRadius(), mi);
+  if (!terrainCap) rebuildSubstrate(false); // first stroke creates the cap
+  updateTerrainCap(terrainCap, state, substrateTop(state));
+  decorGroup.children.forEach((obj) => {
+    const rec = obj.userData.record;
+    if (!rec) return;
+    obj.position.y = rec.y = surfaceY(rec.x, rec.z);
+  });
+}
+
 studio.setGrabHandler((screen) => {
+  // Base material + drag = paint substrate in any shape.
+  if (activeTool === "place" && selected.group === "base") {
+    const hit = studio.raycast(screen, surfaceTargets());
+    if (hit) {
+      basePainting = true;
+      snapshot();
+      applyBaseBrush(screen);
+      return true;
+    }
+    return false; // over empty space → rotate as usual
+  }
   // Brush tools capture the drag entirely.
   if (activeTool !== "place") {
     if (!hasBase(state)) {
@@ -406,6 +444,10 @@ studio.setGrabHandler((screen) => {
 });
 
 studio.setObjectDrag((screen) => {
+  if (basePainting) {
+    applyBaseBrush(screen);
+    return;
+  }
   if (activeTool !== "place") {
     applyBrush(screen);
     return;
@@ -425,6 +467,11 @@ studio.setObjectDrag((screen) => {
 });
 
 studio.setObjectDrop(() => {
+  if (basePainting) {
+    basePainting = false;
+    updateHint();
+    return;
+  }
   lastPaint = null;
   if (!grabbed) return;
   grabbed.scale.setScalar(grabbed.userData.baseScale ?? 1);
@@ -811,6 +858,8 @@ function saveTerrarium() {
       layers: state.layers,
       decorations: state.decorations,
       terrain: Array.from(state.terrain),
+      terrainMat: Array.from(state.terrainMat),
+      painted: state.painted,
       thumb: c.toDataURL("image/jpeg", 0.72),
     });
     try {
@@ -849,6 +898,8 @@ function renderGallery() {
       state.decorations.length = 0;
       state.decorations.push(...e.decorations);
       state.terrain.set(e.terrain);
+      if (e.terrainMat) state.terrainMat.set(e.terrainMat);
+      state.painted = e.painted ?? false;
       rebuildAll();
       galleryEl.classList.add("hidden");
       studio.markInteraction();
@@ -1031,7 +1082,7 @@ let flashTimer = null;
 function updateHint() {
   const laid = new Set(state.layers.map((l) => l.type));
   if (!hasBase(state)) {
-    setHint("১", "আসল টেরারিয়ামের মতো শুরু করো — প্রথমে লেকা বল বা নুড়ি দিয়ে ড্রেনেজ স্তর বানাও।");
+    setHint("১", "বেস উপাদান বেছে ট্যাপ করো (গোল স্তর) বা ড্র্যাগ করে ইচ্ছেমতো আকৃতিতে মাটি আঁকো।");
   } else if (!laid.has("sphagnum") && !laid.has("soil")) {
     setHint("২", "এবার স্ফ্যাগনাম মসের পাতলা স্তর দাও — এটা মাটিকে নিচের ড্রেনেজে মিশে যাওয়া থেকে আটকায়।");
   } else if (!laid.has("charcoal") && !laid.has("soil")) {

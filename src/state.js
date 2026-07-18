@@ -33,7 +33,27 @@ export function createState() {
     layers: [], // { type, height, slopeX, slopeZ }   stacked bottom -> top
     decorations: [], // { id, kind, x, z, y, rotation, scale }
     terrain: new Float32Array(TERRAIN_N * TERRAIN_N), // sculpted height deltas
+    // which base material was painted at each cell (255 = none / top layer)
+    terrainMat: new Uint8Array(TERRAIN_N * TERRAIN_N).fill(255),
+    painted: false, // any free-form substrate painted with the cursor?
   };
+}
+
+// Stamp a base-material index into the paint map under the brush.
+export function paintMaterial(state, x, z, radius, matIndex) {
+  const R = jarGridR();
+  const n = TERRAIN_N;
+  const cell = (2 * R) / (n - 1);
+  const r2 = radius * radius * 1.15;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const wx = -R + i * cell;
+      const wz = -R + j * cell;
+      const d2 = (wx - x) * (wx - x) + (wz - z) * (wz - z);
+      if (d2 <= r2) state.terrainMat[j * n + i] = matIndex;
+    }
+  }
+  state.painted = true;
 }
 
 // Bilinear sample of the sculpted terrain at local (x, z). Grid spans the
@@ -118,8 +138,10 @@ export function reset(state) {
   state.layers.length = 0;
   state.decorations.length = 0;
   state.terrain.fill(0);
+  state.terrainMat.fill(255);
+  state.painted = false;
 }
 
 export function hasBase(state) {
-  return state.layers.length > 0;
+  return state.layers.length > 0 || state.painted;
 }
