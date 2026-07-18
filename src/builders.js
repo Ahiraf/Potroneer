@@ -342,70 +342,157 @@ function buildSnakePlant() {
 }
 
 // A little deer figurine — the miniature animal from the reference build.
+// A deer with believable anatomy: tapered torso with chest and haunch masses,
+// two-segment legs with hooves, a proper head (muzzle, nose, eyes), cupped
+// ears, branched antlers, white belly/rump and fawn spots along the back.
 function buildDeer(v = {}) {
   const g = new THREE.Group();
-  const bodyMat = craftMaterial(v.body ?? "#a8794f", { rough: 0.8 });
-  const darkMat = craftMaterial(v.dark ?? "#6e4c2e", { rough: 0.8 });
+  const coat = v.body ?? "#a8794f";
+  const bodyMat = craftMaterial(coat, { rough: 0.85 });
+  const darkMat = craftMaterial(v.dark ?? "#6e4c2e", { rough: 0.85 });
+  const paleMat = craftMaterial(shade(coat, 1.45), { rough: 0.9 });
+  const blackMat = craftMaterial("#1c1712", { rough: 0.45 });
 
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.13, 4, 10), bodyMat);
-  body.rotation.z = Math.PI / 2;
-  body.position.y = 0.17;
-  body.castShadow = true;
-  g.add(body);
+  // --- torso: main barrel + deeper chest + rounded haunch
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 12), bodyMat);
+  torso.scale.set(1.9, 1, 0.82);
+  torso.position.y = 0.185;
+  torso.castShadow = true;
+  g.add(torso);
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.052, 12, 10), bodyMat);
+  chest.scale.set(1.05, 1.08, 0.85);
+  chest.position.set(0.07, 0.18, 0);
+  chest.castShadow = true;
+  g.add(chest);
+  const haunch = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), bodyMat);
+  haunch.scale.set(1.0, 1.12, 0.8);
+  haunch.position.set(-0.075, 0.19, 0);
+  haunch.castShadow = true;
+  g.add(haunch);
+  // pale belly
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), paleMat);
+  belly.scale.set(1.7, 0.7, 0.7);
+  belly.position.set(0, 0.155, 0);
+  g.add(belly);
 
-  // legs
-  for (const lx of [-0.055, 0.055]) {
-    for (const lz of [-0.028, 0.028]) {
-      const leg = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.011, 0.008, 0.14, 6),
-        bodyMat,
+  // --- legs: upper (thigh) + lower (cannon) + dark hoof, slightly bent
+  function leg(x, z, back) {
+    const hipY = 0.15;
+    const upper = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.009, 0.085, 8),
+      bodyMat,
+    );
+    upper.position.set(x + (back ? 0.008 : -0.006), hipY - 0.038, z);
+    upper.rotation.z = back ? 0.18 : -0.12;
+    upper.castShadow = true;
+    g.add(upper);
+    const lower = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.0045, 0.085, 8),
+      bodyMat,
+    );
+    lower.position.set(x + (back ? -0.004 : 0.002), hipY - 0.115, z);
+    lower.rotation.z = back ? -0.08 : 0.05;
+    lower.castShadow = true;
+    g.add(lower);
+    const hoof = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.0055, 0.014, 8),
+      blackMat,
+    );
+    hoof.position.set(x, 0.007, z);
+    g.add(hoof);
+  }
+  leg(0.085, -0.026, false);
+  leg(0.085, 0.026, false);
+  leg(-0.085, -0.026, true);
+  leg(-0.085, 0.026, true);
+
+  // --- neck rising forward, head with muzzle
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.019, 0.03, 0.13, 10),
+    bodyMat,
+  );
+  neck.position.set(0.115, 0.28, 0);
+  neck.rotation.z = -0.42;
+  neck.castShadow = true;
+  g.add(neck);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), bodyMat);
+  head.scale.set(1.15, 1, 0.85);
+  head.position.set(0.155, 0.345, 0);
+  head.castShadow = true;
+  g.add(head);
+  // tapering muzzle with a dark nose
+  const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.017, 10, 8), bodyMat);
+  muzzle.scale.set(1.5, 0.8, 0.7);
+  muzzle.position.set(0.185, 0.335, 0);
+  g.add(muzzle);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), blackMat);
+  nose.position.set(0.207, 0.336, 0);
+  g.add(nose);
+  // eyes: glossy dark spheres set into the sides of the head
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 8), blackMat);
+    eye.position.set(0.162, 0.352, s * 0.023);
+    g.add(eye);
+  }
+
+  // --- cupped ears + branched antlers
+  for (const s of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.035, 8), bodyMat);
+    ear.scale.z = 0.5; // cupped, not conical
+    ear.position.set(0.138, 0.385, s * 0.026);
+    ear.rotation.set(s * 0.5, 0, 0.5);
+    g.add(ear);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.022, 6), paleMat);
+    inner.scale.z = 0.4;
+    inner.position.set(0.14, 0.383, s * 0.027);
+    inner.rotation.set(s * 0.5, 0, 0.5);
+    g.add(inner);
+
+    // main beam curving back with two tines
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0035, 0.005, 0.075, 6),
+      darkMat,
+    );
+    beam.position.set(0.143, 0.415, s * 0.015);
+    beam.rotation.set(s * 0.3, 0, 0.35);
+    g.add(beam);
+    for (const [ty, tz, rx] of [
+      [0.435, 0.024, 0.9],
+      [0.45, 0.01, 0.35],
+    ]) {
+      const tine = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.002, 0.0035, 0.04, 5),
+        darkMat,
       );
-      leg.position.set(lx, 0.07, lz);
-      leg.castShadow = true;
-      g.add(leg);
+      tine.position.set(0.132, ty, s * tz);
+      tine.rotation.set(s * rx, 0, -0.4);
+      g.add(tine);
     }
   }
 
-  // neck + head, looking slightly to one side
-  const neck = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.02, 0.028, 0.12, 8),
-    bodyMat,
-  );
-  neck.position.set(0.09, 0.26, 0);
-  neck.rotation.z = -0.35;
-  g.add(neck);
-  const head = new THREE.Mesh(new THREE.CapsuleGeometry(0.026, 0.05, 4, 8), bodyMat);
-  head.rotation.z = Math.PI / 2 - 0.4;
-  head.position.set(0.135, 0.33, 0);
-  head.castShadow = true;
-  g.add(head);
-
-  // ears + antlers
-  for (const s of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.03, 5), darkMat);
-    ear.position.set(0.115, 0.36, s * 0.022);
-    ear.rotation.z = 0.4;
-    g.add(ear);
-    const antler = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.004, 0.006, 0.07, 5),
-      darkMat,
-    );
-    antler.position.set(0.105, 0.4, s * 0.014);
-    antler.rotation.set(s * 0.35, 0, 0.25);
-    g.add(antler);
-    const tine = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.003, 0.005, 0.04, 5),
-      darkMat,
-    );
-    tine.position.set(0.095, 0.42, s * 0.028);
-    tine.rotation.set(s * 0.8, 0, -0.3);
-    g.add(tine);
-  }
-
-  // tail
-  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 6), darkMat);
-  tail.position.set(-0.115, 0.19, 0);
+  // --- white rump patch + short tail
+  const rump = new THREE.Mesh(new THREE.SphereGeometry(0.024, 8, 8), paleMat);
+  rump.scale.set(0.6, 1, 0.9);
+  rump.position.set(-0.125, 0.2, 0);
+  g.add(rump);
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), bodyMat);
+  tail.scale.set(0.7, 1.4, 0.7);
+  tail.position.set(-0.132, 0.225, 0);
+  tail.rotation.z = 0.5;
   g.add(tail);
+
+  // --- fawn spots scattered along the back
+  for (let i = 0; i < 10; i++) {
+    const spot = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 5), paleMat);
+    spot.scale.y = 0.3;
+    spot.position.set(
+      -0.09 + Math.random() * 0.16,
+      0.228 + Math.random() * 0.012,
+      jitter(0.032),
+    );
+    g.add(spot);
+  }
   return g;
 }
 
@@ -690,70 +777,257 @@ function buildLantern(v = {}) {
 }
 
 // A butterfly resting with wings half-open.
+// Real butterfly wings are painted, not solid: a monarch-style pattern with
+// black veins radiating through the colour, a dark border with white spots,
+// and separate fore/hind wing lobes — all drawn once per colour and alpha-cut.
+const butterflyTextures = new Map();
+function getButterflyWingTexture(hex) {
+  if (butterflyTextures.has(hex)) return butterflyTextures.get(hex);
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d");
+
+  // wing silhouette: forewing (upper lobe) + hindwing (lower lobe), hinge at
+  // the left-centre (48,128)
+  const drawSilhouette = () => {
+    ctx.beginPath();
+    ctx.moveTo(48, 128);
+    // forewing sweeps up and out
+    ctx.bezierCurveTo(60, 40, 150, 8, 224, 30);
+    ctx.bezierCurveTo(240, 40, 232, 90, 190, 118);
+    ctx.bezierCurveTo(160, 132, 100, 130, 48, 128);
+    // hindwing: rounder, lower lobe
+    ctx.moveTo(48, 128);
+    ctx.bezierCurveTo(110, 132, 160, 140, 180, 170);
+    ctx.bezierCurveTo(192, 196, 170, 232, 130, 236);
+    ctx.bezierCurveTo(88, 238, 56, 190, 48, 128);
+    ctx.closePath();
+  };
+
+  // base colour with a soft radial fade toward the tips
+  drawSilhouette();
+  ctx.save();
+  ctx.clip();
+  const base = ctx.createRadialGradient(60, 128, 20, 150, 120, 190);
+  base.addColorStop(0, shade(hex, 1.15));
+  base.addColorStop(0.75, hex);
+  base.addColorStop(1, shade(hex, 0.72));
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // black veins radiating from the hinge
+  ctx.strokeStyle = "rgba(20,14,10,0.85)";
+  ctx.lineCap = "round";
+  for (const [cx, cy, ex, ey, w] of [
+    [48, 128, 210, 34, 4],
+    [48, 128, 226, 60, 3.4],
+    [48, 128, 214, 92, 3],
+    [48, 128, 186, 116, 2.6],
+    [48, 128, 178, 168, 3],
+    [48, 128, 172, 206, 2.6],
+    [48, 128, 130, 232, 2.4],
+    [48, 128, 84, 214, 2.2],
+  ]) {
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.quadraticCurveTo((cx + ex) / 2 + 14, (cy + ey) / 2, ex, ey);
+    ctx.stroke();
+  }
+
+  // dark wing border with white spots, like a monarch's margin
+  ctx.lineWidth = 17;
+  ctx.strokeStyle = "rgba(24,16,12,0.95)";
+  drawSilhouette();
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,250,240,0.9)";
+  for (const [sx, sy, sr] of [
+    [214, 38, 3.4], [226, 62, 3], [212, 92, 3.2], [188, 114, 2.6],
+    [178, 172, 3], [166, 204, 2.8], [128, 228, 2.6], [90, 208, 2.4],
+    [96, 26, 2.6], [150, 14, 3],
+  ]) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  butterflyTextures.set(hex, tex);
+  return tex;
+}
+
+// lighten/darken a hex colour
+function shade(hex, k) {
+  const col = new THREE.Color(hex);
+  col.r = Math.min(1, col.r * k);
+  col.g = Math.min(1, col.g * k);
+  col.b = Math.min(1, col.b * k);
+  return `#${col.getHexString()}`;
+}
+
 function buildButterfly(v = {}) {
   const g = new THREE.Group();
   const hues = ["#6fa8dc", "#e8a33d", "#d17aa0", "#8f7ad1"];
-  const wingMat = craftMaterial(v.wing ?? hues[(Math.random() * hues.length) | 0], {
-    rough: 0.55,
+  const hue = v.wing ?? hues[(Math.random() * hues.length) | 0];
+  const wingMat = new THREE.MeshStandardMaterial({
+    map: getButterflyWingTexture(hue),
+    transparent: true,
+    alphaTest: 0.5,
+    roughness: 0.6,
+    side: THREE.DoubleSide,
   });
-  wingMat.side = THREE.DoubleSide;
 
-  const wingShape = new THREE.Shape();
-  wingShape.moveTo(0, 0);
-  wingShape.bezierCurveTo(0.05, 0.07, 0.1, 0.09, 0.11, 0.04);
-  wingShape.bezierCurveTo(0.12, 0.0, 0.07, -0.045, 0.045, -0.05);
-  wingShape.bezierCurveTo(0.02, -0.05, 0.0, -0.02, 0, 0);
-  const wingGeo = new THREE.ShapeGeometry(wingShape, 8);
+  // wing quad maps the full texture; hinge sits at its left-centre edge
+  const wingGeo = new THREE.PlaneGeometry(0.13, 0.13);
+  wingGeo.translate(0.055, 0, 0); // pivot at the hinge
 
+  const openAngle = 0.55 + Math.random() * 0.5; // resting, partly open
   for (const s of [-1, 1]) {
     const wing = new THREE.Mesh(wingGeo, wingMat);
-    wing.scale.x = s;
-    wing.rotation.set(-Math.PI / 2 + s * 0.9, 0, 0);
-    wing.rotation.order = "ZXY";
-    wing.position.y = 0.035;
+    wing.rotation.order = "YXZ";
+    wing.rotation.x = -Math.PI / 2;
+    wing.rotation.y = s > 0 ? 0 : Math.PI; // mirror the left wing
+    // tilt each wing up from the body like a resting butterfly
+    const lift = new THREE.Group();
+    lift.add(wing);
+    lift.rotation.z = s * openAngle;
+    lift.position.y = 0.028;
+    g.add(lift);
     wing.castShadow = true;
-    g.add(wing);
   }
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.008, 0.05, 3, 6),
-    craftMaterial("#3a3228", { rough: 0.7 }),
-  );
-  body.rotation.x = Math.PI / 2;
-  body.position.y = 0.03;
-  g.add(body);
+
+  // segmented body: thorax + tapering abdomen + head
+  const bodyMat = craftMaterial("#2c241c", { rough: 0.65 });
+  const thorax = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.02, 3, 8), bodyMat);
+  thorax.rotation.x = Math.PI / 2;
+  thorax.position.set(0, 0.026, 0.004);
+  g.add(thorax);
+  const abdomen = new THREE.Mesh(new THREE.CapsuleGeometry(0.007, 0.03, 3, 8), bodyMat);
+  abdomen.rotation.x = Math.PI / 2 - 0.25;
+  abdomen.position.set(0, 0.02, -0.028);
+  g.add(abdomen);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 8), bodyMat);
+  head.position.set(0, 0.03, 0.022);
+  g.add(head);
+
+  // antennae with clubbed tips
+  for (const s of [-1, 1]) {
+    const ant = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0012, 0.0018, 0.045, 4),
+      bodyMat,
+    );
+    ant.position.set(s * 0.006, 0.05, 0.038);
+    ant.rotation.set(0.7, 0, s * 0.35);
+    g.add(ant);
+    const club = new THREE.Mesh(new THREE.SphereGeometry(0.0028, 6, 6), bodyMat);
+    club.position.set(s * 0.013, 0.068, 0.052);
+    g.add(club);
+  }
   return g;
 }
 
-// A ladybug — red dome, black spots, tiny head.
+// A ladybug with real beetle anatomy: glossy domed elytra with a centre split
+// line, black pronotum with white cheek patches, six bent legs and antennae.
 function buildLadybug(v = {}) {
   const g = new THREE.Group();
+  const shellColor = v.shell ?? "#c93326";
+  const shellMat = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(shellColor),
+    roughness: 0.18,
+    metalness: 0,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.12,
+  });
+  const blackMat = craftMaterial("#181410", { rough: 0.4 });
+
+  // domed wing cases (elytra)
   const shell = new THREE.Mesh(
-    new THREE.SphereGeometry(0.045, 12, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-    craftMaterial(v.shell ?? "#c93326", { rough: 0.45 }),
+    new THREE.SphereGeometry(0.042, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+    shellMat,
   );
-  shell.scale.set(1, 0.75, 1.2);
-  shell.position.y = 0.005;
+  shell.scale.set(1, 0.72, 1.18);
+  shell.position.set(0, 0.008, -0.008);
   shell.castShadow = true;
   g.add(shell);
-  const spotMat = craftMaterial("#221e1a", { rough: 0.6 });
-  for (let i = 0; i < 6; i++) {
-    const spot = new THREE.Mesh(new THREE.CircleGeometry(0.008, 6), spotMat);
-    const a = Math.random() * Math.PI * 2;
-    const t = 0.35 + Math.random() * 0.5;
-    const dir = new THREE.Vector3(
-      Math.sin(t) * Math.cos(a),
-      Math.cos(t) * 0.75,
-      Math.sin(t) * Math.sin(a) * 1.2,
-    );
-    spot.position.copy(dir).multiplyScalar(0.046);
-    spot.position.y += 0.005;
-    spot.lookAt(dir.multiplyScalar(2));
+
+  // the split line where the wing cases meet
+  const seam = new THREE.Mesh(
+    new THREE.BoxGeometry(0.0016, 0.031, 0.092),
+    blackMat,
+  );
+  seam.position.set(0, 0.016, -0.008);
+  g.add(seam);
+
+  // spots — flattened dark lenses sitting just proud of the shell
+  const spotGeo = new THREE.SphereGeometry(0.0075, 8, 6);
+  for (const [sx, sz] of [
+    [0.018, 0.012], [-0.018, 0.012],
+    [0.026, -0.03], [-0.026, -0.03],
+    [0.012, -0.052], [-0.012, -0.052],
+  ]) {
+    const spot = new THREE.Mesh(spotGeo, blackMat);
+    const y = 0.008 + 0.03 * Math.sqrt(Math.max(0, 1 - (sx * sx + (sz + 0.008) * (sz + 0.008)) / 0.0025));
+    spot.scale.y = 0.25;
+    spot.position.set(sx, y, sz);
     g.add(spot);
   }
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 7), spotMat);
-  head.scale.y = 0.7;
-  head.position.set(0, 0.008, 0.055);
+
+  // pronotum (black collar) + head with white cheek patches
+  const pronotum = new THREE.Mesh(
+    new THREE.SphereGeometry(0.02, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    blackMat,
+  );
+  pronotum.scale.set(1.15, 0.6, 0.9);
+  pronotum.position.set(0, 0.008, 0.038);
+  g.add(pronotum);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), blackMat);
+  head.scale.y = 0.65;
+  head.position.set(0, 0.008, 0.056);
   g.add(head);
+  const cheekMat = craftMaterial("#e8e2d4", { rough: 0.6 });
+  for (const s of [-1, 1]) {
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 6), cheekMat);
+    cheek.scale.y = 0.5;
+    cheek.position.set(s * 0.013, 0.012, 0.042);
+    g.add(cheek);
+  }
+
+  // six thin bent legs
+  for (const s of [-1, 1]) {
+    for (const [lz, ang] of [
+      [0.03, 0.5],
+      [0.0, 0.1],
+      [-0.032, -0.45],
+    ]) {
+      const upper = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0016, 0.0022, 0.02, 5),
+        blackMat,
+      );
+      upper.position.set(s * 0.036, 0.006, lz);
+      upper.rotation.set(ang, 0, s * 1.15);
+      g.add(upper);
+      const foot = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.001, 0.0016, 0.014, 5),
+        blackMat,
+      );
+      foot.position.set(s * 0.047, 0.002, lz + Math.sin(ang) * 0.01);
+      foot.rotation.set(ang, 0, s * 0.5);
+      g.add(foot);
+    }
+  }
+
+  // antennae
+  for (const s of [-1, 1]) {
+    const ant = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0008, 0.0012, 0.016, 4),
+      blackMat,
+    );
+    ant.position.set(s * 0.007, 0.012, 0.066);
+    ant.rotation.set(1.1, 0, s * 0.5);
+    g.add(ant);
+  }
   return g;
 }
 
@@ -783,10 +1057,10 @@ function buildMoss(v = {}) {
   const greens = v.colors ?? ["#5f8330", "#6f9a3a", "#7faa4a", "#557a2c"];
   // A low cushion: many small bumpy blobs packed into a rounded mound, densest
   // in the middle, so it reads as a soft pillow of moss rather than lumps.
-  const blobs = 16 + ((Math.random() * 8) | 0);
+  const blobs = 30 + ((Math.random() * 10) | 0);
   for (let i = 0; i < blobs; i++) {
-    const rad = 0.045 + Math.random() * 0.05;
-    const geo = new THREE.IcosahedronGeometry(rad, 1);
+    const rad = 0.03 + Math.random() * 0.038;
+    const geo = new THREE.IcosahedronGeometry(rad, 2);
     const p = geo.attributes.position;
     for (let v = 0; v < p.count; v++) {
       p.setXYZ(
@@ -801,7 +1075,6 @@ function buildMoss(v = {}) {
       geo,
       craftMaterial(greens[(Math.random() * greens.length) | 0], {
         rough: 1.0,
-        flat: true,
       }),
     );
     const a = Math.random() * Math.PI * 2;
@@ -976,51 +1249,74 @@ function buildMushroom(v = {}) {
   const shrooms = 1 + ((Math.random() * 3) | 0);
   // fly-agaric reds with the odd orange, like the reference build
   const capColors = v.caps ?? ["#c9302a", "#d84438", "#b52a24", "#d97a3f"];
+  const gillMat = craftMaterial("#e8ddc4", { rough: 0.9, flat: true });
+  const stemMat = craftMaterial("#efe7d3", { rough: 0.85 });
+
   for (let i = 0; i < shrooms; i++) {
     const h = 0.12 + Math.random() * 0.14;
-    const stem = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.02, 0.03, h, 8),
-      craftMaterial("#efe7d3", { rough: 0.9 }),
-    );
     const px = jitter(0.14);
     const pz = jitter(0.14);
+    const lean = jitter(0.14); // real mushrooms rarely stand dead straight
+
+    // stem with a slightly swollen base
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.026, h, 12),
+      stemMat,
+    );
     stem.position.set(px, h / 2, pz);
+    stem.rotation.z = lean;
     stem.castShadow = true;
     g.add(stem);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), stemMat);
+    bulb.scale.y = 0.55;
+    bulb.position.set(px, 0.012, pz);
+    g.add(bulb);
 
     const capR = 0.06 + Math.random() * 0.05;
-    const capGeo = new THREE.SphereGeometry(
-      capR,
-      12,
-      8,
-      0,
-      Math.PI * 2,
-      0,
-      Math.PI / 2,
-    );
+    const capX = px - Math.sin(lean) * h * 0.5;
+    const capY = h + capR * 0.08;
+
+    // cap: smooth dome with a soft sheen and a darker centre
+    const capMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(capColors[(Math.random() * capColors.length) | 0]),
+      roughness: 0.35,
+      clearcoat: 0.4,
+      clearcoatRoughness: 0.3,
+    });
     const cap = new THREE.Mesh(
-      capGeo,
-      craftMaterial(capColors[(Math.random() * capColors.length) | 0], {
-        rough: 0.6,
-      }),
+      new THREE.SphereGeometry(capR, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+      capMat,
     );
-    cap.scale.y = 0.8;
-    cap.position.set(px, h + capR * 0.1, pz);
+    cap.scale.y = 0.72;
+    cap.position.set(capX, capY, pz);
+    cap.rotation.z = lean * 0.6;
     cap.castShadow = true;
     g.add(cap);
 
-    // a couple of pale spots on the cap
-    for (let s = 0; s < 3; s++) {
+    // radial gills under the cap — the detail that sells a real mushroom
+    const gills = new THREE.Mesh(
+      new THREE.ConeGeometry(capR * 0.94, capR * 0.22, 26, 1, true),
+      gillMat,
+    );
+    gills.rotation.x = Math.PI; // open side down
+    gills.rotation.z = lean * 0.6;
+    gills.position.set(capX, capY - capR * 0.05, pz);
+    g.add(gills);
+
+    // wart flecks in a loose ring pattern, flattened against the dome
+    const spots = 5 + ((Math.random() * 4) | 0);
+    for (let s = 0; s < spots; s++) {
       const spot = new THREE.Mesh(
-        new THREE.SphereGeometry(capR * 0.14, 6, 6),
-        craftMaterial("#f5efe0", { rough: 0.8 }),
+        new THREE.SphereGeometry(capR * (0.08 + Math.random() * 0.07), 6, 5),
+        craftMaterial("#f5efe0", { rough: 0.75 }),
       );
       const a = Math.random() * Math.PI * 2;
-      const rr = Math.random() * capR * 0.7;
+      const t = 0.25 + Math.random() * 0.85; // polar angle down the dome
+      spot.scale.y = 0.35;
       spot.position.set(
-        px + Math.cos(a) * rr,
-        h + capR * 0.5,
-        pz + Math.sin(a) * rr,
+        capX + Math.sin(t) * Math.cos(a) * capR * 0.92,
+        capY + Math.cos(t) * capR * 0.68,
+        pz + Math.sin(t) * Math.sin(a) * capR * 0.92,
       );
       g.add(spot);
     }
