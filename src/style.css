@@ -312,6 +312,92 @@ body {
   filter: brightness(1.15);
 }
 
+/* ============ customiser panels ============ */
+.cfg-panel {
+  position: absolute;
+  top: 52px;
+  right: 10px;
+  width: 248px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(22, 25, 22, 0.96);
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  z-index: 9;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.cfg-panel.hidden {
+  display: none;
+}
+.cfg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cfg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cfg-label {
+  width: 62px;
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.cfg-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--green);
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.swatch {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 0;
+  background: var(--sw);
+  transition: transform 0.1s ease;
+}
+.swatch:hover {
+  transform: scale(1.2);
+}
+.swatch.is-active {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(109, 158, 79, 0.5);
+}
+.swatch--none {
+  background:
+    linear-gradient(135deg, transparent 44%, #c95f4a 46%, #c95f4a 54%, transparent 56%),
+    rgba(255, 255, 255, 0.1);
+}
+.cfg-del {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(201, 95, 74, 0.2);
+  color: #f0b2a3;
+  border: 1px solid rgba(201, 95, 74, 0.4);
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cfg-del:hover {
+  background: rgba(201, 95, 74, 0.35);
+}
+
 /* ============ left HUD: tool list ============ */
 .hud-tools {
   position: absolute;

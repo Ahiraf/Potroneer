@@ -175,6 +175,9 @@ add("ladybug", "লেডিবাগ", [
   ["লাল", { shell: "#c93326" }],
   ["হলুদ", { shell: "#d9a32a" }],
 ]);
+add("sp-faceted", "ফ্রেম টেরারিয়াম", [["", {}]]);
+add("sp-snake", "স্নেক টেরারিয়াম", [["", {}]]);
+add("sp-herb", "হার্ব টেরারিয়াম", [["", {}]]);
 add("deer", "হরিণ", [
   ["বাদামি", { body: "#a8794f", dark: "#6e4c2e" }],
   ["সাদা", { body: "#ddd5c8", dark: "#a89a88" }],
@@ -203,6 +206,9 @@ const CAT_BY_KIND = {
   house: "structures",
   lantern: "structures",
   driftwood: "wood",
+  "sp-faceted": "showpiece",
+  "sp-snake": "showpiece",
+  "sp-herb": "showpiece",
 };
 D.forEach((d) => (d.cat = CAT_BY_KIND[d.kind] || "plants"));
 
@@ -217,6 +223,7 @@ export const CATEGORIES = [
   { id: "rocks", label: "পাথর ও ক্রিস্টাল", icon: "💎" },
   { id: "animals", label: "প্রাণী", icon: "🦌" },
   { id: "structures", label: "স্থাপনা", icon: "🏠" },
+  { id: "showpiece", label: "শোপিস", icon: "🏺" },
   { id: "wood", label: "কাঠ", icon: "🪵" },
 ];
 

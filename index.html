@@ -50,8 +50,27 @@
 
       <!-- save + gallery, always visible top-right -->
       <div class="corner-actions">
+        <button id="jar-custom-btn" class="hud-btn" title="জার কাস্টমাইজ">🎨</button>
         <button id="save" class="hud-btn" title="টেরারিয়াম সংরক্ষণ করো">💾</button>
         <button id="gallery-btn" class="hud-btn" title="আমার টেরারিয়াম">🖼️</button>
+      </div>
+
+      <!-- jar customiser: frame colour, glass tint, shape sliders -->
+      <div class="cfg-panel hidden" id="jar-panel">
+        <div class="cfg-head"><span data-i18n="জার কাস্টমাইজ">জার কাস্টমাইজ</span><button class="hud-btn cfg-close" data-close="jar-panel">✕</button></div>
+        <div class="cfg-row"><span class="cfg-label" data-i18n="ফ্রেম রং">ফ্রেম রং</span><div class="swatches" id="frame-swatches"></div></div>
+        <div class="cfg-row"><span class="cfg-label" data-i18n="কাচের রং">কাচের রং</span><div class="swatches" id="glass-swatches"></div></div>
+        <div class="cfg-row"><span class="cfg-label" data-i18n="চওড়া">চওড়া</span><input id="jar-w" type="range" min="70" max="135" value="100" /></div>
+        <div class="cfg-row"><span class="cfg-label" data-i18n="উচ্চতা">উচ্চতা</span><input id="jar-h" type="range" min="70" max="140" value="100" /></div>
+      </div>
+
+      <!-- item adjuster: opens when a placed decoration is tapped -->
+      <div class="cfg-panel hidden" id="item-panel">
+        <div class="cfg-head"><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><button class="hud-btn cfg-close" data-close="item-panel">✕</button></div>
+        <div class="cfg-row"><span class="cfg-label" data-i18n="সাইজ">সাইজ</span><input id="item-size" type="range" min="30" max="220" value="100" /></div>
+        <div class="cfg-row"><span class="cfg-label" data-i18n="ঘোরাও">ঘোরাও</span><input id="item-rot" type="range" min="0" max="360" value="0" /></div>
+        <div class="cfg-row"><span class="cfg-label" data-i18n="রং">রং</span><div class="swatches" id="item-swatches"></div></div>
+        <button id="item-del" class="cfg-del">🗑 <span data-i18n="মুছে ফেলো">মুছে ফেলো</span></button>
       </div>
 
       <!-- gallery modal -->

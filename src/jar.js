@@ -91,6 +91,33 @@ const BASE_JARS = [
     profile: eggProfile,
   },
   {
+    id: "pyramid",
+    label: "পিরামিড",
+    glyph: "🔺",
+    lid: false,
+    poly: "pyramid", // framed glass pyramid, like the blue reference
+    interior: { innerRadius: 0.95, bodyHeight: 1.3, floorY: -0.72, wallThickness: 0.04 },
+    profile: null,
+  },
+  {
+    id: "ico",
+    label: "জিওডেসিক",
+    glyph: "⬡",
+    lid: false,
+    poly: "ico", // black icosahedron frame terrarium
+    interior: { innerRadius: 0.95, bodyHeight: 1.1, floorY: -0.6, wallThickness: 0.04 },
+    profile: null,
+  },
+  {
+    id: "gem",
+    label: "রত্ন",
+    glyph: "💠",
+    lid: false,
+    poly: "gem", // faceted crystal/dodecahedron with wood frame
+    interior: { innerRadius: 0.95, bodyHeight: 1.05, floorY: -0.58, wallThickness: 0.04 },
+    profile: null,
+  },
+  {
     id: "greenhouse",
     label: "গ্রিনহাউস",
     glyph: "🏠",
@@ -288,11 +315,20 @@ function bowlProfile(it) {
 // Building the jar mesh
 // ---------------------------------------------------------------------------
 
-export function buildJar(typeId, envMap) {
+// Every glass/frame material created while building the current jar is
+// registered here so the customiser can re-tint them afterwards.
+let glassMats = [];
+let frameMats = [];
+function regGlass(m) { glassMats.push(m); return m; }
+function regFrame(m) { frameMats.push(m); return m; }
+
+export function buildJar(typeId, envMap, itOverride) {
   const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
-  const it = type.interior;
+  const it = itOverride || type.interior;
   const group = new THREE.Group();
   group.name = "jar";
+  glassMats = [];
+  frameMats = [];
 
   // No jar at all: an invisible stand-in mesh keeps the raycast plumbing happy.
   if (type.none) {
@@ -302,18 +338,19 @@ export function buildJar(typeId, envMap) {
     );
     ghost.visible = false;
     group.add(ghost);
-    return { group, glass: ghost };
+    return { group, glass: ghost, glassMats, frameMats };
   }
 
   if (type.bottle) return buildBottle(it, envMap, group);
   if (type.house) return buildGreenhouse(it, envMap, group);
+  if (type.poly) return buildPolyJar(it, envMap, group, type.poly);
 
   const profile = type.profile(it);
   // Low segment counts (e.g. the greenhouse's 6) leave crisp flat panes.
   const glassGeo = new THREE.LatheGeometry(profile, type.segments || 128);
   glassGeo.computeVertexNormals();
 
-  const glassMat = makeGlassMaterial(envMap);
+  const glassMat = regGlass(makeGlassMaterial(envMap));
 
   const glass = new THREE.Mesh(glassGeo, glassMat);
   group.add(glass);
@@ -343,13 +380,13 @@ export function buildJar(typeId, envMap) {
     const ringR = (it.innerRadius + it.wallThickness) * 0.68;
     const ring = new THREE.Mesh(
       new THREE.CylinderGeometry(ringR, ringR, 0.16, 48, 1, true),
-      new THREE.MeshStandardMaterial({
+      regFrame(new THREE.MeshStandardMaterial({
         color: "#c9b48a",
         roughness: 0.5,
         metalness: 0.6,
         side: THREE.DoubleSide,
         envMap: envMap || null,
-      }),
+      })),
     );
     ring.position.y = bodyTop + 0.62;
     group.add(ring);
@@ -358,12 +395,12 @@ export function buildJar(typeId, envMap) {
   // Cork stopper (apothecary jar) — a fat tan plug sitting in the neck with a
   // wider cap proud of the rim, slightly domed.
   if (type.lid === "cork") {
-    const corkMat = new THREE.MeshStandardMaterial({
+    const corkMat = regFrame(new THREE.MeshStandardMaterial({
       color: "#b98e5f",
       roughness: 0.95,
       metalness: 0,
       flatShading: true,
-    });
+    }));
     const neckR = (it.innerRadius + it.wallThickness) * 0.72;
     const plug = new THREE.Mesh(
       new THREE.CylinderGeometry(neckR * 0.96, neckR * 0.9, 0.22, 28),
@@ -389,11 +426,11 @@ export function buildJar(typeId, envMap) {
 
   // Wooden display base under the bell jar.
   if (type.woodBase) {
-    const baseMat = new THREE.MeshStandardMaterial({
+    const baseMat = regFrame(new THREE.MeshStandardMaterial({
       color: "#7a5a3a",
       roughness: 0.8,
       metalness: 0,
-    });
+    }));
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(
         (it.innerRadius + it.wallThickness) * 1.28,
@@ -459,7 +496,7 @@ function buildBottle(it, envMap, group) {
 
   const glassGeo = new THREE.LatheGeometry(pts, 96);
   glassGeo.computeVertexNormals();
-  const glass = new THREE.Mesh(glassGeo, makeGlassMaterial(envMap));
+  const glass = new THREE.Mesh(glassGeo, regGlass(makeGlassMaterial(envMap)));
   glass.rotation.z = -Math.PI / 2; // neck points +x
   glass.position.y = centerY;
   group.add(glass);
@@ -467,11 +504,11 @@ function buildBottle(it, envMap, group) {
   // cork plugging the neck
   const cork = new THREE.Mesh(
     new THREE.CylinderGeometry(0.09, 0.085, 0.22, 16),
-    new THREE.MeshStandardMaterial({
+    regFrame(new THREE.MeshStandardMaterial({
       color: "#b98e5f",
       roughness: 0.95,
       flatShading: true,
-    }),
+    })),
   );
   cork.rotation.z = Math.PI / 2;
   cork.position.set(bodyLen / 2 + 0.88, centerY, 0);
@@ -491,7 +528,7 @@ function buildBottle(it, envMap, group) {
   group.add(bed);
 
   // wooden cradle: plank + two chocks
-  const woodMat = new THREE.MeshStandardMaterial({ color: "#6e4f30", roughness: 0.85 });
+  const woodMat = regFrame(new THREE.MeshStandardMaterial({ color: "#6e4f30", roughness: 0.85 }));
   const plank = new THREE.Mesh(
     new THREE.BoxGeometry(bodyLen * 0.9, 0.09, R * 1.7),
     woodMat,
@@ -512,7 +549,7 @@ function buildBottle(it, envMap, group) {
     group.add(chock);
   }
 
-  return { group, glass };
+  return { group, glass, glassMats, frameMats };
 }
 
 // A geometric glass greenhouse: rectangular box of clear panes held in a thin
@@ -526,14 +563,14 @@ function buildGreenhouse(it, envMap, group) {
   const roofH = 0.62;
   const ridgeY = wallTop + roofH;
 
-  const glassMat = makeGlassMaterial(envMap);
+  const glassMat = regGlass(makeGlassMaterial(envMap));
   glassMat.thickness = 0.25;
-  const frameMat = new THREE.MeshStandardMaterial({
+  const frameMat = regFrame(new THREE.MeshStandardMaterial({
     color: 0x232323,
     roughness: 0.45,
     metalness: 0.55,
     envMap: envMap || null,
-  });
+  }));
 
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   // thin square bar between two points
@@ -649,7 +686,79 @@ function buildGreenhouse(it, envMap, group) {
   liner.position.y = it.floorY + 0.005;
   group.add(liner);
 
-  return { group, glass: glassSide };
+  return { group, glass: glassSide, glassMats, frameMats };
+}
+
+// Framed polyhedron terrariums — glass panes inside a visible strut frame,
+// like the pyramid / icosahedron / faceted-gem pieces in the references.
+function buildPolyJar(it, envMap, group, kind) {
+  let geo;
+  let centerY;
+  if (kind === "pyramid") {
+    const h = it.bodyHeight + 1.1;
+    geo = new THREE.ConeGeometry(it.innerRadius * 1.55, h, 4, 1);
+    geo.rotateY(Math.PI / 4);
+    centerY = it.floorY - 0.06 + h / 2;
+  } else if (kind === "ico") {
+    const R = it.innerRadius * 1.4;
+    geo = new THREE.IcosahedronGeometry(R, 0);
+    centerY = it.floorY + R * 0.6;
+  } else {
+    const R = it.innerRadius * 1.42;
+    geo = new THREE.DodecahedronGeometry(R, 0);
+    centerY = it.floorY + R * 0.58;
+  }
+
+  const glassMat = regGlass(makeGlassMaterial(envMap));
+  const glass = new THREE.Mesh(geo, glassMat);
+  glass.position.y = centerY;
+  group.add(glass);
+
+  // frame: a strut along every visible edge
+  const frameMat = regFrame(
+    new THREE.MeshStandardMaterial({
+      color: kind === "gem" ? 0x8a6a44 : 0x26282c,
+      roughness: 0.5,
+      metalness: kind === "gem" ? 0.1 : 0.55,
+      envMap: envMap || null,
+    }),
+  );
+  const edges = new THREE.EdgesGeometry(geo, 5);
+  const ep = edges.attributes.position;
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < ep.count; i += 2) {
+    a.set(ep.getX(i), ep.getY(i) + centerY, ep.getZ(i));
+    b.set(ep.getX(i + 1), ep.getY(i + 1) + centerY, ep.getZ(i + 1));
+    const dir = b.clone().sub(a);
+    const strut = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.022, 0.022, dir.length(), 6),
+      frameMat,
+    );
+    strut.position.copy(a).add(b).multiplyScalar(0.5);
+    strut.quaternion.setFromUnitVectors(up, dir.normalize());
+    strut.castShadow = true;
+    group.add(strut);
+  }
+
+  // planter tray under the glass
+  const tray = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      it.innerRadius * 1.18,
+      it.innerRadius * 1.26,
+      0.16,
+      kind === "pyramid" ? 4 : 6,
+    ),
+    frameMat,
+  );
+  if (kind === "pyramid") tray.rotation.y = Math.PI / 4;
+  tray.position.y = it.floorY - 0.08;
+  tray.receiveShadow = true;
+  tray.castShadow = true;
+  group.add(tray);
+
+  return { group, glass, glassMats, frameMats };
 }
 
 // Tiny water droplets instanced onto the inside of the glass wall, densest

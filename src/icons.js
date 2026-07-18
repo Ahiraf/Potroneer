@@ -5,6 +5,7 @@
 
 import * as THREE from "three";
 import { buildDecoration, buildLayer } from "./builders.js";
+import { getModelClone } from "./models.js";
 import { buildJar } from "./jar.js";
 
 const SIZE = 96;
@@ -61,7 +62,7 @@ function snapshot(object) {
 
 // One thumbnail per decoration variant.
 export function decorationIcon(kind, variant) {
-  return snapshot(buildDecoration(kind, variant));
+  return snapshot(getModelClone(kind) ?? buildDecoration(kind, variant));
 }
 
 // Base materials: render a little layer disc with its speckle + grains.

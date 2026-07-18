@@ -13,18 +13,23 @@ const MODEL_FILES = {
   deer: { file: "deer.glb", size: 0.45 },
   butterfly: { file: "butterfly.glb", size: 0.14 },
   ladybug: { file: "ladybug.glb", size: 0.09 },
-  snail: { file: "snail.glb", size: 0.2 },
+  shell: { file: "snail.glb", size: 0.2 },
   fern: { file: "fern.glb", size: 0.5 },
+  leafy: { file: "leafy.glb", size: 0.45 },
   snakeplant: { file: "snakeplant.glb", size: 0.7 },
   mushroom: { file: "mushroom.glb", size: 0.25 },
   driftwood: { file: "driftwood.glb", size: 0.5 },
   stone: { file: "stone.glb", size: 0.25 },
   succulent: { file: "succulent.glb", size: 0.3 },
+  // complete showpiece terrariums (placed as objects, lovely in no-jar mode)
+  "sp-faceted": { file: "sp-faceted.glb", size: 1.25 },
+  "sp-snake": { file: "sp-snake.glb", size: 1.0 },
+  "sp-herb": { file: "sp-herb.glb", size: 1.1 },
 };
 
 const cache = new Map();
 
-export function preloadModels() {
+export function preloadModels(onLoaded) {
   const loader = new GLTFLoader();
   Object.entries(MODEL_FILES).forEach(([kind, { file, size }]) => {
     loader.load(
@@ -46,6 +51,7 @@ export function preloadModels() {
           }
         });
         cache.set(kind, scene);
+        onLoaded?.(kind);
       },
       undefined,
       () => {}, // missing file → procedural fallback, no error spam

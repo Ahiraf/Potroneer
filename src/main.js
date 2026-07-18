@@ -26,8 +26,12 @@ import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
 import { preloadModels, getModelClone } from "./models.js";
 
-// kick off background loading of any real GLB models in /public/models
-preloadModels();
+// kick off background loading of any real GLB models in /public/models;
+// once a model arrives, re-render icons so cards show the real thing
+preloadModels(() => {
+  iconCache.clear();
+  renderStrip();
+});
 
 const canvas = document.getElementById("scene");
 const studio = createStudio(canvas);
@@ -43,6 +47,8 @@ studio.world.add(substrateGroup, decorGroup);
 let currentJarId = JAR_TYPES[0].id;
 let jarGroup = null;
 let jarGlass = null;
+let jarBuilt = null; // {glassMats, frameMats, frameOrig} of the current jar
+const jarCustom = { frame: null, glass: null, w: 1, h: 1 };
 let pickPlane = null;
 let motes = null;
 
@@ -97,12 +103,22 @@ function setJar(typeId) {
   const type = JAR_BY_ID[typeId];
   if (!type) return;
   currentJarId = typeId;
-  setJarInterior(type.interior);
+  // apply the customiser's shape sliders to this jar's interior
+  const it = {
+    ...type.interior,
+    innerRadius: type.interior.innerRadius * jarCustom.w,
+    bodyHeight: type.interior.bodyHeight * jarCustom.h,
+    floorY: type.interior.floorY * jarCustom.h,
+  };
+  setJarInterior(it);
 
   if (jarGroup) studio.world.remove(jarGroup);
   if (pickPlane) studio.world.remove(pickPlane);
 
-  const built = buildJar(typeId, studio.envMap);
+  const built = buildJar(typeId, studio.envMap, it);
+  jarBuilt = built;
+  jarBuilt.frameOrig = built.frameMats.map((m) => m.color.clone());
+  applyJarColors();
   jarGroup = built.group;
   jarGlass = built.glass;
   studio.world.add(jarGroup);
@@ -133,6 +149,19 @@ function setJar(typeId) {
   });
   rebuildAll();
   pickPlane.position.y = substrateTop(state) + 0.001;
+}
+
+// Re-tint the current jar's glass and frame from the customiser choices.
+function applyJarColors() {
+  if (!jarBuilt) return;
+  jarBuilt.glassMats.forEach((m) => {
+    m.color.set(jarCustom.glass ?? 0xffffff);
+    if (m.attenuationColor) m.attenuationColor.set(jarCustom.glass ?? 0xd6efe4);
+  });
+  jarBuilt.frameMats.forEach((m, i) => {
+    if (jarCustom.frame) m.color.set(jarCustom.frame);
+    else m.color.copy(jarBuilt.frameOrig[i]);
+  });
 }
 
 // --- tiny tween system (for satisfying "plop" placements) ------------------
@@ -231,6 +260,7 @@ function rebuildAll() {
     obj.scale.setScalar(rec.scale);
     obj.userData.record = rec;
     obj.userData.baseScale = rec.scale;
+    if (rec.tint) applyTint(obj, rec.tint);
     decorGroup.add(obj);
   });
   updateHint();
@@ -255,7 +285,9 @@ function placeDecoration(worldPoint, def) {
   const local = studio.world.worldToLocal(worldPoint.clone());
   const obj = getModelClone(def.kind) ?? buildDecoration(def.kind, def.variant);
 
-  const targetScale = 0.85 + Math.random() * 0.5;
+  // items scale with the vessel: a small jar gets proportionally small plants
+  const jarK = Math.min(1.25, Math.max(0.55, JAR.innerRadius / 1.0));
+  const targetScale = (0.85 + Math.random() * 0.5) * jarK;
   const rotation = Math.random() * Math.PI * 2;
   obj.rotation.y = rotation;
   obj.rotation.x = (Math.random() - 0.5) * 0.14; // slight hand-placed lean
@@ -272,6 +304,7 @@ function placeDecoration(worldPoint, def) {
     y: obj.position.y,
     rotation,
     scale: targetScale,
+    tint: null,
   };
   addDecoration(state, record);
   // Link mesh ↔ model so dragging can keep the data in sync.
@@ -432,6 +465,14 @@ function tryPlaceDecoration(screen, id) {
 }
 
 studio.setTapHandler((screen) => {
+  // tapping a placed decoration opens the item adjuster instead of placing
+  if (activeTool === "place" && decorGroup.children.length) {
+    const hitD = studio.raycast(screen, decorGroup.children);
+    if (hitD) {
+      openItemPanel(topDecor(hitD.object));
+      return;
+    }
+  }
   if (selected.group === "base") {
     // Any tap over the jar drops another substrate layer.
     const hit = studio.raycast(screen, [jarGlass, pickPlane]);
@@ -764,6 +805,7 @@ function saveTerrarium() {
     entries.unshift({
       id: Date.now(),
       jarId: currentJarId,
+      custom: { ...jarCustom },
       layers: state.layers,
       decorations: state.decorations,
       terrain: Array.from(state.terrain),
@@ -796,6 +838,9 @@ function renderGallery() {
     card.innerHTML = `<img src="${e.thumb}" alt=""><div class="gal-meta"><span>${date}</span><span class="gal-actions"><button class="gal-load">${t("লোড")}</button><button class="gal-del">✕</button></span></div>`;
     card.querySelector(".gal-load").addEventListener("click", () => {
       snapshot();
+      Object.assign(jarCustom, e.custom ?? { frame: null, glass: null, w: 1, h: 1 });
+      document.getElementById("jar-w").value = Math.round(jarCustom.w * 100);
+      document.getElementById("jar-h").value = Math.round(jarCustom.h * 100);
       setJar(e.jarId);
       state.layers.length = 0;
       state.layers.push(...e.layers);
@@ -822,6 +867,118 @@ document.getElementById("gallery-btn").addEventListener("click", () => {
 });
 document.getElementById("gal-close").addEventListener("click", () => {
   galleryEl.classList.add("hidden");
+});
+
+// --- jar customiser (🎨) ----------------------------------------------------
+const FRAME_COLORS = [null, "#26282c", "#b08d3e", "#a05a32", "#e8e4dc", "#7a5a34", "#3a5a8c", "#c76a94"];
+const GLASS_TINTS = [null, "#cfe8d8", "#cfe0f0", "#f0d9b0", "#f0d0dc", "#ded0f0", "#b8bcc0"];
+const ITEM_TINTS = [null, "#c94f3f", "#e8a33d", "#e8d24a", "#6faa4e", "#4a9c8c", "#5a7ac9", "#9a6ac9", "#d17aa0", "#f2ece0"];
+
+const jarPanelEl = document.getElementById("jar-panel");
+const itemPanelEl = document.getElementById("item-panel");
+
+function buildSwatches(containerId, colors, getActive, onPick) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = "";
+  colors.forEach((hex) => {
+    const b = document.createElement("button");
+    b.className = hex ? "swatch" : "swatch swatch--none";
+    if (hex) b.style.setProperty("--sw", hex);
+    b.classList.toggle("is-active", getActive() === hex);
+    b.addEventListener("click", () => {
+      onPick(hex);
+      buildSwatches(containerId, colors, getActive, onPick);
+    });
+    el.appendChild(b);
+  });
+}
+
+function refreshJarSwatches() {
+  buildSwatches("frame-swatches", FRAME_COLORS, () => jarCustom.frame, (hex) => {
+    jarCustom.frame = hex;
+    applyJarColors();
+  });
+  buildSwatches("glass-swatches", GLASS_TINTS, () => jarCustom.glass, (hex) => {
+    jarCustom.glass = hex;
+    applyJarColors();
+  });
+}
+
+document.getElementById("jar-custom-btn").addEventListener("click", () => {
+  itemPanelEl.classList.add("hidden");
+  refreshJarSwatches();
+  jarPanelEl.classList.toggle("hidden");
+});
+document.querySelectorAll(".cfg-close").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.getElementById(b.dataset.close).classList.add("hidden");
+  }),
+);
+document.getElementById("jar-w").addEventListener("input", (e) => {
+  jarCustom.w = Number(e.target.value) / 100;
+  setJar(currentJarId);
+});
+document.getElementById("jar-h").addEventListener("input", (e) => {
+  jarCustom.h = Number(e.target.value) / 100;
+  setJar(currentJarId);
+});
+
+// --- item adjuster: size / rotation / colour for any placed decoration ------
+let adjTarget = null;
+
+// tint every mesh of an object toward a hue (or restore its own colours)
+function applyTint(obj, hex) {
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    if (!o.userData.origColor) {
+      o.material = o.material.clone(); // avoid tinting shared materials
+      o.userData.origColor = o.material.color.clone();
+    }
+    if (hex) o.material.color.copy(o.userData.origColor).lerp(new THREE.Color(hex), 0.72);
+    else o.material.color.copy(o.userData.origColor);
+  });
+}
+
+function openItemPanel(obj) {
+  if (!obj?.userData?.record) return;
+  adjTarget = obj;
+  jarPanelEl.classList.add("hidden");
+  const rec = obj.userData.record;
+  document.getElementById("item-size").value = Math.round((rec.scale ?? 1) * 100);
+  const deg = ((rec.rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  document.getElementById("item-rot").value = Math.round((deg / (Math.PI * 2)) * 360);
+  buildSwatches("item-swatches", ITEM_TINTS, () => rec.tint ?? null, (hex) => {
+    rec.tint = hex;
+    applyTint(adjTarget, hex);
+  });
+  itemPanelEl.classList.remove("hidden");
+  studio.markInteraction();
+}
+
+document.getElementById("item-size").addEventListener("input", (e) => {
+  if (!adjTarget) return;
+  const sc = Number(e.target.value) / 100;
+  const rec = adjTarget.userData.record;
+  rec.scale = sc;
+  adjTarget.userData.baseScale = sc;
+  adjTarget.scale.setScalar(sc);
+});
+document.getElementById("item-rot").addEventListener("input", (e) => {
+  if (!adjTarget) return;
+  const rad = (Number(e.target.value) / 360) * Math.PI * 2;
+  adjTarget.userData.record.rotation = rad;
+  adjTarget.rotation.y = rad;
+});
+document.getElementById("item-del").addEventListener("click", () => {
+  if (!adjTarget) return;
+  snapshot();
+  const rec = adjTarget.userData.record;
+  const i = state.decorations.indexOf(rec);
+  if (i >= 0) state.decorations.splice(i, 1);
+  decorGroup.remove(adjTarget);
+  adjTarget = null;
+  itemPanelEl.classList.add("hidden");
+  updateHint();
 });
 
 // --- language toggle -------------------------------------------------------

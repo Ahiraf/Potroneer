@@ -125,6 +125,23 @@ const EN = {
   "টেরারিয়াম সংরক্ষিত!": "Terrarium saved!",
   "জায়গা নেই — গ্যালারি থেকে কিছু মুছে ফেলো।": "Out of space — delete some from the gallery.",
   "গ্যালারি খালি — 💾 দিয়ে সংরক্ষণ করো।": "Gallery is empty — save with 💾.",
+  "পিরামিড": "Pyramid",
+  "জিওডেসিক": "Geodesic",
+  "রত্ন": "Gem",
+  "শোপিস": "Showpieces",
+  "ফ্রেম টেরারিয়াম": "Frame terrarium",
+  "স্নেক টেরারিয়াম": "Snake-plant terrarium",
+  "হার্ব টেরারিয়াম": "Herb terrarium",
+  "জার কাস্টমাইজ": "Customize jar",
+  "ফ্রেম রং": "Frame color",
+  "কাচের রং": "Glass tint",
+  "চওড়া": "Width",
+  "উচ্চতা": "Height",
+  "আইটেম সাজাও": "Adjust item",
+  "সাইজ": "Size",
+  "ঘোরাও": "Rotate",
+  "রং": "Color",
+  "মুছে ফেলো": "Delete",
 };
 
 let lang = localStorage.getItem("terrarium-lang") || "bn";
