@@ -115,19 +115,32 @@ const SIZES = [
   { suffix: "-l", label: "বড়", r: 1.16, h: 1.2 },
 ];
 
-export const JAR_TYPES = BASE_JARS.flatMap((base) =>
-  SIZES.map((s) => ({
-    ...base,
-    id: `${base.id}${s.suffix}`,
-    label: s.label ? `${base.label} · ${s.label}` : base.label,
-    interior: {
-      ...base.interior,
-      innerRadius: base.interior.innerRadius * s.r,
-      bodyHeight: base.interior.bodyHeight * s.h,
-      floorY: base.interior.floorY * s.h,
-    },
-  })),
-);
+export const JAR_TYPES = [
+  // Like the reference: you can build the whole terrarium in the open on the
+  // table first, and slip a jar over it whenever you like.
+  {
+    id: "none",
+    label: "জার ছাড়া",
+    glyph: "⊘",
+    none: true,
+    lid: false,
+    interior: { innerRadius: 1.02, bodyHeight: 2.4, floorY: -1.15, wallThickness: 0.05 },
+    profile: null,
+  },
+  ...BASE_JARS.flatMap((base) =>
+    SIZES.map((s) => ({
+      ...base,
+      id: `${base.id}${s.suffix}`,
+      label: s.label ? `${base.label} · ${s.label}` : base.label,
+      interior: {
+        ...base.interior,
+        innerRadius: base.interior.innerRadius * s.r,
+        bodyHeight: base.interior.bodyHeight * s.h,
+        floorY: base.interior.floorY * s.h,
+      },
+    })),
+  ),
+];
 
 export const JAR_BY_ID = Object.fromEntries(JAR_TYPES.map((j) => [j.id, j]));
 
@@ -280,6 +293,17 @@ export function buildJar(typeId, envMap) {
   const it = type.interior;
   const group = new THREE.Group();
   group.name = "jar";
+
+  // No jar at all: an invisible stand-in mesh keeps the raycast plumbing happy.
+  if (type.none) {
+    const ghost = new THREE.Mesh(
+      new THREE.BoxGeometry(0.001, 0.001, 0.001),
+      new THREE.MeshBasicMaterial(),
+    );
+    ghost.visible = false;
+    group.add(ghost);
+    return { group, glass: ghost };
+  }
 
   if (type.bottle) return buildBottle(it, envMap, group);
   if (type.house) return buildGreenhouse(it, envMap, group);

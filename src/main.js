@@ -24,6 +24,10 @@ import {
 import { toggleAmbience } from "./ambience.js";
 import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
+import { preloadModels, getModelClone } from "./models.js";
+
+// kick off background loading of any real GLB models in /public/models
+preloadModels();
 
 const canvas = document.getElementById("scene");
 const studio = createStudio(canvas);
@@ -89,7 +93,7 @@ function animateMotes(now) {
   pos.needsUpdate = true;
 }
 
-function setJar(typeId, { keepContents = false } = {}) {
+function setJar(typeId) {
   const type = JAR_BY_ID[typeId];
   if (!type) return;
   currentJarId = typeId;
@@ -114,13 +118,20 @@ function setJar(typeId, { keepContents = false } = {}) {
   motes = buildMotes(type.interior);
   studio.world.add(motes);
 
-  // Different jars have different floors/radii, so start their contents fresh.
-  if (!keepContents) {
-    resetState(state);
-    substrateGroup.clear();
-    decorGroup.clear();
-    tweens.length = 0;
-  }
+  // The build survives jar changes — you can decorate in the open and slip a
+  // jar over it later, like the reference. Just nudge anything that would
+  // poke through the new glass back inside the footprint.
+  const rx = JAR.innerRadius * JAR.stretchX * 0.9;
+  const rz = JAR.innerRadius * 0.9;
+  state.decorations.forEach((rec) => {
+    const n = Math.hypot(rec.x / rx, rec.z / rz);
+    if (n > 1) {
+      rec.x /= n;
+      rec.z /= n;
+      rec.y = substrateTop(state) + heightAt(state, rec.x, rec.z);
+    }
+  });
+  rebuildAll();
   pickPlane.position.y = substrateTop(state) + 0.001;
 }
 
@@ -200,6 +211,7 @@ const history = [];
 function snapshot() {
   history.push(
     JSON.stringify({
+      jarId: currentJarId,
       layers: state.layers,
       decorations: state.decorations,
       terrain: Array.from(state.terrain),
@@ -213,7 +225,7 @@ function rebuildAll() {
   decorGroup.clear();
   state.decorations.forEach((rec) => {
     const def = DECORATIONS.find((d) => d.id === rec.id);
-    const obj = buildDecoration(rec.kind, def?.variant);
+    const obj = getModelClone(rec.kind) ?? buildDecoration(rec.kind, def?.variant);
     obj.rotation.y = rec.rotation;
     obj.position.set(rec.x, rec.y, rec.z);
     obj.scale.setScalar(rec.scale);
@@ -228,6 +240,7 @@ function undo() {
   const snap = history.pop();
   if (!snap) return;
   const d = JSON.parse(snap);
+  if (d.jarId && d.jarId !== currentJarId) setJar(d.jarId);
   state.layers.length = 0;
   state.layers.push(...d.layers);
   state.decorations.length = 0;
@@ -240,7 +253,7 @@ function undo() {
 // --- placement -------------------------------------------------------------
 function placeDecoration(worldPoint, def) {
   const local = studio.world.worldToLocal(worldPoint.clone());
-  const obj = buildDecoration(def.kind, def.variant);
+  const obj = getModelClone(def.kind) ?? buildDecoration(def.kind, def.variant);
 
   const targetScale = 0.85 + Math.random() * 0.5;
   const rotation = Math.random() * Math.PI * 2;
@@ -589,12 +602,35 @@ function iconFor(group, item) {
   const key = `${group}:${item.id}`;
   if (!iconCache.has(key)) {
     let url;
-    if (group === "jar") url = jarIcon(item.id);
+    if (group === "jar" && item.id === "none") url = noJarIcon();
+    else if (group === "jar") url = jarIcon(item.id);
     else if (group === "base") url = baseIcon(item.id, item.layerHeight);
     else url = decorationIcon(item.kind, item.variant);
     iconCache.set(key, url);
   }
   return iconCache.get(key);
+}
+
+// simple "no jar" card: a dashed circle drawn on canvas
+let noJarIconUrl = null;
+function noJarIcon() {
+  if (noJarIconUrl) return noJarIconUrl;
+  const c = document.createElement("canvas");
+  c.width = c.height = 96;
+  const ctx = c.getContext("2d");
+  ctx.strokeStyle = "rgba(232,230,223,0.7)";
+  ctx.lineWidth = 4;
+  ctx.setLineDash([9, 7]);
+  ctx.beginPath();
+  ctx.arc(48, 48, 32, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(26, 70);
+  ctx.lineTo(70, 26);
+  ctx.stroke();
+  noJarIconUrl = c.toDataURL("image/png");
+  return noJarIconUrl;
 }
 
 // --- drag an item chip straight into the jar -------------------------------
@@ -632,7 +668,10 @@ window.addEventListener("pointerup", (e) => {
   if (el !== canvas) return;
   const screen = { x: e.clientX, y: e.clientY };
   if (group === "jar") {
-    if (item.id !== currentJarId) setJar(item.id);
+    if (item.id !== currentJarId) {
+      snapshot();
+      setJar(item.id);
+    }
   } else if (group === "base") {
     selected = { group: "base", id: item.id };
     tryAddLayer(item.id);
@@ -679,7 +718,10 @@ function renderStrip() {
         if (e.target.classList.contains("fav-btn")) return;
         if (chipDrag?.ghost) return; // was a drag, not a click
         if (group === "jar") {
-          if (item.id !== currentJarId) setJar(item.id);
+          if (item.id !== currentJarId) {
+            snapshot();
+            setJar(item.id);
+          }
         } else {
           selected = { group, id: item.id };
           selectTool("place"); // picking a material returns to place mode
@@ -693,6 +735,94 @@ function renderStrip() {
 }
 
 searchEl.addEventListener("input", renderStrip);
+
+// --- gallery: save & revisit whole terrariums ------------------------------
+const GAL_KEY = "terrarium-gallery";
+const galleryEl = document.getElementById("gallery");
+const galGridEl = document.getElementById("gal-grid");
+
+function loadGallery() {
+  try {
+    return JSON.parse(localStorage.getItem(GAL_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveTerrarium() {
+  const full = studio.capture();
+  const img = new Image();
+  img.onload = () => {
+    // downscale the screenshot so dozens of saves fit in localStorage
+    const c = document.createElement("canvas");
+    const w = 320;
+    const h = Math.round((img.height / img.width) * w);
+    c.width = w;
+    c.height = h;
+    c.getContext("2d").drawImage(img, 0, 0, w, h);
+    const entries = loadGallery();
+    entries.unshift({
+      id: Date.now(),
+      jarId: currentJarId,
+      layers: state.layers,
+      decorations: state.decorations,
+      terrain: Array.from(state.terrain),
+      thumb: c.toDataURL("image/jpeg", 0.72),
+    });
+    try {
+      localStorage.setItem(GAL_KEY, JSON.stringify(entries.slice(0, 24)));
+      flashHint("টেরারিয়াম সংরক্ষিত!");
+    } catch {
+      flashHint("জায়গা নেই — গ্যালারি থেকে কিছু মুছে ফেলো।");
+    }
+  };
+  img.src = full;
+}
+
+function renderGallery() {
+  const entries = loadGallery();
+  galGridEl.innerHTML = "";
+  if (!entries.length) {
+    galGridEl.innerHTML = `<p class="gal-empty">${t("গ্যালারি খালি — 💾 দিয়ে সংরক্ষণ করো।")}</p>`;
+    return;
+  }
+  entries.forEach((e) => {
+    const card = document.createElement("div");
+    card.className = "gal-card";
+    const date = new Date(e.id).toLocaleDateString(
+      getLang() === "bn" ? "bn-BD" : "en-GB",
+      { day: "numeric", month: "short" },
+    );
+    card.innerHTML = `<img src="${e.thumb}" alt=""><div class="gal-meta"><span>${date}</span><span class="gal-actions"><button class="gal-load">${t("লোড")}</button><button class="gal-del">✕</button></span></div>`;
+    card.querySelector(".gal-load").addEventListener("click", () => {
+      snapshot();
+      setJar(e.jarId);
+      state.layers.length = 0;
+      state.layers.push(...e.layers);
+      state.decorations.length = 0;
+      state.decorations.push(...e.decorations);
+      state.terrain.set(e.terrain);
+      rebuildAll();
+      galleryEl.classList.add("hidden");
+      studio.markInteraction();
+    });
+    card.querySelector(".gal-del").addEventListener("click", () => {
+      const rest = loadGallery().filter((x) => x.id !== e.id);
+      localStorage.setItem(GAL_KEY, JSON.stringify(rest));
+      renderGallery();
+    });
+    galGridEl.appendChild(card);
+  });
+}
+
+document.getElementById("save").addEventListener("click", saveTerrarium);
+document.getElementById("gallery-btn").addEventListener("click", () => {
+  renderGallery();
+  galleryEl.classList.toggle("hidden");
+});
+document.getElementById("gal-close").addEventListener("click", () => {
+  galleryEl.classList.add("hidden");
+});
 
 // --- language toggle -------------------------------------------------------
 const TAB_LABELS = { sculpt: "ভাস্কর্য", paint: "পেইন্টিং", decor: "সাজানো", scene: "দৃশ্য" };

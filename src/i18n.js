@@ -119,6 +119,12 @@ const EN = {
     "Lay a base layer first, then sculpt or paint.",
   "ছবি সেভ হয়ে গেছে! বন্ধুদের দেখাও।": "Photo saved! Show your friends.",
   "পছন্দ": "Favorite",
+  "জার ছাড়া": "No jar",
+  "আমার টেরারিয়াম": "My Terrariums",
+  "লোড": "Load",
+  "টেরারিয়াম সংরক্ষিত!": "Terrarium saved!",
+  "জায়গা নেই — গ্যালারি থেকে কিছু মুছে ফেলো।": "Out of space — delete some from the gallery.",
+  "গ্যালারি খালি — 💾 দিয়ে সংরক্ষণ করো।": "Gallery is empty — save with 💾.",
 };
 
 let lang = localStorage.getItem("terrarium-lang") || "bn";

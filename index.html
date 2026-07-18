@@ -48,6 +48,21 @@
         </div>
       </div>
 
+      <!-- save + gallery, always visible top-right -->
+      <div class="corner-actions">
+        <button id="save" class="hud-btn" title="টেরারিয়াম সংরক্ষণ করো">💾</button>
+        <button id="gallery-btn" class="hud-btn" title="আমার টেরারিয়াম">🖼️</button>
+      </div>
+
+      <!-- gallery modal -->
+      <div class="gallery hidden" id="gallery">
+        <div class="gal-head">
+          <span data-i18n="আমার টেরারিয়াম">আমার টেরারিয়াম</span>
+          <button id="gal-close" class="hud-btn">✕</button>
+        </div>
+        <div class="gal-grid" id="gal-grid"></div>
+      </div>
+
       <!-- brush parameter sliders (sculpt/paint tabs) -->
       <div class="sliders" id="sliders">
         <div class="slider-chip" data-param="radius">
