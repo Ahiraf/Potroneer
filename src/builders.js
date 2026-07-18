@@ -140,14 +140,27 @@ export function buildTerrainCap(def) {
 
   const positions = [0, 0, 0]; // centre vertex
   const jitters = [0];
+  const ringT = [0]; // 0..1 radial position; 2 marks skirt vertices
   for (let r = 1; r <= rings; r++) {
     const rad = (r / rings) * R;
     for (let s = 0; s < sectors; s++) {
       const a = (s / sectors) * Math.PI * 2;
       positions.push(Math.cos(a) * rad * JAR.stretchX, 0, Math.sin(a) * rad);
       jitters.push(jitter(0.012));
+      ringT.push(r / rings);
     }
   }
+  // skirt: a second copy of the outer rim that drops below the surface, so
+  // the terrain reads as a solid mass instead of a floating shell
+  const rimStart = 1 + (rings - 1) * sectors;
+  const skirtStart = 1 + rings * sectors;
+  for (let s = 0; s < sectors; s++) {
+    const a = (s / sectors) * Math.PI * 2;
+    positions.push(Math.cos(a) * R * JAR.stretchX, 0, Math.sin(a) * R);
+    jitters.push(0);
+    ringT.push(2);
+  }
+
   const indices = [];
   for (let s = 0; s < sectors; s++) {
     indices.push(0, 1 + ((s + 1) % sectors), 1 + s);
@@ -160,6 +173,12 @@ export function buildTerrainCap(def) {
       indices.push(a0 + s, b0 + s1, b0 + s);
       indices.push(a0 + s, a0 + s1, b0 + s1);
     }
+  }
+  // skirt wall quads (double-sided material, so winding is forgiving)
+  for (let s = 0; s < sectors; s++) {
+    const s1 = (s + 1) % sectors;
+    indices.push(rimStart + s, skirtStart + s, skirtStart + s1);
+    indices.push(rimStart + s, skirtStart + s1, rimStart + s1);
   }
 
   const geo = new THREE.BufferGeometry();
@@ -178,11 +197,13 @@ export function buildTerrainCap(def) {
       roughness: 0.97,
       metalness: 0,
       flatShading: true,
+      side: THREE.DoubleSide,
     }),
   );
   mesh.receiveShadow = true;
   mesh.castShadow = false;
   mesh.userData.jitters = jitters;
+  mesh.userData.ringT = ringT;
   // per-vertex random seeds so painted materials keep a stable grain
   mesh.userData.seeds = jitters.map(() => (Math.random() * 1024) | 0);
   mesh.userData.fallbackDef = def;
@@ -193,10 +214,19 @@ export function buildTerrainCap(def) {
 export function updateTerrainCap(mesh, state, baseY) {
   const pos = mesh.geometry.attributes.position;
   const jitters = mesh.userData.jitters;
+  const ringT = mesh.userData.ringT;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
-    pos.setY(i, baseY + 0.005 + heightAt(state, x, z) + jitters[i]);
+    if (ringT[i] === 2) {
+      // skirt: tuck well below the surface so the side wall closes any gap
+      pos.setY(i, baseY - 0.12);
+      continue;
+    }
+    // fade sculpted height to zero at the rim so the edge always sits flush
+    // on the layer beneath — no more floating sheet
+    const fade = ringT[i] <= 0.82 ? 1 : Math.max(0, (1 - ringT[i]) / 0.18);
+    pos.setY(i, baseY + 0.005 + heightAt(state, x, z) * fade + jitters[i]);
   }
   pos.needsUpdate = true;
   mesh.geometry.computeVertexNormals();
