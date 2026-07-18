@@ -28,9 +28,11 @@ import { preloadModels, getModelClone } from "./models.js";
 
 // kick off background loading of any real GLB models in /public/models;
 // once a model arrives, re-render icons so cards show the real thing
-preloadModels(() => {
+preloadModels((kind) => {
   iconCache.clear();
   renderStrip();
+  // if the user is already on a model jar, swap the placeholder for the model
+  if (kind === currentJarId) setJar(currentJarId);
 });
 
 const canvas = document.getElementById("scene");

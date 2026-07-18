@@ -21,17 +21,21 @@ const MODEL_FILES = {
   driftwood: { file: "driftwood.glb", size: 0.5 },
   stone: { file: "stone.glb", size: 0.25 },
   succulent: { file: "succulent.glb", size: 0.3 },
-  // complete showpiece terrariums (placed as objects, lovely in no-jar mode)
-  "sp-faceted": { file: "sp-faceted.glb", size: 1.25 },
-  "sp-snake": { file: "sp-snake.glb", size: 1.0 },
-  "sp-herb": { file: "sp-herb.glb", size: 1.1 },
+};
+
+// Complete terrarium models used as JAR types — the whole vessel is the model.
+const JAR_MODEL_FILES = {
+  "jar-faceted": { file: "sp-faceted.glb", size: 2.3 },
+  "jar-snake": { file: "sp-snake.glb", size: 2.0 },
+  "jar-herb": { file: "sp-herb.glb", size: 2.1 },
 };
 
 const cache = new Map();
 
 export function preloadModels(onLoaded) {
   const loader = new GLTFLoader();
-  Object.entries(MODEL_FILES).forEach(([kind, { file, size }]) => {
+  const all = { ...MODEL_FILES, ...JAR_MODEL_FILES };
+  Object.entries(all).forEach(([kind, { file, size }]) => {
     loader.load(
       `/models/${file}`,
       (gltf) => {
@@ -67,4 +71,13 @@ export function getModelClone(kind) {
   const wrap = new THREE.Group();
   wrap.add(m.clone(true));
   return wrap;
+}
+
+// Clone of a whole-terrarium jar model, or null while still loading.
+export function getJarModelClone(id) {
+  return getModelClone(id);
+}
+
+export function isJarModelLoaded(id) {
+  return cache.has(id);
 }

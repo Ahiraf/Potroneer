@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { JAR } from "./state.js";
+import { getJarModelClone } from "./models.js";
 
 // ---------------------------------------------------------------------------
 // Jar shapes
@@ -152,6 +153,34 @@ export const JAR_TYPES = [
     none: true,
     lid: false,
     interior: { innerRadius: 1.02, bodyHeight: 2.4, floorY: -1.15, wallThickness: 0.05 },
+    profile: null,
+  },
+  // Whole-terrarium GLB models as ready-made vessels (added by the user).
+  {
+    id: "jar-faceted",
+    label: "ফ্রেম টেরারিয়াম",
+    glyph: "🔶",
+    lid: false,
+    modelJar: true,
+    interior: { innerRadius: 0.8, bodyHeight: 1.0, floorY: -0.35, wallThickness: 0.04 },
+    profile: null,
+  },
+  {
+    id: "jar-snake",
+    label: "স্নেক টেরারিয়াম",
+    glyph: "🦎",
+    lid: false,
+    modelJar: true,
+    interior: { innerRadius: 0.8, bodyHeight: 0.9, floorY: -0.3, wallThickness: 0.04 },
+    profile: null,
+  },
+  {
+    id: "jar-herb",
+    label: "হার্ব টেরারিয়াম",
+    glyph: "🌱",
+    lid: false,
+    modelJar: true,
+    interior: { innerRadius: 0.75, bodyHeight: 1.1, floorY: -0.3, wallThickness: 0.04 },
     profile: null,
   },
   ...BASE_JARS.flatMap((base) =>
@@ -329,6 +358,31 @@ export function buildJar(typeId, envMap, itOverride) {
   group.name = "jar";
   glassMats = [];
   frameMats = [];
+
+  // Ready-made model terrarium: render the GLB as the vessel itself. While the
+  // model is still loading a simple wooden plinth stands in; main.js swaps it
+  // as soon as the file arrives.
+  if (type.modelJar) {
+    const ghost = new THREE.Mesh(
+      new THREE.BoxGeometry(0.001, 0.001, 0.001),
+      new THREE.MeshBasicMaterial(),
+    );
+    ghost.visible = false;
+    group.add(ghost);
+    const model = getJarModelClone(type.id);
+    if (model) {
+      model.position.y = it.floorY - it.wallThickness;
+      group.add(model);
+    } else {
+      const plinth = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.9, 1.0, 0.12, 24),
+        regFrame(new THREE.MeshStandardMaterial({ color: "#7a5a3a", roughness: 0.85 })),
+      );
+      plinth.position.y = it.floorY - 0.06;
+      group.add(plinth);
+    }
+    return { group, glass: ghost, glassMats, frameMats };
+  }
 
   // No jar at all: an invisible stand-in mesh keeps the raycast plumbing happy.
   if (type.none) {
