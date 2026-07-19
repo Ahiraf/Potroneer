@@ -20,6 +20,7 @@ import {
   setJarInterior,
   heightAt,
   sculpt,
+  flatten,
   paintMaterial,
   JAR,
 } from "./state.js";
@@ -357,6 +358,7 @@ const TOOLS = [
   { id: "mist", label: "স্প্রে", glyph: "💦" },
   { id: "raise", label: "উঁচু", glyph: "⛰️" },
   { id: "lower", label: "নিচু", glyph: "🕳️" },
+  { id: "flatten", label: "সমান", glyph: "🫓" },
   { id: "grass", label: "ঘাস", glyph: "🌱" },
   { id: "moss", label: "মস ব্রাশ", glyph: "🖌️" },
   { id: "pebble", label: "নুড়িপথ", glyph: "🪨" },
@@ -381,9 +383,13 @@ function applyBrush(screen) {
   if (!hit) return;
   const local = studio.world.worldToLocal(hit.point.clone());
 
-  if (activeTool === "raise" || activeTool === "lower") {
-    const amt = brushStrength() * (activeTool === "raise" ? 1 : -1);
-    sculpt(state, local.x, local.z, amt, brushRadius(), brushFalloff());
+  if (activeTool === "raise" || activeTool === "lower" || activeTool === "flatten") {
+    if (activeTool === "flatten") {
+      flatten(state, local.x, local.z, 0.5, brushRadius(), brushFalloff());
+    } else {
+      const amt = brushStrength() * (activeTool === "raise" ? 1 : -1);
+      sculpt(state, local.x, local.z, amt, brushRadius(), brushFalloff());
+    }
     if (terrainCap) updateTerrainCap(terrainCap, state, substrateTop(state));
     // Everything planted on the surface rides the terrain up/down.
     decorGroup.children.forEach((obj) => {
@@ -772,7 +778,7 @@ function updateSliderState() {
 // --- HUD: mode tabs (ভাস্কর্য / পেইন্টিং / সাজানো / দৃশ্য) --------------------
 // Each tab exposes its own tool subset in the left panel, like the reference.
 const TAB_TOOLS = {
-  sculpt: ["raise", "lower"],
+  sculpt: ["raise", "lower", "flatten"],
   paint: ["grass", "moss", "pebble"],
   decor: ["place", "water", "mist"],
   scene: [],

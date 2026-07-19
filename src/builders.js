@@ -365,6 +365,10 @@ export function buildDecoration(kind, v = {}) {
       return buildStone(v);
     case "slate":
       return buildSlate(v);
+    case "bonsai":
+      return buildBonsai(v);
+    case "mossball":
+      return buildMossBall(v);
     case "shell":
       return buildShell(v);
     case "grass":
@@ -1535,6 +1539,101 @@ function buildStone(v = {}) {
   stone.castShadow = true;
   stone.receiveShadow = true;
   g.add(stone);
+  return g;
+}
+
+// A cluster of small green moss blobs at a point — shared canopy/foliage.
+function mossClump(pos, colors, r) {
+  const grp = new THREE.Group();
+  const n = 4 + ((Math.random() * 4) | 0);
+  for (let i = 0; i < n; i++) {
+    const rad = r * (0.5 + Math.random() * 0.6);
+    const geo = new THREE.IcosahedronGeometry(rad, 1);
+    const p = geo.attributes.position;
+    for (let vi = 0; vi < p.count; vi++) {
+      p.setXYZ(vi, p.getX(vi) + jitter(0.01), p.getY(vi) + jitter(0.01), p.getZ(vi) + jitter(0.01));
+    }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, craftMaterial(colors[(Math.random() * colors.length) | 0], { rough: 1 }));
+    m.position.set(pos.x + jitter(r * 0.8), pos.y + jitter(r * 0.7), pos.z + jitter(r * 0.8));
+    m.castShadow = true;
+    grp.add(m);
+  }
+  return grp;
+}
+
+// A tiny driftwood bonsai: a gnarled tapering trunk that forks into a few
+// branches, each capped with a moss/foliage canopy — the "tiny bonsai scape".
+function buildBonsai(v = {}) {
+  const g = new THREE.Group();
+  const woodMat = craftMaterial(v.wood ?? "#6e5236", { rough: 0.9, flat: true });
+  const greens = v.colors ?? ["#5f8f3a", "#6f9f44", "#7faf50", "#548030"];
+  const H = 0.34 + Math.random() * 0.12;
+  const trunkCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(jitter(0.04), H * 0.35, jitter(0.04)),
+    new THREE.Vector3(jitter(0.06), H * 0.7, jitter(0.05)),
+    new THREE.Vector3(jitter(0.05), H, jitter(0.04)),
+  ]);
+  const trunk = new THREE.Mesh(new THREE.TubeGeometry(trunkCurve, 20, 0.026, 6), woodMat);
+  trunk.castShadow = true;
+  g.add(trunk);
+  // flared roots at the base
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const root = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.09, 5), woodMat);
+    root.position.set(Math.cos(a) * 0.04, 0.01, Math.sin(a) * 0.04);
+    root.rotation.set(Math.PI / 2 - 0.3, -a, 0);
+    g.add(root);
+  }
+  // branches forking off the upper trunk, each with a canopy
+  const branches = 3 + ((Math.random() * 3) | 0);
+  for (let i = 0; i < branches; i++) {
+    const base = trunkCurve.getPoint(0.55 + Math.random() * 0.4);
+    const a = (i / branches) * Math.PI * 2 + jitter(0.4);
+    const dir = new THREE.Vector3(Math.cos(a), 0.5 + Math.random() * 0.5, Math.sin(a)).normalize();
+    const end = base.clone().addScaledVector(dir, 0.09 + Math.random() * 0.08);
+    const br = new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3([base, base.clone().addScaledVector(dir, 0.05), end]), 8, 0.011, 5),
+      woodMat,
+    );
+    br.castShadow = true;
+    g.add(br);
+    g.add(mossClump(end, greens, 0.055 + Math.random() * 0.02));
+  }
+  // crowning canopy
+  g.add(mossClump(trunkCurve.getPoint(1), greens, 0.07));
+  return g;
+}
+
+// A kokedama-style moss ball: a rounded mound densely covered in bright moss
+// tufts, sitting on the ground — from the "Tree of Life" mossy landscape.
+function buildMossBall(v = {}) {
+  const g = new THREE.Group();
+  const greens = v.colors ?? ["#5f9a30", "#6faa3a", "#7fba4a", "#57922c", "#4e8a28"];
+  const R = 0.12 + Math.random() * 0.05;
+  const cy = R * 0.62; // sit on the ground
+  const n = 46 + ((Math.random() * 16) | 0);
+  for (let i = 0; i < n; i++) {
+    // fibonacci points biased to the upper dome
+    const t = Math.acos(1 - 1.7 * ((i + 0.5) / n));
+    const ph = i * 2.399963;
+    const dir = new THREE.Vector3(Math.sin(t) * Math.cos(ph), Math.cos(t), Math.sin(t) * Math.sin(ph));
+    const y = cy + dir.y * R;
+    if (y < R * 0.18) continue; // leave the underside bare
+    const rad = 0.03 + Math.random() * 0.022;
+    const geo = new THREE.IcosahedronGeometry(rad, 1);
+    const p = geo.attributes.position;
+    for (let vi = 0; vi < p.count; vi++) {
+      p.setXYZ(vi, p.getX(vi) + jitter(0.01), p.getY(vi) + jitter(0.01), p.getZ(vi) + jitter(0.01));
+    }
+    geo.computeVertexNormals();
+    const blob = new THREE.Mesh(geo, craftMaterial(greens[(Math.random() * greens.length) | 0], { rough: 1 }));
+    blob.position.set(dir.x * R, y, dir.z * R);
+    blob.scale.setScalar(0.8 + Math.random() * 0.5);
+    blob.castShadow = true;
+    g.add(blob);
+  }
   return g;
 }
 

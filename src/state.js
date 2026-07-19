@@ -79,6 +79,36 @@ export function heightAt(state, x, z) {
 // Apply a soft gaussian brush to the heightfield. Positive = mound up,
 // negative = carve down. Clamped so you can't dig through the substrate or
 // pile soil past the jar shoulder.
+// Tamp/level: ease terrain heights within the brush toward their local mean,
+// so the surface flattens and compacts (the wooden tamper in the reference).
+export function flatten(state, x, z, strength = 0.4, radius = 0.3, falloff = 0.8) {
+  const R = jarGridR();
+  const n = TERRAIN_N;
+  const cell = (2 * R) / (n - 1);
+  const r2 = radius * radius;
+  const cells = [];
+  let sum = 0;
+  let wsum = 0;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const wx = -R + i * cell;
+      const wz = -R + j * cell;
+      const d2 = (wx - x) * (wx - x) + (wz - z) * (wz - z);
+      if (d2 > r2 * 4) continue;
+      const fall = Math.exp(-d2 / (r2 * falloff));
+      const k = j * n + i;
+      sum += state.terrain[k] * fall;
+      wsum += fall;
+      cells.push([k, fall]);
+    }
+  }
+  if (!wsum) return;
+  const mean = sum / wsum;
+  for (const [k, fall] of cells) {
+    state.terrain[k] += (mean - state.terrain[k]) * Math.min(1, strength * fall * 2.5);
+  }
+}
+
 export function sculpt(state, x, z, amount, radius = 0.3, falloff = 0.8) {
   const R = jarGridR();
   const n = TERRAIN_N;

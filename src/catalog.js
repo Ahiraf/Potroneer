@@ -90,6 +90,16 @@ add("moss", "মস", [
   ["নীলচে", { colors: ["#4a7a5c", "#5c8c6b", "#6e9c7a", "#3d6b4e"] }],
 ]);
 add("snakeplant", "স্নেক প্ল্যান্ট", [["", {}]]);
+add("bonsai", "বনসাই", [
+  ["সবুজ", { wood: "#6e5236", colors: ["#5f8f3a", "#6f9f44", "#7faf50", "#548030"] }],
+  ["গাঢ়", { wood: "#5a4230", colors: ["#3f6b2c", "#4a7a34", "#57883c", "#345c24"] }],
+  ["শরৎ", { wood: "#6e5236", colors: ["#b0862f", "#c0942f", "#9a7028", "#caa23a"] }],
+]);
+add("mossball", "মস বল", [
+  ["সবুজ", { colors: ["#5f9a30", "#6faa3a", "#7fba4a", "#57922c", "#4e8a28"] }],
+  ["হলদে", { colors: ["#8a9a3a", "#9cab4c", "#aebc5e", "#7a8a30"] }],
+  ["গাঢ়", { colors: ["#3d5c22", "#4a6b2c", "#576f35", "#324d1c"] }],
+]);
 add("leafy", "পাতাগাছ", [
   ["সবুজ", { leaf: "#3f7d4f", dark: "#2f6640" }],
   ["হালকা", { leaf: "#5c9c5a", dark: "#447a44" }],
@@ -290,6 +300,8 @@ add("ringlight", "রিং লাইট", [
 // Favorites / Mushrooms / Rocks / Structures / Pine / Wood / Plant list).
 const CAT_BY_KIND = {
   moss: "plants",
+  mossball: "plants",
+  bonsai: "plants",
   snakeplant: "plants",
   leafy: "plants",
   fern: "plants",
