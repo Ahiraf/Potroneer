@@ -10,6 +10,9 @@ const EN = {
   "দৃশ্য": "Scene",
   // tools
   "বসাও": "Place",
+  "চিমটা": "Tweezers",
+  "পানি": "Water",
+  "স্প্রে": "Spray",
   "উঁচু": "Raise",
   "নিচু": "Lower",
   "ঘাস": "Grass",

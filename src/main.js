@@ -239,6 +239,7 @@ function rebuildSubstrate(animateLast = false) {
     substrateGroup.add(terrainCap);
   }
   pickPlane.position.y = substrateTop(state) + 0.001;
+  if (wetLevel > 0) applyWetness(); // keep a watered look through rebuilds
 }
 
 // Height of the (possibly sculpted) surface at a local point.
@@ -283,6 +284,7 @@ function rebuildAll() {
     if (rec.tint) applyTint(obj, rec.tint);
     decorGroup.add(obj);
   });
+  if (wetLevel > 0) applyWetness();
   updateHint();
 }
 
@@ -350,7 +352,9 @@ function topDecor(object) {
 // "place" = tap to add / drag decorations. "raise"/"lower" = terrain sculpt
 // brushes. "grass" = paint moss-grass tufts along the drag path.
 const TOOLS = [
-  { id: "place", label: "বসাও", glyph: "👆" },
+  { id: "place", label: "চিমটা", glyph: "🥢" },
+  { id: "water", label: "পানি", glyph: "💧" },
+  { id: "mist", label: "স্প্রে", glyph: "💦" },
   { id: "raise", label: "উঁচু", glyph: "⛰️" },
   { id: "lower", label: "নিচু", glyph: "🕳️" },
   { id: "grass", label: "ঘাস", glyph: "🌱" },
@@ -417,7 +421,119 @@ function applyBaseBrush(screen) {
   });
 }
 
+// --- care tools: spray (mist on the glass) + water (wets the substrate) ----
+const mistGroup = new THREE.Group(); // condensation clinging to the glass
+const fxGroup = new THREE.Group(); // ephemeral splashes/ripples
+studio.world.add(mistGroup, fxGroup);
+const dropGeo = new THREE.SphereGeometry(0.02, 6, 5);
+const dropMat = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  roughness: 0.05,
+  metalness: 0,
+  transmission: 0.5,
+  transparent: true,
+  opacity: 0.5,
+  clearcoat: 1,
+});
+const rnd = (a) => (Math.random() - 0.5) * 2 * a;
+
+// Spray a cluster of condensation droplets onto the inside of the glass where
+// the cursor points — the glass fogs up the more you spray.
+function sprayMist(screen) {
+  const targets = jarGlass ? [jarGlass, pickPlane] : [pickPlane];
+  const hit = studio.raycast(screen, targets);
+  if (!hit) return;
+  const local = studio.world.worldToLocal(hit.point.clone());
+  const n = 10 + ((Math.random() * 8) | 0);
+  for (let i = 0; i < n; i++) {
+    const drop = new THREE.Mesh(dropGeo, dropMat);
+    const sc = 0.4 + Math.random() * 1.1;
+    const run = Math.random() < 0.12;
+    drop.scale.set(sc, sc * (run ? 2.6 : 1), sc * 0.5);
+    drop.position.set(local.x + rnd(0.12), local.y + rnd(0.12), local.z + rnd(0.12));
+    drop.lookAt(0, drop.position.y, 0); // flatten against the wall
+    mistGroup.add(drop);
+  }
+  // cap total droplets so long sprays stay cheap
+  while (mistGroup.children.length > 1200) mistGroup.remove(mistGroup.children[0]);
+  studio.markInteraction();
+}
+
+// Wetness darkens + glosses the substrate and freshens the planting. Progressive
+// so repeated watering builds up; re-applied after any rebuild.
+let wetLevel = 0;
+function applyWetness() {
+  const tint = 1 - 0.42 * wetLevel;
+  substrateGroup.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    const m = o.material;
+    if (m.userData.baseRough === undefined) m.userData.baseRough = m.roughness;
+    m.color.setScalar(tint); // multiplies the baked vertex colours darker
+    m.roughness = m.userData.baseRough * (1 - 0.55 * wetLevel);
+  });
+  decorGroup.traverse((o) => {
+    if (!o.isMesh || !o.material || o.material.userData.noWet) return;
+    const m = o.material;
+    if (m.userData.baseRough === undefined) m.userData.baseRough = m.roughness;
+    m.roughness = m.userData.baseRough * (1 - 0.5 * wetLevel); // glossy wet leaves
+  });
+}
+
+function spawnSplash(worldPoint) {
+  const local = studio.world.worldToLocal(worldPoint.clone());
+  const y = local.y + 0.012;
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.02, 0.05, 18),
+    new THREE.MeshBasicMaterial({ color: 0xaad8e2, transparent: true, opacity: 0.6, side: THREE.DoubleSide }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(local.x, y, local.z);
+  fxGroup.add(ring);
+  tween(520, (p) => {
+    const s = 1 + p * 3.5;
+    ring.scale.set(s, s, s);
+    ring.material.opacity = 0.6 * (1 - p);
+    if (p >= 1) fxGroup.remove(ring);
+  }, (x) => x);
+  for (let i = 0; i < 5; i++) {
+    const d = new THREE.Mesh(dropGeo, dropMat.clone());
+    const a = Math.random() * Math.PI * 2;
+    const r = 0.03 + Math.random() * 0.04;
+    const vy = 0.14 + Math.random() * 0.08;
+    d.position.set(local.x, y, local.z);
+    fxGroup.add(d);
+    tween(460, (p) => {
+      d.position.set(local.x + Math.cos(a) * r * p, y + vy * p - 0.6 * p * p, local.z + Math.sin(a) * r * p);
+      d.material.opacity = 0.55 * (1 - p);
+      if (p >= 1) fxGroup.remove(d);
+    }, (x) => x);
+  }
+}
+
+let lastWater = 0;
+function water(screen, isTap) {
+  const hit = studio.raycast(screen, surfaceTargets());
+  if (!hit) return;
+  wetLevel = Math.min(1, wetLevel + (isTap ? 0.18 : 0.04));
+  applyWetness();
+  const now = performance.now();
+  if (isTap || now - lastWater > 90) {
+    spawnSplash(hit.point);
+    lastWater = now;
+  }
+  studio.markInteraction();
+}
+
 studio.setGrabHandler((screen) => {
+  // Care tools capture the drag as a continuous spray/water stroke.
+  if (activeTool === "mist") {
+    sprayMist(screen);
+    return true;
+  }
+  if (activeTool === "water") {
+    water(screen, false);
+    return true;
+  }
   // Base material + drag = paint substrate in any shape.
   if (activeTool === "place" && selected.group === "base") {
     const hit = studio.raycast(screen, surfaceTargets());
@@ -456,6 +572,14 @@ studio.setGrabHandler((screen) => {
 });
 
 studio.setObjectDrag((screen) => {
+  if (activeTool === "mist") {
+    sprayMist(screen);
+    return;
+  }
+  if (activeTool === "water") {
+    water(screen, false);
+    return;
+  }
   if (basePainting) {
     applyBaseBrush(screen);
     return;
@@ -526,6 +650,15 @@ function tryPlaceDecoration(screen, id) {
 }
 
 studio.setTapHandler((screen) => {
+  // care tools act on a single tap too
+  if (activeTool === "mist") {
+    sprayMist(screen);
+    return;
+  }
+  if (activeTool === "water") {
+    water(screen, true);
+    return;
+  }
   // tapping a placed decoration opens the item adjuster instead of placing
   if (activeTool === "place" && decorGroup.children.length) {
     const hitD = studio.raycast(screen, decorGroup.children);
@@ -575,7 +708,7 @@ function updateSliderState() {
 const TAB_TOOLS = {
   sculpt: ["raise", "lower"],
   paint: ["grass", "pebble"],
-  decor: ["place"],
+  decor: ["place", "water", "mist"],
   scene: [],
 };
 let activeTab = "decor";
@@ -1263,6 +1396,9 @@ document.getElementById("reset").addEventListener("click", () => {
   resetState(state);
   substrateGroup.clear();
   decorGroup.clear();
+  mistGroup.clear(); // wipe condensation + wetness too
+  fxGroup.clear();
+  wetLevel = 0;
   pickPlane.position.y = JAR.floorY + 0.001;
   tweens.length = 0;
   updateHint();
