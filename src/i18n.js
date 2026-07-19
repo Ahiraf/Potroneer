@@ -209,6 +209,8 @@ const EN = {
   "ট্রে থেকে বানাও": "Build from tray",
   "ট্রেতে যোগ করা হয়েছে": "Added to tray",
   "আগে ট্রেতে আইটেম যোগ করো (＋)": "Add items to the tray first (＋)",
+  "ট্রে থেকে বেছে চিমটা দিয়ে বসাও, পানি ঢালো, স্প্রে করো।":
+    "Pick from your tray, place with tweezers, pour water, and mist.",
 };
 
 let lang = localStorage.getItem("terrarium-lang") || "bn";

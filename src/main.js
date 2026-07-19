@@ -463,20 +463,74 @@ function sprayMist(screen) {
 // so repeated watering builds up; re-applied after any rebuild.
 let wetLevel = 0;
 function applyWetness() {
-  const tint = 1 - 0.42 * wetLevel;
+  const w = Math.sqrt(wetLevel); // fast onset so a splash already reads as wet
+  const tint = 1 - 0.6 * w; // strong darkening — wet soil goes deep brown
   substrateGroup.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     const m = o.material;
     if (m.userData.baseRough === undefined) m.userData.baseRough = m.roughness;
     m.color.setScalar(tint); // multiplies the baked vertex colours darker
-    m.roughness = m.userData.baseRough * (1 - 0.55 * wetLevel);
+    m.roughness = m.userData.baseRough * (1 - 0.75 * w);
+    m.metalness = 0.15 * w; // faint wet sheen
   });
   decorGroup.traverse((o) => {
     if (!o.isMesh || !o.material || o.material.userData.noWet) return;
     const m = o.material;
     if (m.userData.baseRough === undefined) m.userData.baseRough = m.roughness;
-    m.roughness = m.userData.baseRough * (1 - 0.5 * wetLevel); // glossy wet leaves
+    if (m.userData.baseColor === undefined && m.color) m.userData.baseColor = m.color.clone();
+    m.roughness = m.userData.baseRough * (1 - 0.6 * w); // glossy wet leaves
+    // deepen greens/browns a touch so moss & wood read as freshly watered
+    if (m.userData.baseColor) {
+      const k = 1 - 0.22 * w;
+      m.color.setRGB(m.userData.baseColor.r * k, m.userData.baseColor.g * k, m.userData.baseColor.b * k);
+    }
   });
+}
+
+// A pouring water stream from above the tap point down to the surface — shown
+// while the water tool is dragging, or a quick fade on a single tap.
+let pourStream = null;
+function ensurePour() {
+  if (pourStream) return pourStream;
+  const geo = new THREE.CylinderGeometry(0.02, 0.032, 1, 10, 1, true);
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: 0xdff2fb,
+    roughness: 0.02,
+    metalness: 0,
+    transmission: 0.35,
+    transparent: true,
+    opacity: 0.9,
+    ior: 1.33,
+    clearcoat: 1,
+    side: THREE.DoubleSide,
+  });
+  pourStream = new THREE.Mesh(geo, mat);
+  pourStream.visible = false;
+  studio.world.add(pourStream);
+  return pourStream;
+}
+function showPour(local) {
+  const s = ensurePour();
+  const topY = JAR.floorY + JAR.bodyHeight + 0.25;
+  const h = Math.max(0.25, topY - local.y);
+  s.scale.set(1, h, 1);
+  s.position.set(local.x, local.y + h / 2, local.z);
+  s.material.opacity = 0.9;
+  s.visible = true;
+}
+function fadePour() {
+  if (!pourStream) return;
+  tween(340, (p) => {
+    if (!pourStream) return;
+    pourStream.material.opacity = 0.9 * (1 - p);
+    if (p >= 1) {
+      pourStream.visible = false;
+      pourStream.material.opacity = 0.9;
+    }
+  }, (x) => x);
+}
+function hidePour() {
+  if (pourStream) pourStream.visible = false;
 }
 
 function spawnSplash(worldPoint) {
@@ -514,8 +568,11 @@ let lastWater = 0;
 function water(screen, isTap) {
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) return;
-  wetLevel = Math.min(1, wetLevel + (isTap ? 0.18 : 0.04));
+  wetLevel = Math.min(1, wetLevel + (isTap ? 0.28 : 0.06));
   applyWetness();
+  const local = studio.world.worldToLocal(hit.point.clone());
+  showPour(local); // pouring stream from above
+  if (isTap) fadePour();
   const now = performance.now();
   if (isTap || now - lastWater > 90) {
     spawnSplash(hit.point);
@@ -603,6 +660,7 @@ studio.setObjectDrag((screen) => {
 });
 
 studio.setObjectDrop(() => {
+  if (activeTool === "water") fadePour(); // stop the pour when the stroke ends
   if (basePainting) {
     basePainting = false;
     updateHint();
@@ -719,6 +777,7 @@ const hudBottomEl = document.getElementById("hud-bottom");
 
 function selectTool(id) {
   activeTool = id;
+  if (id !== "water") hidePour(); // put the watering can away
   document
     .querySelectorAll(".tool-row")
     .forEach((c) => c.classList.toggle("is-active", c.dataset.id === id));
@@ -869,6 +928,10 @@ buildToggleEl.addEventListener("click", () => {
     catBtnEl.querySelector(".cat-icon").textContent = "🧰";
     catBtnEl.querySelector(".cat-name").textContent = t("ট্রে");
     catFlyoutEl.classList.add("hidden");
+    // jump to Decorate so the tray palette + tweezers/water/spray tools are all
+    // ready together — the full build-from-tray flow
+    if (activeTab !== "decor") selectTab("decor");
+    flashHint("ট্রে থেকে বেছে চিমটা দিয়ে বসাও, পানি ঢালো, স্প্রে করো।");
   }
   updateTrayUI();
   renderStrip();
@@ -1398,6 +1461,7 @@ document.getElementById("reset").addEventListener("click", () => {
   decorGroup.clear();
   mistGroup.clear(); // wipe condensation + wetness too
   fxGroup.clear();
+  hidePour();
   wetLevel = 0;
   pickPlane.position.y = JAR.floorY + 0.001;
   tweens.length = 0;
