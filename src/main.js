@@ -610,6 +610,9 @@ function renderTools() {
 
 function selectTab(tab) {
   activeTab = tab;
+  // reflect the active tab on <body> so CSS can shift the tool list when the
+  // Decorate sidebar is present
+  document.body.className = `tab-${tab}`;
   document
     .querySelectorAll(".tab")
     .forEach((b) => b.classList.toggle("is-active", b.dataset.tab === tab));

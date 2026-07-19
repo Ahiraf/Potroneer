@@ -469,7 +469,7 @@ body {
 /* ============ left HUD: tool list ============ */
 .hud-tools {
   position: absolute;
-  top: 48px;
+  top: 12px;
   left: 10px;
   display: flex;
   flex-direction: column;
@@ -479,6 +479,11 @@ body {
   border: 1px solid var(--hud-border);
   border-radius: var(--radius);
   z-index: 6;
+}
+/* on the Decorate tab the left sidebar is showing, so slide the tool list
+   (and the category flyout) to sit just right of it */
+body.tab-decor .hud-tools {
+  left: 256px;
 }
 .tool-row {
   display: flex;
@@ -522,8 +527,8 @@ body {
 /* ============ hint ============ */
 .hint {
   position: absolute;
-  bottom: 92px;
-  left: 50%;
+  bottom: 24px;
+  left: calc(50% + 122px);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -563,17 +568,20 @@ body {
 }
 
 /* ============ bottom HUD: category + search + item strip ============ */
+/* item panel — docked as a vertical sidebar on the left */
 .hud-bottom {
   position: absolute;
   left: 0;
-  right: 0;
+  top: 0;
   bottom: 0;
+  width: 244px;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px 10px;
   background: var(--hud);
-  border-top: 1px solid var(--hud-border);
+  border-right: 1px solid var(--hud-border);
   z-index: 6;
 }
 
@@ -604,8 +612,8 @@ body {
 /* category flyout panel, like the reference game */
 .cat-flyout {
   position: absolute;
-  left: 12px;
-  bottom: 96px;
+  left: 256px;
+  top: 12px;
   display: flex;
   flex-direction: column;
   width: 224px;
@@ -662,7 +670,9 @@ body {
   opacity: 0.6;
 }
 .hud-search input {
-  width: 110px;
+  flex: 1;
+  width: auto;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
@@ -676,10 +686,12 @@ body {
 
 .hud-items {
   display: flex;
+  flex-direction: column;
   gap: 6px;
-  overflow-x: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
-  padding: 2px 0;
+  padding: 2px 2px 2px 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
@@ -688,16 +700,17 @@ body {
   position: relative;
   flex: none;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
-  width: 88px;
-  padding: 8px 6px 6px;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 8px 6px 22px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--hud-border);
   border-radius: 7px;
   cursor: pointer;
   font-family: inherit;
+  text-align: left;
   transition: background 0.1s ease, border-color 0.1s ease;
 }
 .item-chip:hover {
@@ -709,8 +722,9 @@ body {
 }
 
 .item-img {
-  width: 58px;
-  height: 58px;
+  width: 46px;
+  height: 46px;
+  flex: none;
   border-radius: 5px;
   object-fit: contain;
   pointer-events: none;
@@ -808,11 +822,13 @@ body {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
 }
 .item-label {
-  font-size: 10.5px;
+  flex: 1;
+  min-width: 0;
+  padding-right: 20px; /* clear the top-right favourite heart */
+  font-size: 12px;
   font-weight: 500;
   color: var(--ink);
   white-space: nowrap;
-  max-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -821,10 +837,15 @@ body {
   .sliders {
     display: none;
   }
-  .hud-search input {
-    width: 70px;
+  .hud-bottom {
+    width: 176px;
+  }
+  body.tab-decor .hud-tools,
+  .cat-flyout {
+    left: 188px;
   }
   .hint {
-    bottom: 86px;
+    left: calc(50% + 88px);
+    bottom: 20px;
   }
 }
