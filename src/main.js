@@ -651,8 +651,27 @@ function toggleFav(key) {
   localStorage.setItem(FAV_KEY, JSON.stringify([...favs]));
 }
 
+// Staging tray: the user gathers items here first, then "Build from tray" locks
+// the palette to just these so they assemble from their chosen set. Persisted.
+const TRAY_KEY = "terrarium-tray";
+const tray = new Set(JSON.parse(localStorage.getItem(TRAY_KEY) || "[]"));
+let buildMode = false;
+function toggleTray(key) {
+  tray.has(key) ? tray.delete(key) : tray.add(key);
+  localStorage.setItem(TRAY_KEY, JSON.stringify([...tray]));
+}
+// All tray items, in group order, tagged for placement.
+function trayItems() {
+  return [
+    ...JAR_TYPES.filter((j) => tray.has(`jar:${j.id}`)).map((j) => ({ ...j, _group: "jar" })),
+    ...BASE_LAYERS.filter((b) => tray.has(`base:${b.id}`)).map((b) => ({ ...b, _group: "base" })),
+    ...DECORATIONS.filter((d) => tray.has(`decor:${d.id}`)).map((d) => ({ ...d, _group: "decor" })),
+  ];
+}
+
 // Items for the current category, each tagged with its placement group.
 function stripSource() {
+  if (buildMode || activeCat === "tray") return trayItems();
   if (activeCat === "jar") return JAR_TYPES.map((j) => ({ ...j, _group: "jar" }));
   if (activeCat === "base")
     return BASE_LAYERS.map((b) => ({ ...b, _group: "base" }));
@@ -689,8 +708,34 @@ function renderFlyout() {
 
 catBtnEl.addEventListener("click", (e) => {
   e.stopPropagation();
+  if (buildMode) return; // palette is locked to the tray while building
   renderFlyout();
   catFlyoutEl.classList.toggle("hidden");
+});
+
+// --- staging tray: "Build from tray" toggle --------------------------------
+const buildToggleEl = document.getElementById("build-toggle");
+function updateTrayUI() {
+  const n = tray.size;
+  const label = t("ট্রে থেকে বানাও");
+  buildToggleEl.textContent = n ? `${label} (${n})` : label;
+  buildToggleEl.classList.toggle("is-on", buildMode);
+  catBtnEl.classList.toggle("is-locked", buildMode);
+}
+buildToggleEl.addEventListener("click", () => {
+  if (!buildMode && tray.size === 0) {
+    flashHint("আগে ট্রেতে আইটেম যোগ করো (＋)");
+    return;
+  }
+  buildMode = !buildMode;
+  if (buildMode) {
+    activeCat = "tray";
+    catBtnEl.querySelector(".cat-icon").textContent = "🧰";
+    catBtnEl.querySelector(".cat-name").textContent = t("ট্রে");
+    catFlyoutEl.classList.add("hidden");
+  }
+  updateTrayUI();
+  renderStrip();
 });
 window.addEventListener("pointerdown", (e) => {
   if (!catFlyoutEl.contains(e.target) && e.target !== catBtnEl) {
@@ -796,8 +841,10 @@ function renderStrip() {
       const card = document.createElement("button");
       card.className = "item-chip";
       card.dataset.id = item.id;
+      const inTray = tray.has(favKey);
       card.innerHTML =
         `<span class="fav-btn ${favs.has(favKey) ? "is-fav" : ""}" title="পছন্দ">${favs.has(favKey) ? "♥" : "♡"}</span>` +
+        `<span class="tray-btn ${inTray ? "is-in" : ""}" title="${t("ট্রে")}">${inTray ? "✓" : "＋"}</span>` +
         `<img class="item-img" draggable="false" src="${iconFor(group, item)}" alt="">` +
         `<span class="item-label">${tLabel(item.label)}</span>`;
       const active =
@@ -811,13 +858,21 @@ function renderStrip() {
         toggleFav(favKey);
         renderStrip();
       });
+      card.querySelector(".tray-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleTray(favKey);
+        updateTrayUI();
+        renderStrip();
+      });
 
+      const isBtn = (el) =>
+        el.classList.contains("fav-btn") || el.classList.contains("tray-btn");
       card.addEventListener("pointerdown", (e) => {
-        if (e.target.classList.contains("fav-btn")) return;
+        if (isBtn(e.target)) return;
         beginChipDrag(group, item, e);
       });
       card.addEventListener("click", (e) => {
-        if (e.target.classList.contains("fav-btn")) return;
+        if (isBtn(e.target)) return;
         if (chipDrag?.ghost) return; // was a drag, not a click
         if (group === "jar") {
           if (item.id !== currentJarId) {
@@ -1086,6 +1141,7 @@ function applyLang() {
   renderTools();
   renderStrip();
   updateHint();
+  updateTrayUI();
 }
 
 langBtn.addEventListener("click", () => {

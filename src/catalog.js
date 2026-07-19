@@ -334,6 +334,7 @@ export const DECORATIONS = D;
 
 export const CATEGORIES = [
   { id: "fav", label: "পছন্দের", icon: "❤️" },
+  { id: "tray", label: "ট্রে", icon: "🧰" },
   { id: "jar", label: "জার", icon: "🫙" },
   { id: "base", label: "বেস স্তর", icon: "🟤" },
   { id: "plants", label: "গাছপালা", icon: "🌿" },
