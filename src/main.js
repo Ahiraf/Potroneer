@@ -6,6 +6,7 @@ import {
   buildDecoration,
   buildTerrainCap,
   updateTerrainCap,
+  buildJarLamp,
 } from "./builders.js";
 import { BASE_LAYERS, BASE_BY_ID, DECORATIONS, CATEGORIES } from "./catalog.js";
 import {
@@ -54,6 +55,16 @@ let jarBuilt = null; // {glassMats, frameMats, frameOrig} of the current jar
 const jarCustom = { frame: null, glass: null, w: 1, h: 1 };
 let pickPlane = null;
 let motes = null;
+
+// jar-mounted grow lamp: mounts over the current jar and lights it from above.
+const jarLight = { on: false, height: 0.55, bright: 0.6, color: 0xffe4bc };
+const lightGroup = new THREE.Group();
+studio.world.add(lightGroup);
+function rebuildJarLight() {
+  lightGroup.clear();
+  if (jarLight.on) lightGroup.add(buildJarLamp(JAR, jarLight));
+  studio.markInteraction();
+}
 
 // A pinch of dust drifting inside the jar — barely visible, but it makes the
 // enclosed air feel alive when the light catches it.
@@ -152,6 +163,7 @@ function setJar(typeId) {
   });
   rebuildAll();
   pickPlane.position.y = substrateTop(state) + 0.001;
+  rebuildJarLight(); // re-mount the lamp on the new jar shape/size
 }
 
 // Re-tint the current jar's glass and frame from the customiser choices.
@@ -974,6 +986,23 @@ document.getElementById("jar-w").addEventListener("input", (e) => {
 document.getElementById("jar-h").addEventListener("input", (e) => {
   jarCustom.h = Number(e.target.value) / 100;
   setJar(currentJarId);
+});
+
+// jar-mounted lamp controls
+const lightToggleEl = document.getElementById("light-toggle");
+lightToggleEl.addEventListener("click", () => {
+  jarLight.on = !jarLight.on;
+  lightToggleEl.textContent = t(jarLight.on ? "চালু" : "বন্ধ");
+  lightToggleEl.classList.toggle("is-on", jarLight.on);
+  rebuildJarLight();
+});
+document.getElementById("light-h").addEventListener("input", (e) => {
+  jarLight.height = Number(e.target.value) / 100;
+  if (jarLight.on) rebuildJarLight();
+});
+document.getElementById("light-b").addEventListener("input", (e) => {
+  jarLight.bright = Number(e.target.value) / 100;
+  if (jarLight.on) rebuildJarLight();
 });
 
 // --- item adjuster: size / rotation / colour for any placed decoration ------

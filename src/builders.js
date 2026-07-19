@@ -42,6 +42,86 @@ function speckleColors(geometry, palette) {
 }
 
 // ---------------------------------------------------------------------------
+// Jar-mounted grow lamp
+// ---------------------------------------------------------------------------
+
+// A gooseneck clip lamp clamped to the current jar's rim, arching over the
+// opening and shining down into the terrarium — the lamp from the reference
+// build. Scales to the jar; `height` (0..1) lifts the head, `bright` (0..1)
+// drives the emissive lens and the spotlight. Lives in the world group so it
+// rotates with the vessel it's clipped to.
+export function buildJarLamp(jar, { height = 0.55, bright = 0.6, color = 0xffe4bc } = {}) {
+  const g = new THREE.Group();
+  const stretch = jar.stretchX || 1;
+  const rimR = jar.innerRadius * stretch;
+  const topY = jar.floorY + jar.bodyHeight;
+  const metal = new THREE.MeshStandardMaterial({
+    color: 0x2d3035,
+    roughness: 0.42,
+    metalness: 0.6,
+  });
+
+  // spring clamp gripping the back rim
+  const clampX = -rimR - 0.06;
+  const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.11, 0.22), metal);
+  clamp.position.set(clampX, topY, 0);
+  clamp.castShadow = true;
+  g.add(clamp);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.1), metal);
+  jaw.position.set(clampX + 0.04, topY + 0.07, 0);
+  g.add(jaw);
+
+  // gooseneck: climbs off the clamp and arches over the centre of the opening
+  const headY = topY + 0.2 + height * jar.bodyHeight * 0.9;
+  const head = new THREE.Vector3(0, headY, 0);
+  const neck = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(clampX, topY + 0.06, 0),
+    new THREE.Vector3(clampX * 0.95, headY + 0.12, 0),
+    new THREE.Vector3(clampX * 0.45, headY + 0.22, 0),
+    head.clone().add(new THREE.Vector3(0, 0.06, 0)),
+  ]);
+  const neckMesh = new THREE.Mesh(new THREE.TubeGeometry(neck, 28, 0.022, 6), metal);
+  neckMesh.castShadow = true;
+  g.add(neckMesh);
+
+  // disc head pointing straight down at the substrate
+  const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.05, 22), metal);
+  shell.position.copy(head);
+  shell.castShadow = true;
+  g.add(shell);
+  const lens = new THREE.Mesh(
+    new THREE.CircleGeometry(0.1, 22),
+    new THREE.MeshStandardMaterial({
+      color: new THREE.Color(color),
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 1.1 + bright * 2.0,
+      roughness: 0.4,
+    }),
+  );
+  lens.position.copy(head).add(new THREE.Vector3(0, -0.027, 0));
+  lens.rotation.x = -Math.PI / 2; // face down
+  g.add(lens);
+
+  // real spotlight pouring down into the jar (candela — three r165+ is
+  // physically based, so this needs to be tens, not single digits)
+  const spot = new THREE.SpotLight(
+    new THREE.Color(color),
+    5 + bright * 38,
+    0, // infinite range
+    Math.PI * 0.36,
+    0.5,
+    1.3,
+  );
+  spot.position.copy(head);
+  const target = new THREE.Object3D();
+  target.position.set(0, jar.floorY, 0);
+  g.add(target);
+  spot.target = target;
+  g.add(spot);
+  return g;
+}
+
+// ---------------------------------------------------------------------------
 // Substrate layers
 // ---------------------------------------------------------------------------
 

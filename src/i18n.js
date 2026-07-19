@@ -195,6 +195,16 @@ const EN = {
   "ঘোরাও": "Rotate",
   "রং": "Color",
   "মুছে ফেলো": "Delete",
+  // jar-mounted lamp
+  "আলো": "Light",
+  "আলোর উচ্চতা": "Light height",
+  "উজ্জ্বলতা": "Brightness",
+  "চালু": "On",
+  "বন্ধ": "Off",
+  // staging tray
+  "ট্রে": "Tray",
+  "ট্রে থেকে বানাও": "Build from tray",
+  "ট্রেতে যোগ করা হয়েছে": "Added to tray",
 };
 
 let lang = localStorage.getItem("terrarium-lang") || "bn";

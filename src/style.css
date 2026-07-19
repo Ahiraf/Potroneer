@@ -424,6 +424,30 @@ body {
     linear-gradient(135deg, transparent 44%, #c95f4a 46%, #c95f4a 54%, transparent 56%),
     rgba(255, 255, 255, 0.1);
 }
+.cfg-sep {
+  height: 1px;
+  background: var(--hud-border);
+  margin: 2px 0;
+}
+.cfg-toggle {
+  padding: 4px 14px;
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid var(--hud-border);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.cfg-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.cfg-toggle.is-on {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
 .cfg-del {
   align-self: flex-start;
   display: flex;

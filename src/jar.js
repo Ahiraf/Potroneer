@@ -500,7 +500,9 @@ export function buildJar(typeId, envMap, itOverride) {
     group.add(base);
   }
 
-  return { group, glass };
+  // Return the registered glass/frame materials too, so the customiser can
+  // re-tint them (the poly/greenhouse/bottle paths already do this).
+  return { group, glass, glassMats, frameMats };
 }
 
 // Real physically-based glass: light transmits and refracts through it
