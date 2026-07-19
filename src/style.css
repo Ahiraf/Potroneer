@@ -76,46 +76,61 @@ body {
   border-color: var(--green);
 }
 
-/* ============ scene settings panel ============ */
+/* ============ background picker (drops from the পরিবেশ navbar button) ==== */
 .scene-panel {
   position: absolute;
-  top: 46px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 52px;
+  right: 12px;
+  left: auto;
+  transform: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 12px 14px;
   background: var(--hud);
   border: 1px solid var(--hud-border);
   border-radius: 8px;
-  z-index: 7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 8;
 }
 .scene-panel.hidden {
   display: none;
 }
 .sp-row {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
 }
 .sp-label {
-  width: 64px;
+  width: 56px;
+  padding-top: 5px;
   font-size: 12px;
   color: var(--ink-dim);
 }
 .sp-moods {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 252px;
 }
-.hud-btn--lang {
-  width: auto;
-  padding: 0 9px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+.mood-btn {
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--ink);
   border: 1px solid var(--hud-border);
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.mood-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.mood-btn.is-active {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
 }
 
 /* ============ slider chips (sculpt/paint) ============ */
@@ -215,18 +230,47 @@ body {
   margin: 0 3px;
 }
 
-/* ============ corner actions + gallery ============ */
-.corner-actions {
+/* ============ text navbar actions + gallery ============ */
+.nav-actions {
   position: absolute;
-  top: 10px;
+  top: 8px;
   right: 10px;
   display: flex;
+  align-items: center;
   gap: 4px;
-  padding: 3px;
+  z-index: 8;
+}
+.nav-btn {
+  padding: 7px 13px;
   background: var(--hud);
+  color: var(--ink);
   border: 1px solid var(--hud-border);
-  border-radius: var(--radius);
-  z-index: 7;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.nav-btn.is-active {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+.nav-btn--danger {
+  color: #f0b2a3;
+}
+.nav-btn--danger:hover {
+  background: rgba(201, 95, 74, 0.3);
+  border-color: rgba(201, 95, 74, 0.5);
+}
+.nav-btn--lang {
+  font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 .gallery {

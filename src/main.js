@@ -1138,7 +1138,7 @@ document.getElementById("photo").addEventListener("click", () => {
 const soundBtn = document.getElementById("sound");
 soundBtn.addEventListener("click", () => {
   const on = toggleAmbience();
-  soundBtn.textContent = on ? "🔔" : "🔕";
+  soundBtn.classList.toggle("is-active", on); // keep the text label, highlight when on
 });
 
 document.querySelectorAll(".mood-btn").forEach((btn) => {
@@ -1149,6 +1149,24 @@ document.querySelectorAll(".mood-btn").forEach((btn) => {
       .forEach((b) => b.classList.toggle("is-active", b === btn));
     studio.markInteraction();
   });
+});
+
+// পরিবেশ (background) navbar button toggles the picker; click-away closes it.
+const bgBtnEl = document.getElementById("bg-btn");
+bgBtnEl.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const open = scenePanelEl.classList.toggle("hidden");
+  bgBtnEl.classList.toggle("is-active", !open);
+});
+window.addEventListener("pointerdown", (e) => {
+  if (
+    !scenePanelEl.classList.contains("hidden") &&
+    !scenePanelEl.contains(e.target) &&
+    e.target !== bgBtnEl
+  ) {
+    scenePanelEl.classList.add("hidden");
+    bgBtnEl.classList.remove("is-active");
+  }
 });
 
 // --- reset -----------------------------------------------------------------
