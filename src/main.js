@@ -358,6 +358,7 @@ const TOOLS = [
   { id: "raise", label: "উঁচু", glyph: "⛰️" },
   { id: "lower", label: "নিচু", glyph: "🕳️" },
   { id: "grass", label: "ঘাস", glyph: "🌱" },
+  { id: "moss", label: "মস ব্রাশ", glyph: "🖌️" },
   { id: "pebble", label: "নুড়িপথ", glyph: "🪨" },
 ];
 let activeTool = "place";
@@ -390,14 +391,21 @@ function applyBrush(screen) {
       if (!rec) return;
       obj.position.y = rec.y = surfaceY(rec.x, rec.z);
     });
-  } else if (activeTool === "grass" || activeTool === "pebble") {
+  } else if (activeTool === "grass" || activeTool === "pebble" || activeTool === "moss") {
     const dx = lastPaint ? local.x - lastPaint.x : Infinity;
     const dz = lastPaint ? local.z - lastPaint.z : Infinity;
     // stroke spacing scales with brush radius
-    const spacing = (activeTool === "pebble" ? 0.05 : 0.07) * brushRadius() * 3;
+    const spacingBase =
+      activeTool === "pebble" ? 0.05 : activeTool === "moss" ? 0.045 : 0.07;
+    const spacing = spacingBase * brushRadius() * 3;
     if (dx * dx + dz * dz < spacing * spacing) return;
     lastPaint = { x: local.x, z: local.z };
-    const kind = activeTool === "pebble" ? "pebblepatch" : "grass";
+    const kind =
+      activeTool === "pebble"
+        ? "pebblepatch"
+        : activeTool === "moss"
+          ? "mosspatch"
+          : "grass";
     placeDecoration(hit.point, { id: kind, kind });
   }
 }
@@ -765,7 +773,7 @@ function updateSliderState() {
 // Each tab exposes its own tool subset in the left panel, like the reference.
 const TAB_TOOLS = {
   sculpt: ["raise", "lower"],
-  paint: ["grass", "pebble"],
+  paint: ["grass", "moss", "pebble"],
   decor: ["place", "water", "mist"],
   scene: [],
 };

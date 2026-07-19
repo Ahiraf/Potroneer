@@ -137,6 +137,11 @@ add("stone", "পাথর", [
   ["কালো", { grays: ["#4a4642", "#3a3733", "#565048", "#2e2b28"] }],
   ["বেলে", { grays: ["#c0a888", "#b09878", "#cbb494", "#a58c6c"] }],
 ]);
+add("slate", "স্লেট", [
+  ["ধূসর", { grays: ["#6f6b64", "#7d7870", "#5a564f", "#87827a"] }],
+  ["কালো", { grays: ["#3d3a36", "#4a463f", "#302d2a", "#565049"] }],
+  ["মরচে", { grays: ["#7a6650", "#8a7358", "#6a5642", "#94815f"] }],
+]);
 add("shell", "শামুক", [
   ["বাদামি", { shell: "#e0c39a", band: "#b98a58" }],
   ["ধূসর", { shell: "#c9c4ba", band: "#948e82" }],
@@ -306,6 +311,7 @@ const CAT_BY_KIND = {
   ringlight: "lights",
   mushroom: "mushroom",
   stone: "rocks",
+  slate: "rocks",
   crystal: "rocks",
   geode: "rocks",
   shell: "animals",

@@ -16,6 +16,7 @@ const EN = {
   "উঁচু": "Raise",
   "নিচু": "Lower",
   "ঘাস": "Grass",
+  "মস ব্রাশ": "Moss brush",
   "নুড়িপথ": "Pebble path",
   // sliders
   "ব্যাসার্ধ": "Radius",
@@ -93,6 +94,8 @@ const EN = {
   "ক্রিস্টাল": "Crystal",
   "পাথর": "Stone",
   "শামুক": "Snail",
+  "স্লেট": "Slate",
+  "মরচে": "Rusty",
   "ক্যাকটাস": "Cactus",
   "ফুল": "Flowers",
   "সেতু": "Bridge",

@@ -363,10 +363,14 @@ export function buildDecoration(kind, v = {}) {
       return buildCrystal(v);
     case "stone":
       return buildStone(v);
+    case "slate":
+      return buildSlate(v);
     case "shell":
       return buildShell(v);
     case "grass":
       return buildGrassTuft();
+    case "mosspatch":
+      return buildMossPatch();
     case "snakeplant":
       return buildSnakePlant();
     case "deer":
@@ -1531,6 +1535,68 @@ function buildStone(v = {}) {
   stone.castShadow = true;
   stone.receiveShadow = true;
   g.add(stone);
+  return g;
+}
+
+// Riven slate: a small stack of thin, angular layered slabs leaning on each
+// other — the flat hardscape stone glued into towers in the reference build.
+function buildSlate(v = {}) {
+  const g = new THREE.Group();
+  const grays = v.grays ?? ["#6f6b64", "#7d7870", "#5a564f", "#87827a"];
+  const n = 2 + ((Math.random() * 3) | 0);
+  let y = 0;
+  for (let i = 0; i < n; i++) {
+    const w = 0.16 + Math.random() * 0.16;
+    const d = 0.1 + Math.random() * 0.1;
+    const h = 0.02 + Math.random() * 0.022;
+    const geo = new THREE.BoxGeometry(w, h, d, 2, 1, 2);
+    // rough, cleaved edges: jitter the rim vertices
+    const p = geo.attributes.position;
+    for (let vi = 0; vi < p.count; vi++) {
+      p.setX(vi, p.getX(vi) * (1 + jitter(0.12)));
+      p.setZ(vi, p.getZ(vi) * (1 + jitter(0.12)));
+      p.setY(vi, p.getY(vi) + jitter(h * 0.3));
+    }
+    geo.computeVertexNormals();
+    const slab = new THREE.Mesh(
+      geo,
+      craftMaterial(grays[i % grays.length], { rough: 0.92, flat: true }),
+    );
+    slab.position.set(jitter(0.035), y + h / 2, jitter(0.035));
+    slab.rotation.set(jitter(0.1), Math.random() * Math.PI, jitter(0.14));
+    slab.castShadow = true;
+    slab.receiveShadow = true;
+    g.add(slab);
+    y += h * 0.85;
+  }
+  return g;
+}
+
+// A low, small moss cushion spawned by the moss brush along a stroke — a
+// lighter cousin of the full moss decoration so many can be painted cheaply.
+function buildMossPatch() {
+  const g = new THREE.Group();
+  const greens = ["#5f8330", "#6f9a3a", "#7faa4a", "#557a2c", "#4e7a2a"];
+  const blobs = 5 + ((Math.random() * 4) | 0);
+  for (let i = 0; i < blobs; i++) {
+    const rad = 0.025 + Math.random() * 0.03;
+    const geo = new THREE.IcosahedronGeometry(rad, 1);
+    const p = geo.attributes.position;
+    for (let vi = 0; vi < p.count; vi++) {
+      p.setXYZ(vi, p.getX(vi) + jitter(0.012), p.getY(vi) + jitter(0.012), p.getZ(vi) + jitter(0.012));
+    }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(
+      geo,
+      craftMaterial(greens[(Math.random() * greens.length) | 0], { rough: 1 }),
+    );
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.pow(Math.random(), 0.7) * 0.06;
+    m.position.set(Math.cos(a) * rr, rad * 0.5, Math.sin(a) * rr);
+    m.scale.y = 0.7;
+    m.castShadow = true;
+    g.add(m);
+  }
   return g;
 }
 
