@@ -52,6 +52,12 @@ const EN = {
   "মহাকাশ": "Space",
   "পাহাড়": "Mountain",
   "বৃষ্টি": "Rain",
+  // 3D room backgrounds
+  "থ্রিডি": "3D",
+  "কাফে": "Café",
+  "আর্ট গ্যালারি": "Art gallery",
+  "ডাইনিং": "Dining",
+  "আর্মরি": "Armory",
   // jars
   "কর্ক জার": "Cork jar",
   "বেল জার": "Bell jar",

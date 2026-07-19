@@ -3,3 +3,11 @@ dist
 .DS_Store
 *.log
 .vite
+
+# Large 3D room-background scenes — kept local, too big for git (use Git LFS if
+# you need them versioned). The app loads them from /public at runtime.
+/public/cafe-misti.glb
+/public/mafia_the_city_of_lost_heaven-vincenzos_armory.glb
+/public/silent_hill_3-gallery.glb
+/public/the_grange_dining_room.glb
+/public/*.zip

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 // createStudio owns everything render/interaction related but stays ignorant of
 // terrariums specifically: it exposes a rotatable `world` group, a raycaster
@@ -33,6 +34,29 @@ export function createStudio(canvas) {
       hemiI: 0.95,
       ground: 0xd0d3d7,
       exposure: 1.06,
+    },
+    // 3D room environments loaded from GLB scenes in /public. The terrarium
+    // sits on its slate plinth inside the real room. `room` carries the fit
+    // params tuned per model (scale/offset/rotation).
+    cafe: {
+      room: { file: "cafe-misti.glb", scale: 24, rot: 0, dx: 0, dz: 2.5, floorDrop: 0 },
+      bg: 0x2a2320, fog: 0x2a2320, fogNear: 16, fogFar: 44,
+      key: 0xffe4bc, keyI: 1.1, hemiI: 0.85, exposure: 1.05, slab: true, env: 1.0,
+    },
+    gallery3d: {
+      room: { file: "silent_hill_3-gallery.glb", scale: 16, rot: 0, dx: 0, dz: -2.0, floorDrop: 0 },
+      bg: 0x1a1a1c, fog: 0x1a1a1c, fogNear: 16, fogFar: 46,
+      key: 0xf0f0ff, keyI: 1.0, hemiI: 0.75, exposure: 1.0, slab: true, env: 0.9,
+    },
+    dining: {
+      room: { file: "the_grange_dining_room.glb", scale: 15, rot: 0, dx: 0, dz: -1.6, floorDrop: 0 },
+      bg: 0x241d16, fog: 0x241d16, fogNear: 14, fogFar: 42,
+      key: 0xffe0b0, keyI: 1.15, hemiI: 0.8, exposure: 1.05, slab: true, env: 1.0,
+    },
+    armory: {
+      room: { file: "mafia_the_city_of_lost_heaven-vincenzos_armory.glb", scale: 22, rot: 0, dx: 0, dz: 3, floorDrop: 0 },
+      bg: 0x1c1917, fog: 0x1c1917, fogNear: 16, fogFar: 46,
+      key: 0xffe0b0, keyI: 1.15, hemiI: 0.85, exposure: 1.04, slab: true, env: 1.0,
     },
     day: {
       wall: ["#e9dfd0", "#d9c9b2"],
@@ -232,19 +256,88 @@ export function createStudio(canvas) {
   }
   setBaseY(-1.5);
 
-  // Switch the whole scene to a different time-of-day mood.
+  // --- 3D room backgrounds (lazy-loaded GLB scenes) ----------------------
+  const roomLoader = new GLTFLoader();
+  const roomCache = new Map();
+  let roomModel = null;
+  let roomToken = 0; // guards against a slow load landing after a mood switch
+
+  function placeRoom(gltf, def) {
+    const root = gltf.scene.clone(true);
+    // fit: scale so the room's footprint spans ~`scale` units, centre it on the
+    // origin and drop its floor to the terrarium base so the jar sits on it.
+    let box = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const s = def.scale / Math.max(size.x, size.z, 0.001);
+    root.scale.setScalar(s);
+    box.setFromObject(root);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    root.position.x += (def.dx ?? 0) - center.x;
+    root.position.z += (def.dz ?? 0) - center.z;
+    root.position.y += baseY - box.min.y + (def.floorDrop ?? 0);
+    root.rotation.y = def.rot ?? 0;
+    root.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = false;
+        o.receiveShadow = true;
+        o.frustumCulled = false;
+      }
+    });
+    roomModel = root;
+    scene.add(root);
+  }
+
+  function setRoom(def) {
+    roomToken++;
+    if (roomModel) {
+      scene.remove(roomModel);
+      roomModel = null;
+    }
+    if (!def) return;
+    const token = roomToken;
+    const cached = roomCache.get(def.file);
+    if (cached) {
+      placeRoom(cached, def);
+      return;
+    }
+    roomLoader.load(`/${def.file}`, (gltf) => {
+      roomCache.set(def.file, gltf);
+      if (token === roomToken) placeRoom(gltf, def); // still the active mood?
+    });
+  }
+
+  // Switch the whole scene to a different mood — a flat studio/time-of-day
+  // backdrop, or a full 3D room environment.
   function setMood(name) {
     const m = MOODS[name];
     if (!m) return;
-    scene.background = makeStudioBackdrop(m);
-    scene.fog.color.set(m.fog);
+    if (m.room) {
+      // 3D room: the model provides walls + floor; hide the flat ground and
+      // swap the canvas backdrop for a solid tone the room sits against.
+      setRoom(m.room);
+      ground.visible = false;
+      scene.background = new THREE.Color(m.bg ?? 0x1a1714);
+      scene.fog.color.set(m.fog ?? m.bg ?? 0x1a1714);
+      scene.fog.near = m.fogNear ?? 12;
+      scene.fog.far = m.fogFar ?? 40;
+      scene.environment && (scene.environmentIntensity = m.env ?? 1.0);
+    } else {
+      setRoom(null);
+      ground.visible = true;
+      scene.background = makeStudioBackdrop(m);
+      scene.fog.color.set(m.fog);
+      scene.fog.near = 11;
+      scene.fog.far = 26;
+      ground.material.color.set(m.ground);
+      // Studio mood swaps the warm wood table for a plain neutral sweep + slate.
+      ground.material.map = m.slab ? null : woodTex;
+      ground.material.needsUpdate = true;
+    }
     key.color.set(m.key);
     key.intensity = m.keyI;
     hemi.intensity = m.hemiI;
-    ground.material.color.set(m.ground);
-    // Studio mood swaps the warm wood table for a plain neutral sweep + slate.
-    ground.material.map = m.slab ? null : woodTex;
-    ground.material.needsUpdate = true;
     renderer.toneMappingExposure = m.exposure;
     slabOn = !!m.slab;
     layoutBase();
