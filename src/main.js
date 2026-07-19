@@ -1064,6 +1064,13 @@ langBtn.addEventListener("click", () => {
   applyLang();
 });
 
+// Hint-bar elements: declared before the init block below because
+// applyLang()/updateHint() run during the first paint and read them.
+const hintEl = document.getElementById("hint");
+const hintStepEl = hintEl.querySelector(".hint-step");
+const hintTextEl = hintEl.querySelector("p");
+let flashTimer = null;
+
 // Build the starting jar, then draw the UI.
 setJar(currentJarId);
 selected = { group: "base", id: BASE_LAYERS[0].id };
@@ -1072,10 +1079,8 @@ renderStrip();
 applyLang();
 
 // --- hint / progress -------------------------------------------------------
-const hintEl = document.getElementById("hint");
-const hintStepEl = hintEl.querySelector(".hint-step");
-const hintTextEl = hintEl.querySelector("p");
-let flashTimer = null;
+// (hintEl / hintStepEl / hintTextEl / flashTimer are declared above the init
+// block so first-paint applyLang()/updateHint() can use them.)
 
 // Walks the user through the order a real closed terrarium is built:
 // drainage → sphagnum barrier → charcoal → soil → plants.
