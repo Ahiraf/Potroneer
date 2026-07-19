@@ -179,6 +179,107 @@ add("deer", "হরিণ", [
   ["বাদামি", { body: "#a8794f", dark: "#6e4c2e" }],
   ["সাদা", { body: "#ddd5c8", dark: "#a89a88" }],
 ]);
+add("pilea", "পাইলিয়া", [
+  ["সবুজ", { leaf: "#57a04a" }],
+  ["গাঢ়", { leaf: "#3f7a38" }],
+]);
+add("pothos", "পথোস", [
+  ["সবুজ", { leaf: "#4a8c3e" }],
+  ["গোল্ডেন", { leaf: "#7fa83e" }],
+]);
+add("calathea", "ক্যালাথিয়া", [
+  ["গোলাপি", { edge: "#e2a6c0" }],
+  ["রুপালি", { edge: "#bcd6b0" }],
+]);
+add("venusflytrap", "ভেনাস ফ্লাইট্র্যাপ", [
+  ["লাল", { inner: "#b0402f" }],
+  ["সবুজ", { inner: "#8a6a3a" }],
+]);
+add("frog", "ব্যাঙ", [
+  ["সবুজ", { skin: "#5f9c46" }],
+  ["হলুদ", { skin: "#c9a83a" }],
+  ["নীল", { skin: "#4a8ca8" }],
+]);
+add("turtle", "কচ্ছপ", [
+  ["সবুজ", { shell: "#6f8a3c", skin: "#8a9a5c" }],
+  ["বাদামি", { shell: "#8a6a3c", skin: "#a8895c" }],
+]);
+add("bird", "পাখি", [
+  ["লাল", { body: "#c94f3a" }],
+  ["নীল", { body: "#4a7ec9" }],
+  ["হলুদ", { body: "#e0b23a" }],
+]);
+add("gnome", "বামন", [
+  ["লাল", { hat: "#c1402f", coat: "#4a6b9c" }],
+  ["নীল", { hat: "#3f6b9c", coat: "#8a5236" }],
+  ["সবুজ", { hat: "#4e7a3a", coat: "#9c5c48" }],
+]);
+add("torii", "তোরি গেট", [
+  ["লাল", { wood: false }],
+  ["কাঠ", { wood: true }],
+]);
+add("pagoda", "প্যাগোডা", [
+  ["ধূসর", { stone: "#9a938a" }],
+  ["বেলে", { stone: "#c0aa86" }],
+]);
+add("fence", "বেড়া", [
+  ["সাদা", { wood: false }],
+  ["কাঠ", { wood: true }],
+]);
+add("well", "কুয়া", [
+  ["লাল", { roof: "#9c4636" }],
+  ["নীল", { roof: "#46689c" }],
+]);
+add("geode", "জিওড", [
+  ["বেগুনি", { color: "#9a77c9" }],
+  ["নীল", { color: "#5c93c9" }],
+  ["গোলাপি", { color: "#d18ab0" }],
+]);
+add("pinecone", "পাইনকোন", [
+  ["বাদামি", { wood: "#7a512e" }],
+  ["গাঢ়", { wood: "#5c3d22" }],
+]);
+add("log", "গুঁড়ি", [
+  ["গাঢ়", { wood: "#6e5236" }],
+  ["ফ্যাকাশে", { wood: "#a08a6a" }],
+]);
+add("pond", "জলাশয়", [
+  ["নীল", { water: "#3f7d8c" }],
+  ["সবুজ", { water: "#4a8c7a" }],
+]);
+add("saguaro", "সাগুয়ারো", [
+  ["সবুজ", { body: "#4e7d43" }],
+  ["ফুলসহ", { body: "#4e7d43", bloom: "#f2ead8" }],
+  ["নীলচে", { body: "#5c8a6e" }],
+]);
+add("pricklypear", "প্রিকলি পিয়ার", [
+  ["হলুদ ফুল", { bloom: "#e8b23a" }],
+  ["গোলাপি ফুল", { bloom: "#e277a2" }],
+  ["ফুলহীন", { bloom: null }],
+]);
+add("pincushion", "পিনকুশন", [
+  ["গোলাপি ফুল", { bloom: "#e277a2" }],
+  ["হলুদ ফুল", { bloom: "#e8c04a" }],
+  ["ফুলহীন", { bloom: null }],
+]);
+add("cliplight", "ক্লিপ লাইট", [
+  ["উষ্ণ", { glow: 0xffcf8a }],
+  ["দিবা", { glow: 0xf4f6ff }],
+  ["গ্রো", { glow: 0xd96bd9 }],
+]);
+add("striplight", "স্ট্রিপ লাইট", [
+  ["দিবা", { glow: 0xf4f6ff }],
+  ["উষ্ণ", { glow: 0xffcf8a }],
+  ["গ্রো", { glow: 0xd96bd9 }],
+]);
+add("framelight", "কাঠের ল্যাম্প", [
+  ["উষ্ণ", { wood: "#a9793f", glow: 0xffcf8a }],
+  ["দিবা", { wood: "#a9793f", glow: 0xf4f6ff }],
+]);
+add("ringlight", "রিং লাইট", [
+  ["সাদা", { glow: 0xffffff }],
+  ["উষ্ণ", { glow: 0xffcf8a }],
+]);
 
 // Category assignment for the flyout panel (like the reference game's
 // Favorites / Mushrooms / Rocks / Structures / Pine / Wood / Plant list).
@@ -192,17 +293,40 @@ const CAT_BY_KIND = {
   airplant: "plants",
   cactus: "plants",
   flowers: "plants",
+  pilea: "plants",
+  pothos: "plants",
+  calathea: "plants",
+  venusflytrap: "plants",
+  saguaro: "plants",
+  pricklypear: "plants",
+  pincushion: "plants",
+  cliplight: "lights",
+  striplight: "lights",
+  framelight: "lights",
+  ringlight: "lights",
   mushroom: "mushroom",
   stone: "rocks",
   crystal: "rocks",
+  geode: "rocks",
   shell: "animals",
   butterfly: "animals",
   ladybug: "animals",
   deer: "animals",
+  frog: "animals",
+  turtle: "animals",
+  bird: "animals",
+  gnome: "animals",
   bridge: "structures",
   house: "structures",
   lantern: "structures",
+  torii: "structures",
+  pagoda: "structures",
+  fence: "structures",
+  well: "structures",
+  pond: "structures",
   driftwood: "wood",
+  pinecone: "wood",
+  log: "wood",
 };
 D.forEach((d) => (d.cat = CAT_BY_KIND[d.kind] || "plants"));
 
@@ -218,6 +342,7 @@ export const CATEGORIES = [
   { id: "animals", label: "প্রাণী", icon: "🦌" },
   { id: "structures", label: "স্থাপনা", icon: "🏠" },
   { id: "wood", label: "কাঠ", icon: "🪵" },
+  { id: "lights", label: "আলো", icon: "💡" },
 ];
 
 export const BASE_BY_ID = Object.fromEntries(BASE_LAYERS.map((b) => [b.id, b]));

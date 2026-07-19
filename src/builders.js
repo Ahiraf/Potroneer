@@ -307,6 +307,52 @@ export function buildDecoration(kind, v = {}) {
       return buildButterfly(v);
     case "ladybug":
       return buildLadybug(v);
+    case "pilea":
+      return buildPilea(v);
+    case "pothos":
+      return buildPothos(v);
+    case "calathea":
+      return buildCalathea(v);
+    case "venusflytrap":
+      return buildVenusFlytrap(v);
+    case "frog":
+      return buildFrog(v);
+    case "turtle":
+      return buildTurtle(v);
+    case "bird":
+      return buildBird(v);
+    case "gnome":
+      return buildGnome(v);
+    case "torii":
+      return buildTorii(v);
+    case "pagoda":
+      return buildPagoda(v);
+    case "fence":
+      return buildFence(v);
+    case "well":
+      return buildWell(v);
+    case "geode":
+      return buildGeode(v);
+    case "pinecone":
+      return buildPinecone(v);
+    case "log":
+      return buildLog(v);
+    case "pond":
+      return buildPond(v);
+    case "saguaro":
+      return buildSaguaro(v);
+    case "pricklypear":
+      return buildPricklyPear(v);
+    case "pincushion":
+      return buildPincushion(v);
+    case "cliplight":
+      return buildClipLight(v);
+    case "striplight":
+      return buildStripLight(v);
+    case "framelight":
+      return buildFrameLight(v);
+    case "ringlight":
+      return buildRingLight(v);
     default:
       return new THREE.Group();
   }
@@ -1678,5 +1724,1234 @@ function buildCrystal(v = {}) {
     shard.castShadow = true;
     g.add(shard);
   }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Expanded plant cast — the trailing, patterned and carnivorous plants people
+// actually crowd their jars with.
+// ---------------------------------------------------------------------------
+
+// Pilea peperomioides (Chinese money plant): round, coin-like peltate leaves
+// held out on slender petioles that attach at each leaf's centre.
+function buildPilea(v = {}) {
+  const g = new THREE.Group();
+  const leafMat = craftMaterial(v.leaf ?? "#57a04a", { rough: 0.55 });
+  leafMat.side = THREE.DoubleSide;
+  const stemMat = craftMaterial("#c98f5a", { rough: 0.8 });
+  const leaves = 7 + ((Math.random() * 5) | 0);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.4);
+    const len = 0.12 + Math.random() * 0.12;
+    const rise = 0.14 + Math.random() * 0.14;
+    const end = new THREE.Vector3(Math.cos(a) * len, rise, Math.sin(a) * len);
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0.01, 0),
+      new THREE.Vector3(Math.cos(a) * len * 0.4, rise * 0.85, Math.sin(a) * len * 0.4),
+      end,
+    );
+    const petiole = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 8, 0.006, 5),
+      stemMat,
+    );
+    petiole.castShadow = true;
+    g.add(petiole);
+    const r = 0.045 + Math.random() * 0.025;
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 18), leafMat);
+    disc.position.copy(end);
+    // dish the coin slightly and face it upward
+    disc.rotation.x = -Math.PI / 2 + jitter(0.4);
+    disc.rotation.z = a;
+    disc.castShadow = true;
+    g.add(disc);
+    // pale petiole dot where it meets the blade (peltate attachment)
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.008, 6, 6),
+      craftMaterial(shade(v.leaf ?? "#57a04a", 0.7), { rough: 0.6 }),
+    );
+    dot.position.copy(end);
+    g.add(dot);
+  }
+  return g;
+}
+
+// Heart-shaped leaf used by trailing vines.
+function heartLeafGeo(size = 1) {
+  const s = new THREE.Shape();
+  s.moveTo(0, 0);
+  s.bezierCurveTo(0.05, 0.03, 0.11, 0.05, 0.11, 0.11);
+  s.bezierCurveTo(0.11, 0.16, 0.05, 0.17, 0, 0.2);
+  s.bezierCurveTo(-0.05, 0.17, -0.11, 0.16, -0.11, 0.11);
+  s.bezierCurveTo(-0.11, 0.05, -0.05, 0.03, 0, 0);
+  const geo = new THREE.ShapeGeometry(s, 8);
+  geo.scale(size, size, size);
+  return geo;
+}
+
+// Pothos: long vines that spill up and over, dressed in heart-shaped leaves —
+// the plant that drapes down the outside of every jar.
+function buildPothos(v = {}) {
+  const g = new THREE.Group();
+  const leaf = v.leaf ?? "#4a8c3e";
+  const leafMat = craftMaterial(leaf, { rough: 0.6 });
+  leafMat.side = THREE.DoubleSide;
+  const variMat = craftMaterial(shade(leaf, 1.5), { rough: 0.6 });
+  variMat.side = THREE.DoubleSide;
+  const stemMat = craftMaterial("#6f8c4a", { rough: 0.8 });
+  const leafGeo = heartLeafGeo(1);
+  const vines = 3 + ((Math.random() * 3) | 0);
+  for (let vi = 0; vi < vines; vi++) {
+    const a = (vi / vines) * Math.PI * 2 + jitter(0.5);
+    // vine rises a little then trails outward and drops (over the rim)
+    const reach = 0.3 + Math.random() * 0.25;
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0.02, 0),
+      new THREE.Vector3(Math.cos(a) * 0.1, 0.18, Math.sin(a) * 0.1),
+      new THREE.Vector3(Math.cos(a) * reach * 0.7, 0.12, Math.sin(a) * reach * 0.7),
+      new THREE.Vector3(Math.cos(a) * reach, -0.04, Math.sin(a) * reach),
+    ]);
+    const stem = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 20, 0.006, 5),
+      stemMat,
+    );
+    stem.castShadow = true;
+    g.add(stem);
+    const n = 5 + ((Math.random() * 3) | 0);
+    for (let i = 1; i <= n; i++) {
+      const t = i / (n + 0.5);
+      const p = curve.getPoint(t);
+      const tan = curve.getTangent(t);
+      const lf = new THREE.Mesh(leafGeo, Math.random() < 0.28 ? variMat : leafMat);
+      lf.position.copy(p);
+      const side = i % 2 ? 1 : -1;
+      lf.lookAt(p.clone().add(new THREE.Vector3(side * 0.6, -0.25, tan.z + side * 0.3)));
+      lf.rotateZ(jitter(0.4));
+      lf.scale.setScalar(0.85 + Math.random() * 0.4);
+      lf.castShadow = true;
+      g.add(lf);
+    }
+  }
+  return g;
+}
+
+// Calathea / prayer-plant leaf: a green oval with a lighter feather pattern
+// down the midrib and a coloured underside.
+const calatheaTextures = new Map();
+function getCalatheaTexture(edge = "#b6d68a") {
+  if (calatheaTextures.has(edge)) return calatheaTextures.get(edge);
+  const c = document.createElement("canvas");
+  c.width = 96;
+  c.height = 160;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#2f6b39";
+  ctx.beginPath();
+  ctx.ellipse(48, 80, 34, 74, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // feathered lighter blotches alternating off the midrib
+  ctx.fillStyle = edge;
+  for (let i = 0; i < 7; i++) {
+    const y = 20 + i * 18;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(48 + s * 15, y, 12, 7, s * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // darker midrib
+  ctx.strokeStyle = "#24512c";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(48, 8);
+  ctx.lineTo(48, 152);
+  ctx.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  calatheaTextures.set(edge, tex);
+  return tex;
+}
+
+function buildCalathea(v = {}) {
+  const g = new THREE.Group();
+  const topMat = new THREE.MeshStandardMaterial({
+    map: getCalatheaTexture(v.edge),
+    transparent: true,
+    alphaTest: 0.5,
+    roughness: 0.6,
+    side: THREE.DoubleSide,
+  });
+  const stemMat = craftMaterial("#7a5238", { rough: 0.8 });
+  const leafGeo = new THREE.PlaneGeometry(0.13, 0.28, 1, 4);
+  // gently cup each leaf along its length
+  const lp = leafGeo.attributes.position;
+  for (let i = 0; i < lp.count; i++) {
+    lp.setZ(i, lp.getZ(i) + Math.abs(lp.getX(i)) * 0.4);
+  }
+  leafGeo.computeVertexNormals();
+  const leaves = 5 + ((Math.random() * 3) | 0);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.3);
+    const h = 0.14 + Math.random() * 0.14;
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.009, h, 5),
+      stemMat,
+    );
+    const lean = 0.35 + Math.random() * 0.35;
+    stem.position.set(Math.cos(a) * 0.03, h / 2, Math.sin(a) * 0.03);
+    stem.rotation.z = -Math.cos(a) * lean;
+    stem.rotation.x = Math.sin(a) * lean;
+    g.add(stem);
+    const leaf = new THREE.Mesh(leafGeo, topMat);
+    leaf.position.set(Math.cos(a) * (0.03 + h * lean * 0.5), h + 0.11, Math.sin(a) * (0.03 + h * lean * 0.5));
+    leaf.rotation.y = a + Math.PI / 2;
+    leaf.rotation.x = jitter(0.3);
+    leaf.rotation.z = -Math.cos(a) * lean * 0.6;
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+  return g;
+}
+
+// Venus flytrap: a rosette of hinged traps, each two toothed lobes with a
+// reddish inner blush.
+function buildVenusFlytrap(v = {}) {
+  const g = new THREE.Group();
+  const outerMat = craftMaterial("#4f8a3c", { rough: 0.6 });
+  const innerMat = craftMaterial(v.inner ?? "#b0402f", { rough: 0.5 });
+  innerMat.side = THREE.DoubleSide;
+  const stemMat = craftMaterial("#5f7a3a", { rough: 0.8 });
+  const traps = 4 + ((Math.random() * 3) | 0);
+  for (let i = 0; i < traps; i++) {
+    const a = (i / traps) * Math.PI * 2 + jitter(0.3);
+    const h = 0.08 + Math.random() * 0.08;
+    const rr = 0.04 + Math.random() * 0.03;
+    const px = Math.cos(a) * rr;
+    const pz = Math.sin(a) * rr;
+    // flattened petiole/stem
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.01, 0.014, h, 6),
+      stemMat,
+    );
+    stem.scale.z = 0.5;
+    stem.position.set(px, h / 2, pz);
+    stem.rotation.z = -Math.cos(a) * 0.4;
+    stem.rotation.x = Math.sin(a) * 0.4;
+    g.add(stem);
+    const mouth = new THREE.Group();
+    mouth.position.set(px + Math.cos(a) * h * 0.3, h, pz + Math.sin(a) * h * 0.3);
+    mouth.rotation.y = -a;
+    const open = 0.5 + Math.random() * 0.4;
+    for (const s of [-1, 1]) {
+      const lobe = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05, 12, 8, 0, Math.PI, 0, Math.PI / 2),
+        outerMat,
+      );
+      lobe.scale.set(1, 0.5, 0.8);
+      lobe.rotation.x = s * open - Math.PI / 2;
+      lobe.position.z = 0;
+      // red inner face
+      const inner = new THREE.Mesh(
+        new THREE.CircleGeometry(0.045, 12, 0, Math.PI),
+        innerMat,
+      );
+      inner.rotation.x = s * open - Math.PI / 2;
+      inner.position.y = 0.001 * s;
+      mouth.add(lobe, inner);
+      // marginal teeth (cilia)
+      for (let t = 0; t <= 6; t++) {
+        const ang = (t / 6) * Math.PI;
+        const tooth = new THREE.Mesh(
+          new THREE.ConeGeometry(0.004, 0.03, 4),
+          outerMat,
+        );
+        tooth.position.set(Math.cos(ang) * 0.05, 0, 0);
+        tooth.rotation.z = -Math.PI / 2 + (ang - Math.PI / 2);
+        const holder = new THREE.Group();
+        holder.add(tooth);
+        holder.rotation.x = s * open - Math.PI / 2;
+        mouth.add(holder);
+      }
+    }
+    mouth.traverse((o) => (o.castShadow = true));
+    g.add(mouth);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Little creatures & figurines
+// ---------------------------------------------------------------------------
+
+// A rounded cartoon frog perched low, with domed eyes and folded legs.
+function buildFrog(v = {}) {
+  const g = new THREE.Group();
+  const skin = v.skin ?? "#5f9c46";
+  const skinMat = craftMaterial(skin, { rough: 0.5 });
+  const bellyMat = craftMaterial(shade(skin, 1.4), { rough: 0.6 });
+  const blackMat = craftMaterial("#141210", { rough: 0.35 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 14), skinMat);
+  body.scale.set(1, 0.8, 1.05);
+  body.position.y = 0.08;
+  body.castShadow = true;
+  g.add(body);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), bellyMat);
+  belly.scale.set(1, 0.7, 0.9);
+  belly.position.set(0, 0.05, 0.05);
+  g.add(belly);
+  // eyes bulging up from the head
+  for (const s of [-1, 1]) {
+    const bump = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 10), skinMat);
+    bump.position.set(s * 0.045, 0.15, 0.045);
+    g.add(bump);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), craftMaterial("#e8c23a", { rough: 0.3 }));
+    eye.position.set(s * 0.05, 0.165, 0.06);
+    g.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), blackMat);
+    pupil.position.set(s * 0.055, 0.168, 0.078);
+    g.add(pupil);
+  }
+  // smiling mouth line
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.004, 6, 12, Math.PI), blackMat);
+  mouth.rotation.x = Math.PI / 2 + 0.5;
+  mouth.position.set(0, 0.06, 0.095);
+  g.add(mouth);
+  // folded front feet
+  for (const s of [-1, 1]) {
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), skinMat);
+    foot.scale.set(1.3, 0.5, 1);
+    foot.position.set(s * 0.06, 0.02, 0.09);
+    foot.castShadow = true;
+    g.add(foot);
+    // haunches
+    const thigh = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), skinMat);
+    thigh.scale.set(0.8, 0.7, 1.2);
+    thigh.position.set(s * 0.09, 0.05, -0.03);
+    g.add(thigh);
+  }
+  return g;
+}
+
+// A domed tortoise with a scute-patterned shell and stubby legs.
+function buildTurtle(v = {}) {
+  const g = new THREE.Group();
+  const shellCol = v.shell ?? "#6f8a3c";
+  const shellMat = craftMaterial(shellCol, { rough: 0.6, flat: true });
+  const plateMat = craftMaterial(shade(shellCol, 0.65), { rough: 0.7, flat: true });
+  const skinMat = craftMaterial(v.skin ?? "#8a9a5c", { rough: 0.7 });
+
+  const shell = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    shellMat,
+  );
+  shell.scale.set(1.15, 0.7, 1.4);
+  shell.position.y = 0.05;
+  shell.castShadow = true;
+  g.add(shell);
+  // scutes: a ring of raised plates plus a central one
+  const centre = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), plateMat);
+  centre.scale.y = 0.5;
+  centre.position.y = 0.13;
+  g.add(centre);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const plate = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), plateMat);
+    plate.scale.y = 0.4;
+    plate.position.set(Math.cos(a) * 0.08, 0.1, Math.sin(a) * 0.1);
+    g.add(plate);
+  }
+  // head
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.05, 8), skinMat);
+  neck.rotation.x = 1.1;
+  neck.position.set(0, 0.05, 0.15);
+  g.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), skinMat);
+  head.scale.z = 1.2;
+  head.position.set(0, 0.06, 0.19);
+  head.castShadow = true;
+  g.add(head);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 6), craftMaterial("#141210", { rough: 0.4 }));
+    eye.position.set(s * 0.014, 0.07, 0.21);
+    g.add(eye);
+  }
+  // four stubby legs + tail
+  for (const [lx, lz] of [[0.09, 0.09], [-0.09, 0.09], [0.09, -0.09], [-0.09, -0.09]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.02, 0.05, 8), skinMat);
+    leg.position.set(lx, 0.025, lz);
+    leg.rotation.z = lx > 0 ? 0.5 : -0.5;
+    leg.castShadow = true;
+    g.add(leg);
+  }
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 6), skinMat);
+  tail.rotation.x = -1.4;
+  tail.position.set(0, 0.05, -0.16);
+  g.add(tail);
+  return g;
+}
+
+// A plump little songbird.
+function buildBird(v = {}) {
+  const g = new THREE.Group();
+  const body = v.body ?? "#c94f3a";
+  const bodyMat = craftMaterial(body, { rough: 0.6 });
+  const wingMat = craftMaterial(shade(body, 0.7), { rough: 0.65 });
+  const bellyMat = craftMaterial(shade(body, 1.5), { rough: 0.7 });
+
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 12), bodyMat);
+  torso.scale.set(1, 1.15, 1.2);
+  torso.position.y = 0.09;
+  torso.castShadow = true;
+  g.add(torso);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), bellyMat);
+  belly.scale.set(1, 1, 0.7);
+  belly.position.set(0, 0.07, 0.05);
+  g.add(belly);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), bodyMat);
+  head.position.set(0, 0.17, 0.02);
+  head.castShadow = true;
+  g.add(head);
+  // beak
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.05, 6), craftMaterial("#e0a02a", { rough: 0.5 }));
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.17, 0.075);
+  g.add(beak);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 8), craftMaterial("#141210", { rough: 0.35 }));
+    eye.position.set(s * 0.022, 0.185, 0.045);
+    g.add(eye);
+    const wing = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), wingMat);
+    wing.scale.set(0.35, 0.9, 1.1);
+    wing.position.set(s * 0.06, 0.09, 0);
+    wing.rotation.z = s * 0.3;
+    wing.castShadow = true;
+    g.add(wing);
+  }
+  // cocked tail
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.08), wingMat);
+  tail.position.set(0, 0.11, -0.08);
+  tail.rotation.x = -0.6;
+  tail.castShadow = true;
+  g.add(tail);
+  // twig legs
+  for (const s of [-1, 1]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.04, 4), craftMaterial("#c8922a", { rough: 0.6 }));
+    leg.position.set(s * 0.02, 0.02, 0.01);
+    g.add(leg);
+  }
+  return g;
+}
+
+// A classic garden gnome: pointed hat, round nose, big beard.
+function buildGnome(v = {}) {
+  const g = new THREE.Group();
+  const hatMat = craftMaterial(v.hat ?? "#c1402f", { rough: 0.75 });
+  const coatMat = craftMaterial(v.coat ?? "#4a6b9c", { rough: 0.8 });
+  const skinMat = craftMaterial("#e8bd96", { rough: 0.7 });
+  const beardMat = craftMaterial("#efe9dd", { rough: 0.9 });
+  const bootMat = craftMaterial("#5a4632", { rough: 0.85 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.085, 0.16, 12), coatMat);
+  body.position.y = 0.11;
+  body.castShadow = true;
+  g.add(body);
+  for (const s of [-1, 1]) {
+    const boot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), bootMat);
+    boot.scale.set(0.8, 0.6, 1.2);
+    boot.position.set(s * 0.035, 0.02, 0.02);
+    g.add(boot);
+  }
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), skinMat);
+  face.position.y = 0.22;
+  g.add(face);
+  // fat beard covering most of the face
+  const beard = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.11, 12), beardMat);
+  beard.position.set(0, 0.18, 0.02);
+  beard.rotation.x = 0.1;
+  beard.castShadow = true;
+  g.add(beard);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.015, 8, 8), skinMat);
+  nose.position.set(0, 0.225, 0.05);
+  g.add(nose);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 6), craftMaterial("#2a2420", { rough: 0.4 }));
+    eye.position.set(s * 0.016, 0.24, 0.044);
+    g.add(eye);
+  }
+  // tall floppy hat
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 14), hatMat);
+  hat.position.y = 0.33;
+  hat.rotation.z = jitter(0.15);
+  hat.castShadow = true;
+  g.add(hat);
+  const brim = new THREE.Mesh(new THREE.TorusGeometry(0.052, 0.012, 6, 16), hatMat);
+  brim.rotation.x = Math.PI / 2;
+  brim.position.y = 0.255;
+  g.add(brim);
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Zen / fairy-garden structures
+// ---------------------------------------------------------------------------
+
+// A Japanese torii gate — two posts, a curved top lintel and a tie beam.
+function buildTorii(v = {}) {
+  const g = new THREE.Group();
+  const col = v.wood ? "#7a5a38" : "#c1402f";
+  const mat = craftMaterial(col, { rough: 0.8 });
+  const darkMat = craftMaterial(shade(col, 0.7), { rough: 0.8 });
+  const w = 0.34;
+  for (const s of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.44, 10), mat);
+    post.position.set(s * w * 0.5, 0.22, 0);
+    post.castShadow = true;
+    g.add(post);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.04, 0.03, 10), darkMat);
+    base.position.set(s * w * 0.5, 0.015, 0);
+    g.add(base);
+  }
+  // top lintel (kasagi), slightly bowed and overhanging, with a dark trim below
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(w + 0.14, 0.035, 0.05), mat);
+  lintel.position.y = 0.45;
+  lintel.rotation.z = 0; // gentle upward sweep faked with end caps
+  lintel.castShadow = true;
+  g.add(lintel);
+  for (const s of [-1, 1]) {
+    const upturn = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.05), mat);
+    upturn.position.set(s * (w * 0.5 + 0.08), 0.462, 0);
+    upturn.rotation.z = s * -0.28;
+    g.add(upturn);
+  }
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.02, 0.045), darkMat);
+  trim.position.y = 0.425;
+  g.add(trim);
+  // tie beam (nuki) lower down
+  const nuki = new THREE.Mesh(new THREE.BoxGeometry(w + 0.06, 0.028, 0.04), mat);
+  nuki.position.y = 0.37;
+  nuki.castShadow = true;
+  g.add(nuki);
+  // central plaque
+  const plaque = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.01), darkMat);
+  plaque.position.set(0, 0.41, 0.03);
+  g.add(plaque);
+  return g;
+}
+
+// A tiered stone pagoda / lantern.
+function buildPagoda(v = {}) {
+  const g = new THREE.Group();
+  const stoneMat = craftMaterial(v.stone ?? "#9a938a", { rough: 0.9, flat: true });
+  const darkMat = craftMaterial("#7a746b", { rough: 0.9, flat: true });
+  let y = 0;
+  // base
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.06, 6), stoneMat);
+  base.position.y = 0.03;
+  base.castShadow = true;
+  g.add(base);
+  y = 0.06;
+  const tiers = 3;
+  for (let i = 0; i < tiers; i++) {
+    const k = 1 - i * 0.24;
+    // body block
+    const bodyH = 0.08 * k;
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05 * k, 0.055 * k, bodyH, 6),
+      stoneMat,
+    );
+    body.position.y = y + bodyH / 2;
+    body.castShadow = true;
+    g.add(body);
+    // small window on the lowest lantern tier
+    if (i === 0) {
+      const win = new THREE.Mesh(
+        new THREE.BoxGeometry(0.03, 0.04, 0.12),
+        craftMaterial("#3a352e", { rough: 0.6 }),
+      );
+      win.position.y = y + bodyH / 2;
+      g.add(win);
+    }
+    y += bodyH;
+    // flared roof
+    const roof = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045 * k, 0.1 * k, 0.05, 6),
+      darkMat,
+    );
+    roof.position.y = y + 0.025;
+    roof.castShadow = true;
+    g.add(roof);
+    y += 0.05;
+  }
+  // finial
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), darkMat);
+  finial.scale.y = 1.5;
+  finial.position.y = y + 0.02;
+  g.add(finial);
+  return g;
+}
+
+// A short picket-fence segment.
+function buildFence(v = {}) {
+  const g = new THREE.Group();
+  const mat = craftMaterial(v.wood ? "#9a7548" : "#eae2d2", { rough: 0.85, flat: true });
+  const span = 0.4;
+  const pickets = 5;
+  // two horizontal rails
+  for (const ry of [0.08, 0.17]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(span, 0.02, 0.012), mat);
+    rail.position.set(0, ry, 0);
+    rail.castShadow = true;
+    g.add(rail);
+  }
+  for (let i = 0; i < pickets; i++) {
+    const x = (i / (pickets - 1) - 0.5) * span;
+    const h = 0.22;
+    const picket = new THREE.Mesh(new THREE.BoxGeometry(0.03, h, 0.014), mat);
+    picket.position.set(x, h / 2, 0);
+    picket.castShadow = true;
+    g.add(picket);
+    // pointed cap
+    const cap = new THREE.Mesh(
+      new THREE.ConeGeometry(0.021, 0.03, 4),
+      mat,
+    );
+    cap.rotation.y = Math.PI / 4;
+    cap.position.set(x, h + 0.014, 0);
+    g.add(cap);
+  }
+  return g;
+}
+
+// A little wishing well with a peaked shingled roof.
+function buildWell(v = {}) {
+  const g = new THREE.Group();
+  const stoneMat = craftMaterial("#8f8579", { rough: 0.9, flat: true });
+  const woodMat = craftMaterial("#7a5636", { rough: 0.85 });
+  const roofMat = craftMaterial(v.roof ?? "#9c4636", { rough: 0.8 });
+
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 14), stoneMat);
+  wall.position.y = 0.06;
+  wall.castShadow = true;
+  g.add(wall);
+  // speckled stones on the rim
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 6, 16), stoneMat);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.12;
+  g.add(rim);
+  // dark water inside
+  const water = new THREE.Mesh(
+    new THREE.CircleGeometry(0.088, 16),
+    craftMaterial("#2c4a52", { rough: 0.3 }),
+  );
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = 0.1;
+  g.add(water);
+  // two posts + crossbar + roof
+  for (const s of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.2, 6), woodMat);
+    post.position.set(s * 0.09, 0.22, 0);
+    post.castShadow = true;
+    g.add(post);
+  }
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.2, 6), woodMat);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.y = 0.3;
+  g.add(bar);
+  // bucket on a rope
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.08, 4), craftMaterial("#6b6152", { rough: 0.9 }));
+  rope.position.set(0.02, 0.26, 0);
+  g.add(rope);
+  const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.018, 0.03, 8), woodMat);
+  bucket.position.set(0.02, 0.205, 0);
+  bucket.castShadow = true;
+  g.add(bucket);
+  // peaked roof: two slanted boards
+  for (const s of [-1, 1]) {
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.24), roofMat);
+    slope.position.set(s * 0.05, 0.35, 0);
+    slope.rotation.z = s * 0.6;
+    slope.castShadow = true;
+    g.add(slope);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Hardscape & natural bits
+// ---------------------------------------------------------------------------
+
+// A cracked-open geode: a rough stone shell lined with a druse of tiny crystals.
+function buildGeode(v = {}) {
+  const g = new THREE.Group();
+  const rockMat = craftMaterial("#8a8177", { rough: 0.95, flat: true });
+  const crystalCol = v.color ?? "#9a77c9";
+  const crystalMat = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(crystalCol),
+    roughness: 0.15,
+    transmission: 0.5,
+    thickness: 0.2,
+    ior: 1.5,
+    transparent: true,
+    opacity: 0.92,
+    clearcoat: 0.5,
+    flatShading: true,
+  });
+  const liningMat = craftMaterial(shade(crystalCol, 1.25), { rough: 0.5, flat: true });
+
+  // outer rock half-shell, hollow-side up and tilted toward the viewer
+  const r = 0.11;
+  const shellGeo = new THREE.SphereGeometry(r, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  const p = shellGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    p.setXYZ(i, p.getX(i) * (1 + jitter(0.18)), p.getY(i) * (1 + jitter(0.12)), p.getZ(i) * (1 + jitter(0.18)));
+  }
+  shellGeo.computeVertexNormals();
+  const shell = new THREE.Mesh(shellGeo, rockMat);
+  shell.rotation.x = -0.85;
+  shell.position.y = r * 0.6;
+  shell.castShadow = true;
+  shell.receiveShadow = true;
+  g.add(shell);
+  // pale crystalline lining just inside the mouth
+  const lining = new THREE.Mesh(new THREE.SphereGeometry(r * 0.82, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2.1), liningMat);
+  lining.rotation.x = -0.85;
+  lining.position.y = r * 0.62;
+  g.add(lining);
+  // a druse of little crystal points across the opening
+  const face = new THREE.Vector3(0, Math.sin(0.85), Math.cos(0.85)).normalize();
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const rad = Math.sqrt(Math.random()) * r * 0.7;
+    const point = new THREE.Mesh(
+      new THREE.ConeGeometry(0.008 + Math.random() * 0.006, 0.02 + Math.random() * 0.02, 5),
+      crystalMat,
+    );
+    // spread across a disc facing `face`, sitting near the rim
+    const u = new THREE.Vector3(1, 0, 0);
+    const w2 = new THREE.Vector3().crossVectors(face, u).normalize();
+    const u2 = new THREE.Vector3().crossVectors(w2, face).normalize();
+    const pos = new THREE.Vector3()
+      .addScaledVector(u2, Math.cos(a) * rad)
+      .addScaledVector(w2, Math.sin(a) * rad)
+      .addScaledVector(face, 0.02)
+      .add(new THREE.Vector3(0, r * 0.62, 0));
+    point.position.copy(pos);
+    point.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), face);
+    point.rotation.x += jitter(0.3);
+    g.add(point);
+  }
+  return g;
+}
+
+// A pinecone: overlapping woody scales spiralling around an ovoid core.
+function buildPinecone(v = {}) {
+  const g = new THREE.Group();
+  const scaleMat = craftMaterial(v.wood ?? "#7a512e", { rough: 0.85, flat: true });
+  const h = 0.16;
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.03, h, 8), craftMaterial("#5c3d22", { rough: 0.9 }));
+  core.position.y = h / 2 + 0.01;
+  g.add(core);
+  const scaleGeo = new THREE.ConeGeometry(0.028, 0.05, 4);
+  const rows = 7;
+  for (let r = 0; r < rows; r++) {
+    const t = r / (rows - 1); // 0 bottom → 1 top
+    const y = 0.02 + t * h;
+    const rad = 0.055 * Math.sin(Math.PI * (0.15 + t * 0.8));
+    const perRow = 7;
+    for (let i = 0; i < perRow; i++) {
+      const a = (i / perRow) * Math.PI * 2 + r * 0.45; // spiral offset
+      const scale = new THREE.Mesh(scaleGeo, scaleMat);
+      scale.position.set(Math.cos(a) * rad, y, Math.sin(a) * rad);
+      // tip pointing outward and slightly down
+      scale.rotation.order = "YXZ";
+      scale.rotation.y = -a + Math.PI / 2;
+      scale.rotation.z = -Math.PI / 2 + (0.4 - t * 0.7);
+      scale.scale.setScalar(0.7 + t * 0.5);
+      scale.castShadow = true;
+      g.add(scale);
+    }
+  }
+  return g;
+}
+
+// A mossy fallen log lying on its side, with ringed cut ends and moss on top.
+function buildLog(v = {}) {
+  const g = new THREE.Group();
+  const barkMat = craftMaterial(v.wood ?? "#6e5236", { rough: 0.95, flat: true });
+  const ringMat = craftMaterial("#b79a72", { rough: 0.9, flat: true });
+  const len = 0.42;
+  const r = 0.07;
+  const log = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.92, len, 12), barkMat);
+  log.rotation.z = Math.PI / 2;
+  log.rotation.y = jitter(0.2);
+  log.position.y = r;
+  log.castShadow = true;
+  log.receiveShadow = true;
+  g.add(log);
+  // growth-ring end caps
+  for (const s of [-1, 1]) {
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(r * 0.98, 12), ringMat);
+    cap.position.set(s * len * 0.5, r, 0);
+    cap.rotation.y = s * Math.PI / 2;
+    g.add(cap);
+    for (let i = 1; i <= 3; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r * i * 0.24, 0.003, 5, 14), craftMaterial("#8a6c48", { rough: 0.9 }));
+      ring.position.set(s * (len * 0.5 + 0.001), r, 0);
+      ring.rotation.y = Math.PI / 2;
+      g.add(ring);
+    }
+  }
+  // moss cushions along the top
+  const greens = ["#5f8330", "#6f9a3a", "#557a2c"];
+  for (let i = 0; i < 8; i++) {
+    const mr = 0.02 + Math.random() * 0.02;
+    const blob = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(mr, 1),
+      craftMaterial(greens[(Math.random() * greens.length) | 0], { rough: 1 }),
+    );
+    blob.scale.y = 0.6;
+    blob.position.set(jitter(len * 0.42), r + r * 0.85, jitter(r * 0.5));
+    blob.castShadow = true;
+    g.add(blob);
+  }
+  // a couple of tiny mushrooms sprouting from the bark
+  for (let i = 0; i < 2; i++) {
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.005, 0.03, 5), craftMaterial("#efe7d3", { rough: 0.85 }));
+    const x = jitter(len * 0.3);
+    stem.position.set(x, r + 0.02, 0.03);
+    g.add(stem);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), craftMaterial("#c96a32", { rough: 0.5 }));
+    cap.scale.y = 0.7;
+    cap.position.set(x, r + 0.035, 0.03);
+    g.add(cap);
+  }
+  return g;
+}
+
+// A small still-water pool ringed with pebbles — a resin "pond" feature.
+function buildPond(v = {}) {
+  const g = new THREE.Group();
+  const waterMat = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(v.water ?? "#3f7d8c"),
+    roughness: 0.08,
+    metalness: 0,
+    transmission: 0.4,
+    thickness: 0.1,
+    ior: 1.33,
+    transparent: true,
+    opacity: 0.85,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+  });
+  // slightly irregular water disc
+  const R = 0.16;
+  const waterGeo = new THREE.CircleGeometry(R, 24);
+  const wp = waterGeo.attributes.position;
+  for (let i = 0; i < wp.count; i++) {
+    const x = wp.getX(i), z = wp.getY(i);
+    const d = Math.hypot(x, z);
+    if (d > 0.001) {
+      const k = 1 + jitter(0.1);
+      wp.setXY(i, x * k, z * k);
+    }
+  }
+  waterGeo.computeVertexNormals();
+  const water = new THREE.Mesh(waterGeo, waterMat);
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = 0.012;
+  water.receiveShadow = true;
+  g.add(water);
+  // a sandy/dark basin just under the water so it doesn't read see-through
+  const basin = new THREE.Mesh(new THREE.CircleGeometry(R * 1.02, 24), craftMaterial("#4a4034", { rough: 0.9 }));
+  basin.rotation.x = -Math.PI / 2;
+  basin.position.y = 0.002;
+  g.add(basin);
+  // pebble ring around the edge
+  const grays = ["#8f877b", "#9a9186", "#7d766b", "#a49b8e", "#c0a888"];
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + jitter(0.15);
+    const pr = 0.016 + Math.random() * 0.014;
+    const geo = new THREE.IcosahedronGeometry(pr, 0);
+    const pebble = new THREE.Mesh(geo, craftMaterial(grays[(Math.random() * grays.length) | 0], { rough: 0.9, flat: true }));
+    const rad = R * (1.02 + Math.random() * 0.12);
+    pebble.position.set(Math.cos(a) * rad, pr * 0.55, Math.sin(a) * rad);
+    pebble.rotation.set(jitter(Math.PI), jitter(Math.PI), jitter(Math.PI));
+    pebble.scale.y = 0.7;
+    pebble.castShadow = true;
+    g.add(pebble);
+  }
+  // a lily pad or two floating
+  for (let i = 0; i < 2; i++) {
+    const pad = new THREE.Mesh(
+      new THREE.CircleGeometry(0.03, 10, 0.3, Math.PI * 2 - 0.6),
+      craftMaterial("#4e8c48", { rough: 0.7 }),
+    );
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(jitter(0.08), 0.014, jitter(0.08));
+    g.add(pad);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// More cactus forms — a small desert set beyond the barrel cactus.
+// ---------------------------------------------------------------------------
+
+// Scatter pale areole spines over a mesh's surface along a set of directions.
+function addSpines(group, points, mat, len = 0.03) {
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const { pos, dir } of points) {
+    const spine = new THREE.Mesh(new THREE.ConeGeometry(0.003, len, 4), mat);
+    spine.position.copy(pos);
+    spine.quaternion.setFromUnitVectors(up, dir.clone().normalize());
+    group.add(spine);
+  }
+}
+
+// Saguaro: a tall fluted column with one or two upturned arms and a crown of
+// white blossoms — the iconic desert silhouette.
+function buildSaguaro(v = {}) {
+  const g = new THREE.Group();
+  const green = v.body ?? "#4e7d43";
+  const bodyMat = craftMaterial(green, { rough: 0.8 });
+  const ribMat = craftMaterial(shade(green, 0.82), { rough: 0.85 });
+  const spineMat = craftMaterial("#e8dcc0", { rough: 0.9 });
+
+  const H = 0.46 + Math.random() * 0.16;
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.072, H, 14), bodyMat);
+  col.position.y = H / 2;
+  col.castShadow = true;
+  g.add(col);
+  const crown = new THREE.Mesh(
+    new THREE.SphereGeometry(0.058, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    bodyMat,
+  );
+  crown.position.y = H;
+  g.add(crown);
+  // vertical rib flutes
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const rib = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, H * 0.96, 5), ribMat);
+    rib.position.set(Math.cos(a) * 0.062, H / 2, Math.sin(a) * 0.062);
+    g.add(rib);
+  }
+
+  // arms: horizontal elbow then a rising column with a rounded tip
+  const arms = 1 + ((Math.random() * 2) | 0);
+  for (let i = 0; i < arms; i++) {
+    const s = i === 0 ? 1 : -1;
+    const armY = H * (0.45 + Math.random() * 0.15);
+    const elbowX = s * 0.14;
+    const armH = 0.14 + Math.random() * 0.1;
+    const horiz = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.13, 10), bodyMat);
+    horiz.rotation.z = Math.PI / 2;
+    horiz.position.set(s * 0.08, armY, 0);
+    g.add(horiz);
+    const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), bodyMat);
+    elbow.position.set(elbowX, armY, 0);
+    g.add(elbow);
+    const vert = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, armH, 10), bodyMat);
+    vert.position.set(elbowX, armY + armH / 2, 0);
+    vert.castShadow = true;
+    g.add(vert);
+    const tip = new THREE.Mesh(
+      new THREE.SphereGeometry(0.028, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+      bodyMat,
+    );
+    tip.position.set(elbowX, armY + armH, 0);
+    g.add(tip);
+  }
+
+  // sparse spines along the ribs
+  const pts = [];
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const y = Math.random() * H;
+    const r = 0.066;
+    pts.push({
+      pos: new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r),
+      dir: new THREE.Vector3(Math.cos(a), 0, Math.sin(a)),
+    });
+  }
+  addSpines(g, pts, spineMat, 0.022);
+
+  // crown of blossoms
+  if (v.bloom !== null) {
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      const flower = new THREE.Mesh(
+        new THREE.SphereGeometry(0.022, 8, 6),
+        craftMaterial(v.bloom ?? "#f2ead8", { rough: 0.6 }),
+      );
+      flower.scale.y = 0.5;
+      flower.position.set(Math.cos(a) * 0.03, H + 0.03, Math.sin(a) * 0.03);
+      g.add(flower);
+    }
+  }
+  return g;
+}
+
+// Prickly pear (Opuntia): flat oval pads budding off one another, dotted with
+// spine clusters and topped with a couple of blooms.
+function buildPricklyPear(v = {}) {
+  const g = new THREE.Group();
+  const green = v.body ?? "#5f9c4e";
+  const padMat = craftMaterial(green, { rough: 0.72 });
+  const spineMat = craftMaterial("#efe6cf", { rough: 0.9 });
+
+  function pad(x, y, tilt, scale) {
+    const p = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 12), padMat);
+    mesh.scale.set(0.86, 1.15, 0.3);
+    mesh.castShadow = true;
+    p.add(mesh);
+    // areole dots across both faces
+    const dots = [];
+    for (let i = 0; i < 16; i++) {
+      const u = (Math.random() - 0.5) * 0.16;
+      const w = (Math.random() * 0.9 - 0.1) * 0.22;
+      const face = Math.random() < 0.5 ? 1 : -1;
+      dots.push({
+        pos: new THREE.Vector3(u, w + 0.02, face * 0.03),
+        dir: new THREE.Vector3(u * 2, 0.5, face),
+      });
+    }
+    addSpines(p, dots, spineMat, 0.02);
+    p.position.set(x, y, 0);
+    p.rotation.z = tilt;
+    p.scale.setScalar(scale);
+    return p;
+  }
+
+  const base = pad(0, 0.11, 0, 1);
+  g.add(base);
+  const left = pad(-0.08, 0.24, 0.5, 0.72);
+  g.add(left);
+  const right = pad(0.09, 0.26, -0.4, 0.8);
+  g.add(right);
+  if (Math.random() < 0.6) g.add(pad(0.02, 0.36, 0.1, 0.55));
+
+  // blooms on the upper pad rims
+  if (v.bloom !== null) {
+    const bloomMat = craftMaterial(v.bloom ?? "#e8b23a", { rough: 0.6 });
+    for (const [bx, by] of [[0.12, 0.34], [-0.02, 0.4]]) {
+      const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 6), bloomMat);
+      bloom.scale.y = 0.7;
+      bloom.position.set(bx, by, 0.02);
+      g.add(bloom);
+    }
+  }
+  return g;
+}
+
+// Pincushion (Mammillaria): a low cluster of round tuberculed globes ringed
+// with fine spines and a crown of tiny pink flowers.
+function buildPincushion(v = {}) {
+  const g = new THREE.Group();
+  const green = v.body ?? "#5c8a56";
+  const bodyMat = craftMaterial(green, { rough: 0.75 });
+  const spineMat = craftMaterial("#f0e8d4", { rough: 0.9 });
+  const globes = 3 + ((Math.random() * 3) | 0);
+  for (let i = 0; i < globes; i++) {
+    const a = (i / globes) * Math.PI * 2;
+    const rr = i === 0 ? 0 : 0.05 + Math.random() * 0.02;
+    const R = 0.055 + Math.random() * 0.03;
+    const cx = Math.cos(a) * rr;
+    const cz = Math.sin(a) * rr;
+    const globe = new THREE.Mesh(new THREE.SphereGeometry(R, 14, 12), bodyMat);
+    globe.scale.y = 0.85;
+    globe.position.set(cx, R * 0.8, cz);
+    globe.castShadow = true;
+    g.add(globe);
+    // tubercles: little bumps in a spiral, each with a spine tuft
+    const spts = [];
+    for (let j = 0; j < 22; j++) {
+      const t = Math.acos(1 - 2 * ((j + 0.5) / 22));
+      const ph = j * 2.399;
+      const dir = new THREE.Vector3(
+        Math.sin(t) * Math.cos(ph),
+        Math.cos(t),
+        Math.sin(t) * Math.sin(ph),
+      );
+      const pos = dir.clone().multiplyScalar(R).add(new THREE.Vector3(cx, R * 0.8, cz));
+      const bump = new THREE.Mesh(new THREE.SphereGeometry(R * 0.13, 6, 5), bodyMat);
+      bump.position.copy(pos);
+      g.add(bump);
+      spts.push({ pos, dir });
+    }
+    addSpines(g, spts, spineMat, R * 0.32);
+    // flower crown on the biggest globe
+    if (i === 0 && v.bloom !== null) {
+      for (let f = 0; f < 6; f++) {
+        const fa = (f / 6) * Math.PI * 2;
+        const petal = new THREE.Mesh(
+          new THREE.SphereGeometry(0.012, 6, 5),
+          craftMaterial(v.bloom ?? "#e277a2", { rough: 0.6 }),
+        );
+        petal.scale.set(0.6, 0.4, 1.3);
+        petal.position.set(cx + Math.cos(fa) * 0.02, R * 1.5, cz + Math.sin(fa) * 0.02);
+        g.add(petal);
+      }
+    }
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Grow lights — the lamps hobbyists pair with terrariums. Each casts a real
+// point light plus an emissive lens so it reads as glowing at any mood.
+// ---------------------------------------------------------------------------
+
+function metalMaterial(hex = "#3a3d42") {
+  return new THREE.MeshStandardMaterial({
+    color: new THREE.Color(hex),
+    roughness: 0.45,
+    metalness: 0.5,
+  });
+}
+function lampGlowMaterial(hex) {
+  return new THREE.MeshStandardMaterial({
+    color: new THREE.Color(hex),
+    emissive: new THREE.Color(hex),
+    emissiveIntensity: 1.6,
+    roughness: 0.4,
+  });
+}
+
+// Clip-on flexible gooseneck LED — a clamp at the base, a wavy neck and a small
+// downlit disc head. The signature terrarium desk light.
+function buildClipLight(v = {}) {
+  const g = new THREE.Group();
+  const metal = metalMaterial(v.metal ?? "#33363b");
+  const glow = v.glow ?? 0xfff0d0;
+
+  // spring clamp
+  const clamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.045, 0.13), metal);
+  clamp.position.y = 0.03;
+  clamp.castShadow = true;
+  g.add(clamp);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.05), metal);
+  jaw.position.set(0, 0.062, 0.05);
+  g.add(jaw);
+
+  // gooseneck: an S-curved tube climbing up and reaching forward
+  const head = new THREE.Vector3(0.11, 0.44, 0.02);
+  const neck = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0.05, 0),
+    new THREE.Vector3(-0.03, 0.2, 0.02),
+    new THREE.Vector3(0.04, 0.34, 0.0),
+    head.clone(),
+  ]);
+  const neckMesh = new THREE.Mesh(new THREE.TubeGeometry(neck, 20, 0.012, 6), metal);
+  neckMesh.castShadow = true;
+  g.add(neckMesh);
+
+  // disc head tilted to point down at the plants
+  const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.025, 18), metal);
+  shell.position.copy(head);
+  shell.rotation.x = 0.9;
+  shell.castShadow = true;
+  g.add(shell);
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.046, 18), lampGlowMaterial(glow));
+  lens.position.copy(head).add(new THREE.Vector3(0, -0.012, 0.016));
+  lens.rotation.x = 0.9 - Math.PI / 2;
+  g.add(lens);
+
+  const light = new THREE.PointLight(glow, 0.7, 1.8, 2);
+  light.position.copy(head).add(new THREE.Vector3(0, -0.06, 0.04));
+  g.add(light);
+  return g;
+}
+
+// LED bar on two slim legs — a small grow-light rack straddling the terrarium.
+function buildStripLight(v = {}) {
+  const g = new THREE.Group();
+  const metal = metalMaterial(v.metal ?? "#3a3d42");
+  const glow = v.glow ?? 0xf4f6ff;
+  const span = 0.44;
+  const H = 0.42;
+  for (const s of [-1, 1]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, H, 8), metal);
+    leg.position.set(s * span * 0.5, H / 2, 0);
+    leg.castShadow = true;
+    g.add(leg);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.012, 10), metal);
+    foot.position.set(s * span * 0.5, 0.006, 0);
+    g.add(foot);
+  }
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(span + 0.06, 0.04, 0.07), metal);
+  bar.position.y = H;
+  bar.castShadow = true;
+  g.add(bar);
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(span - 0.02, 0.012, 0.05), lampGlowMaterial(glow));
+  strip.position.y = H - 0.024;
+  g.add(strip);
+  const light = new THREE.PointLight(glow, 0.7, 1.8, 2);
+  light.position.set(0, H - 0.1, 0);
+  g.add(light);
+  return g;
+}
+
+// Cantilevered wooden-frame lamp — a warm LED strip tucked under a wooden arm
+// reaching over the terrarium, like the display lamp in the reference video.
+function buildFrameLight(v = {}) {
+  const g = new THREE.Group();
+  const woodMat = craftMaterial(v.wood ?? "#a9793f", { rough: 0.7 });
+  const glow = v.glow ?? 0xffcf8a;
+  const postH = 0.44;
+  const reach = 0.34;
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.03, 0.14), woodMat);
+  base.position.y = 0.015;
+  base.castShadow = true;
+  g.add(base);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.045, postH, 0.05), woodMat);
+  post.position.set(-reach * 0.5, postH / 2, 0);
+  post.castShadow = true;
+  g.add(post);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(reach + 0.05, 0.045, 0.05), woodMat);
+  arm.position.set(-reach * 0.5 + reach * 0.5, postH, 0);
+  arm.castShadow = true;
+  g.add(arm);
+  // warm LED strip on the underside of the arm
+  const strip = new THREE.Mesh(
+    new THREE.BoxGeometry(reach - 0.02, 0.01, 0.03),
+    lampGlowMaterial(glow),
+  );
+  strip.position.set(0, postH - 0.028, 0);
+  g.add(strip);
+  const light = new THREE.PointLight(glow, 0.8, 1.6, 2);
+  light.position.set(0.02, postH - 0.12, 0);
+  g.add(light);
+  return g;
+}
+
+// Halo ring light on a slim stand — an even, shadow-free glow ring.
+function buildRingLight(v = {}) {
+  const g = new THREE.Group();
+  const metal = metalMaterial(v.metal ?? "#3a3d42");
+  const glow = v.glow ?? 0xffffff;
+  const standH = 0.3;
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 0.02, 16), metal);
+  base.position.y = 0.01;
+  g.add(base);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, standH, 8), metal);
+  pole.position.y = standH / 2;
+  pole.castShadow = true;
+  g.add(pole);
+  const ringR = 0.13;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.016, 10, 32), metal);
+  ring.position.y = standH + ringR;
+  ring.rotation.x = 0.35;
+  ring.castShadow = true;
+  g.add(ring);
+  const inner = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.008, 8, 32), lampGlowMaterial(glow));
+  inner.position.y = standH + ringR;
+  inner.rotation.x = 0.35;
+  inner.position.z = 0.012;
+  g.add(inner);
+  const light = new THREE.PointLight(glow, 0.6, 1.6, 2);
+  light.position.set(0, standH + ringR, 0.1);
+  g.add(light);
   return g;
 }
