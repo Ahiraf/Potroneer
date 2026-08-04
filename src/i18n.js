@@ -220,7 +220,8 @@ const EN = {
     "Pick from your tray, place with tweezers, pour water, and mist.",
 };
 
-let lang = localStorage.getItem("terrarium-lang") || "bn";
+const LANG_KEY = "potroneer-lang";
+let lang = localStorage.getItem(LANG_KEY) || localStorage.getItem("terrarium-lang") || "bn";
 
 export function getLang() {
   return lang;
@@ -228,7 +229,7 @@ export function getLang() {
 
 export function setLang(l) {
   lang = l;
-  localStorage.setItem("terrarium-lang", l);
+  localStorage.setItem(LANG_KEY, l);
 }
 
 // Translate a single string.

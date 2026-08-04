@@ -1,7 +1,7 @@
-# 🌿 Terrarium Studio
+# 🌿 Potroneer
 
-A cozy, handmade-feeling virtual terrarium designer. Build a little garden inside
-a 3D glass mason jar — layer by layer, just like the real thing.
+Potroneer is a cozy bilingual 3D terrarium builder. Build a little garden inside
+a digital glass jar, layer by layer, and make it your own.
 
 Made with [Three.js](https://threejs.org) and [Vite](https://vitejs.dev).
 

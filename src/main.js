@@ -853,8 +853,10 @@ const catFlyoutEl = document.getElementById("cat-flyout");
 let activeCat = "plants";
 
 // favorites persist across sessions
-const FAV_KEY = "terrarium-favs";
-const favs = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]"));
+const FAV_KEY = "potroneer-favs";
+const favs = new Set(
+  JSON.parse(localStorage.getItem(FAV_KEY) || localStorage.getItem("terrarium-favs") || "[]"),
+);
 function toggleFav(key) {
   favs.has(key) ? favs.delete(key) : favs.add(key);
   localStorage.setItem(FAV_KEY, JSON.stringify([...favs]));
@@ -862,8 +864,10 @@ function toggleFav(key) {
 
 // Staging tray: the user gathers items here first, then "Build from tray" locks
 // the palette to just these so they assemble from their chosen set. Persisted.
-const TRAY_KEY = "terrarium-tray";
-const tray = new Set(JSON.parse(localStorage.getItem(TRAY_KEY) || "[]"));
+const TRAY_KEY = "potroneer-tray";
+const tray = new Set(
+  JSON.parse(localStorage.getItem(TRAY_KEY) || localStorage.getItem("terrarium-tray") || "[]"),
+);
 let buildMode = false;
 function toggleTray(key) {
   tray.has(key) ? tray.delete(key) : tray.add(key);
@@ -1107,13 +1111,15 @@ function renderStrip() {
 searchEl.addEventListener("input", renderStrip);
 
 // --- gallery: save & revisit whole terrariums ------------------------------
-const GAL_KEY = "terrarium-gallery";
+const GAL_KEY = "potroneer-gallery";
 const galleryEl = document.getElementById("gallery");
 const galGridEl = document.getElementById("gal-grid");
 
 function loadGallery() {
   try {
-    return JSON.parse(localStorage.getItem(GAL_KEY) || "[]");
+    return JSON.parse(
+      localStorage.getItem(GAL_KEY) || localStorage.getItem("terrarium-gallery") || "[]",
+    );
   } catch {
     return [];
   }
@@ -1428,7 +1434,7 @@ document.getElementById("photo").addEventListener("click", () => {
   const url = studio.capture();
   const a = document.createElement("a");
   a.href = url;
-  a.download = `terrarium-${Date.now()}.png`;
+  a.download = `potroneer-${Date.now()}.png`;
   a.click();
   flashHint("ছবি সেভ হয়ে গেছে! বন্ধুদের দেখাও।");
 });

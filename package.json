@@ -1,9 +1,9 @@
 {
-  "name": "terrarium-studio",
+  "name": "potroneer",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "A cozy, handmade-feeling virtual terrarium designer built with Three.js.",
+  "description": "A cozy bilingual 3D terrarium builder built with Three.js.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
