@@ -29,6 +29,7 @@
         <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
         <button id="save" class="nav-btn" data-i18n="সেভ">সেভ</button>
         <button id="gallery-btn" class="nav-btn" data-i18n="গ্যালারি">গ্যালারি</button>
+        <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
         <button id="lang" class="nav-btn nav-btn--lang">EN</button>
       </div>
 
@@ -132,6 +133,86 @@
           <button id="gal-close" class="hud-btn">✕</button>
         </div>
         <div class="gal-grid" id="gal-grid"></div>
+      </div>
+
+      <!-- accounts, publishing, public gallery, visits, remixes, and likes -->
+      <div class="social-modal hidden" id="social-modal">
+        <div class="social-shell">
+          <div class="social-head">
+            <div>
+              <span class="game-kicker">Potroneer</span>
+              <strong data-i18n="কমিউনিটি">কমিউনিটি</strong>
+            </div>
+            <div class="social-head-actions">
+              <span class="social-mode" id="social-mode">ডেমো মোড</span>
+              <button id="social-close" class="hud-btn" type="button">✕</button>
+            </div>
+          </div>
+          <div class="social-tabs">
+            <button class="social-tab is-active" data-social-tab="explore" data-i18n="এক্সপ্লোর">এক্সপ্লোর</button>
+            <button class="social-tab" data-social-tab="mine" data-i18n="আমার জার">আমার জার</button>
+            <button class="social-tab" data-social-tab="account" data-i18n="অ্যাকাউন্ট">অ্যাকাউন্ট</button>
+          </div>
+          <div class="social-content">
+            <section class="social-view" id="social-explore-view">
+              <div class="community-challenge-card">
+                <div>
+                  <span class="game-label" data-i18n="আজকের কমিউনিটি চ্যালেঞ্জ">আজকের কমিউনিটি চ্যালেঞ্জ</span>
+                  <strong id="social-challenge-title">একটি মস বাগান বানাও</strong>
+                  <p id="social-challenge-body">কমিউনিটির সঙ্গে আজকের চ্যালেঞ্জে অংশ নাও।</p>
+                </div>
+                <span id="social-challenge-count">০ জন অংশ নিয়েছে</span>
+              </div>
+              <div class="social-view-head">
+                <strong data-i18n="জনপ্রিয় টেরারিয়াম">জনপ্রিয় টেরারিয়াম</strong>
+                <button id="social-refresh" class="small-action" type="button">↻</button>
+              </div>
+              <div class="social-grid" id="social-explore-grid"></div>
+            </section>
+            <section class="social-view hidden" id="social-mine-view">
+              <div class="publish-card">
+                <div>
+                  <span class="game-label" data-i18n="ক্লাউডে প্রকাশ করো">ক্লাউডে প্রকাশ করো</span>
+                  <p data-i18n="তোমার বর্তমান বাগান অন্যদের সঙ্গে শেয়ার করো।">তোমার বর্তমান বাগান অন্যদের সঙ্গে শেয়ার করো।</p>
+                </div>
+                <button id="social-publish-current" class="social-primary" type="button" data-i18n="প্রকাশ">প্রকাশ</button>
+              </div>
+              <div class="social-view-head"><strong data-i18n="আমার প্রকাশনা">আমার প্রকাশনা</strong></div>
+              <div class="social-grid" id="social-mine-grid"></div>
+            </section>
+            <section class="social-view hidden" id="social-account-view">
+              <div class="auth-card" id="social-auth-card">
+                <div class="auth-switch">
+                  <button class="auth-mode is-active" data-auth-mode="signin" data-i18n="সাইন ইন">সাইন ইন</button>
+                  <button class="auth-mode" data-auth-mode="signup" data-i18n="অ্যাকাউন্ট খোলো">অ্যাকাউন্ট খোলো</button>
+                </div>
+                <form id="social-auth-form">
+                  <input id="social-display-name" class="social-input hidden" type="text" placeholder="নাম" autocomplete="name" />
+                  <input id="social-email" class="social-input" type="email" placeholder="ইমেইল" autocomplete="email" required />
+                  <input id="social-password" class="social-input" type="password" placeholder="পাসওয়ার্ড" autocomplete="current-password" minlength="6" required />
+                  <button class="social-primary" type="submit" id="social-auth-submit">সাইন ইন</button>
+                </form>
+                <p class="social-note" id="social-auth-note">ক্লাউড সিঙ্ক চালু করতে সাইন ইন করো।</p>
+              </div>
+              <div class="profile-card hidden" id="social-profile-card">
+                <span class="profile-orb">🌿</span>
+                <div><span class="game-label" data-i18n="স্বাগতম">স্বাগতম</span><strong id="social-profile-name">Gardener</strong><p id="social-profile-email"></p></div>
+                <button id="social-signout" class="small-action" type="button" data-i18n="সাইন আউট">সাইন আউট</button>
+              </div>
+            </section>
+          </div>
+          <div class="social-status" id="social-status"></div>
+        </div>
+      </div>
+
+      <div class="publish-modal hidden" id="publish-modal">
+        <form class="publish-form" id="publish-form">
+          <div class="cfg-head"><span data-i18n="টেরারিয়াম প্রকাশ">টেরারিয়াম প্রকাশ</span><button id="publish-close" class="hud-btn" type="button">✕</button></div>
+          <input id="publish-title" class="social-input" type="text" maxlength="80" placeholder="নাম" required />
+          <textarea id="publish-description" class="social-input" maxlength="240" rows="3" placeholder="তোমার বাগান সম্পর্কে কিছু বলো…"></textarea>
+          <label class="publish-check"><input id="publish-public" type="checkbox" checked /> <span data-i18n="পাবলিক গ্যালারিতে দেখাও">পাবলিক গ্যালারিতে দেখাও</span></label>
+          <button class="social-primary" type="submit" data-i18n="ক্লাউডে সেভ করো">ক্লাউডে সেভ করো</button>
+        </form>
       </div>
 
       <!-- brush parameter sliders (sculpt/paint tabs) -->

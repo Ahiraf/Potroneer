@@ -9,6 +9,11 @@ Potroneer also includes a lightweight cozy-game layer: guided objectives, plant
 care and growth, XP and unlocks, daily challenges, autosave/restore, synthesized
 ambient audio, and touch-friendly camera controls.
 
+The social layer adds accounts, cloud saves, public terrarium sharing, likes,
+favorites, remixing, visits, and a daily community challenge. It runs in local
+demo mode by default; configure Supabase to make the community shared across
+users and devices.
+
 ## What you can do
 
 1. **Lay the base.** Pick a substrate — মাটি (soil), বালু (sand), সাদা বালু
@@ -53,3 +58,14 @@ Build for production:
 npm run build
 npm run preview
 ```
+
+## Social setup
+
+1. Create a Supabase project and enable email/password authentication.
+2. Run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL editor.
+3. Copy [`.env.example`](.env.example) to `.env.local` and fill in the project URL and publishable key.
+4. Restart Vite. The Community panel will switch from Demo Mode to Cloud.
+
+Without Supabase configuration, Potroneer still supports local demo accounts,
+local public-gallery records, likes, favorites, and encoded share links in the
+current browser.

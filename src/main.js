@@ -45,6 +45,7 @@ import {
   simulateCare,
   xpForLevel,
 } from "./game.js";
+import { createSocialClient } from "./social.js";
 
 // kick off background loading of any real GLB models in /public/models;
 // once a model arrives, re-render icons so cards show the real thing
@@ -58,6 +59,13 @@ preloadModels((kind) => {
 const canvas = document.getElementById("scene");
 const studio = createStudio(canvas);
 const state = createState();
+const social = createSocialClient();
+let socialUser = null;
+let socialActiveTab = "explore";
+let socialAuthMode = "signin";
+let socialRecords = [];
+let socialMineRecords = [];
+let pendingRemixOf = null;
 
 // --- scene composition -----------------------------------------------------
 const substrateGroup = new THREE.Group();
@@ -552,20 +560,24 @@ function toUiDigits(value) {
   return String(value).replace(/[0-9]/g, (d) => "০১২৩৪৫৬৭৮৯"[Number(d)]);
 }
 
+function currentBuildData() {
+  return {
+    jarId: currentJarId,
+    custom: { ...jarCustom },
+    jarLight: { ...jarLight },
+    wetLevel,
+    layers: state.layers,
+    decorations: state.decorations,
+    terrain: Array.from(state.terrain),
+    terrainMat: Array.from(state.terrainMat),
+    painted: state.painted,
+  };
+}
+
 function autosavePayload() {
   return {
     game,
-    build: {
-      jarId: currentJarId,
-      custom: { ...jarCustom },
-      jarLight: { ...jarLight },
-      wetLevel,
-      layers: state.layers,
-      decorations: state.decorations,
-      terrain: Array.from(state.terrain),
-      terrainMat: Array.from(state.terrainMat),
-      painted: state.painted,
-    },
+    build: currentBuildData(),
   };
 }
 
@@ -675,6 +687,224 @@ function applyPlantGrowth() {
     obj.scale.setScalar((obj.userData.baseScale ?? rec.scale ?? 1) * growth);
     obj.userData.vitality = health;
   });
+}
+
+function socialStatus(message, isError = false) {
+  const el = document.getElementById("social-status");
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = isError ? "#f0b2a3" : "";
+}
+
+function socialMessage(bn, en) {
+  return getLang() === "bn" ? bn : en;
+}
+
+function socialPlaceholder() {
+  return "data:image/svg+xml," + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200"><rect width="320" height="200" fill="#344037"/><circle cx="160" cy="114" r="56" fill="#6d9e4f" opacity=".7"/><path d="M102 146c30-35 42-82 58-82s28 47 58 82" fill="none" stroke="#d6e7bd" stroke-width="5" opacity=".6"/><text x="160" y="32" fill="#eef3e8" text-anchor="middle" font-family="sans-serif" font-size="16">POTRONEER</text></svg>`,
+  );
+}
+
+function makeThumbnail() {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      const w = 640;
+      const h = Math.round((img.height / img.width) * w);
+      c.width = w;
+      c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", 0.72));
+    };
+    img.onerror = () => resolve(null);
+    img.src = studio.capture();
+  });
+}
+
+function setSocialRecord(records, updated) {
+  const index = records.findIndex((item) => item.id === updated.id);
+  if (index >= 0) records[index] = updated;
+}
+
+function renderSocialGrid(container, records, mine = false) {
+  if (!container) return;
+  container.innerHTML = "";
+  if (!records.length) {
+    const empty = document.createElement("p");
+    empty.className = "social-empty";
+    empty.textContent = mine
+      ? socialMessage("এখনও কিছু প্রকাশ করোনি।", "You have not published anything yet.")
+      : socialMessage("কমিউনিটিতে এখনও কোনো টেরারিয়াম নেই। প্রথমটি তুমি বানাও!", "No public terrariums yet. Make the first one!");
+    container.appendChild(empty);
+    return;
+  }
+  records.forEach((record) => {
+    const card = document.createElement("article");
+    card.className = "social-card";
+    const img = document.createElement("img");
+    img.src = record.thumbnail || socialPlaceholder();
+    img.alt = record.title || "Terrarium";
+    const body = document.createElement("div");
+    body.className = "social-card-body";
+    const title = document.createElement("div");
+    title.className = "social-card-title";
+    title.textContent = record.title || "Untitled terrarium";
+    const meta = document.createElement("div");
+    meta.className = "social-card-meta";
+    const owner = document.createElement("span");
+    owner.textContent = `🌿 ${record.ownerName || "Gardener"}`;
+    const likes = document.createElement("span");
+    likes.textContent = `♥ ${record.likesCount || 0}`;
+    meta.append(owner, likes);
+    const actions = document.createElement("div");
+    actions.className = "social-card-actions";
+    const visit = document.createElement("button");
+    visit.className = "social-visit";
+    visit.textContent = socialMessage("ভিজিট", "Visit");
+    visit.addEventListener("click", () => visitSocialRecord(record, false));
+    const remix = document.createElement("button");
+    remix.textContent = socialMessage("রিমিক্স", "Remix");
+    remix.addEventListener("click", () => visitSocialRecord(record, true));
+    const like = document.createElement("button");
+    like.classList.toggle("is-active", record.liked);
+    like.textContent = `${record.liked ? "♥" : "♡"} ${socialMessage("লাইক", "Like")}`;
+    like.addEventListener("click", async () => {
+      try {
+        const updated = await social.toggleLike(record);
+        Object.assign(record, updated);
+        renderSocialGrid(container, records, mine);
+      } catch (error) {
+        socialStatus(error.message, true);
+      }
+    });
+    const favorite = document.createElement("button");
+    favorite.classList.toggle("is-active", record.favorited);
+    favorite.textContent = `${record.favorited ? "★" : "☆"} ${socialMessage("সংরক্ষণ", "Save")}`;
+    favorite.addEventListener("click", async () => {
+      try {
+        const updated = await social.toggleFavorite(record);
+        Object.assign(record, updated);
+        renderSocialGrid(container, records, mine);
+      } catch (error) {
+        socialStatus(error.message, true);
+      }
+    });
+    const share = document.createElement("button");
+    share.textContent = socialMessage("শেয়ার", "Share");
+    share.addEventListener("click", async () => {
+      try {
+        const url = await social.shareUrl(record);
+        await navigator.clipboard?.writeText(url);
+        socialStatus(socialMessage("শেয়ার লিংক কপি হয়েছে।", "Share link copied."));
+      } catch (error) {
+        socialStatus(error.message, true);
+      }
+    });
+    actions.append(visit, remix, like, favorite, share);
+    body.append(title, meta, actions);
+    card.append(img, body);
+    container.appendChild(card);
+  });
+}
+
+async function refreshSocialFeed() {
+  socialStatus(socialMessage("কমিউনিটি লোড হচ্ছে…", "Loading community…"));
+  try {
+    socialRecords = await social.listPublic();
+    socialMineRecords = await social.listMine();
+    renderSocialGrid(document.getElementById("social-explore-grid"), socialRecords);
+    renderSocialGrid(document.getElementById("social-mine-grid"), socialMineRecords, true);
+    const challenge = getChallenge(game);
+    const count = await social.challengeParticipants(game.challenge.date);
+    document.getElementById("social-challenge-title").textContent = getLang() === "bn" ? challenge.titleBn : challenge.title;
+    document.getElementById("social-challenge-body").textContent = getLang() === "bn" ? challenge.bodyBn : challenge.body;
+    document.getElementById("social-challenge-count").textContent = getLang() === "bn" ? `${toUiDigits(count)} জন অংশ নিয়েছে` : `${count} gardeners joined`;
+    socialStatus(social.isCloud ? socialMessage("ক্লাউড কমিউনিটি", "Cloud community") : socialMessage("ডেমো কমিউনিটি — Supabase যুক্ত করলে সবার জন্য লাইভ হবে", "Demo community — add Supabase to make it live for everyone."));
+  } catch (error) {
+    socialStatus(error.message, true);
+  }
+}
+
+async function renderSocialAccount() {
+  socialUser = await social.currentUser();
+  document.getElementById("social-mode").textContent = social.isCloud ? "CLOUD" : socialMessage("ডেমো মোড", "DEMO MODE");
+  const authCard = document.getElementById("social-auth-card");
+  const profileCard = document.getElementById("social-profile-card");
+  authCard.classList.toggle("hidden", !!socialUser);
+  profileCard.classList.toggle("hidden", !socialUser);
+  if (socialUser) {
+    const name = socialUser.displayName || socialUser.user_metadata?.display_name || socialUser.email?.split("@")[0] || "Gardener";
+    document.getElementById("social-profile-name").textContent = name;
+    document.getElementById("social-profile-email").textContent = socialUser.email || "";
+  }
+}
+
+function selectSocialTab(tab) {
+  socialActiveTab = tab;
+  document.querySelectorAll(".social-tab").forEach((button) => button.classList.toggle("is-active", button.dataset.socialTab === tab));
+  document.querySelectorAll(".social-view").forEach((view) => view.classList.toggle("hidden", view.id !== `social-${tab}-view`));
+  if (tab === "account") renderSocialAccount();
+  if (tab === "explore" || tab === "mine") refreshSocialFeed();
+}
+
+async function openSocial() {
+  document.getElementById("social-modal").classList.remove("hidden");
+  selectSocialTab(socialActiveTab);
+  await renderSocialAccount();
+}
+
+function closeSocial() {
+  document.getElementById("social-modal").classList.add("hidden");
+}
+
+async function visitSocialRecord(record, remix) {
+  if (!record?.data) return;
+  loadBuildData(record.data, { history: true });
+  pendingRemixOf = remix ? record.id : null;
+  closeSocial();
+  flashHint(remix ? socialMessage("রিমিক্স শুরু হয়েছে — নিজের মতো করে বদলে সেভ করো।", "Remix started — make it yours and save it.") : socialMessage("অন্য একজনের টেরারিয়াম ভিজিট করছো।", "Visiting another terrarium."));
+  studio.markInteraction();
+}
+
+function openPublish() {
+  if (!socialUser) {
+    selectSocialTab("account");
+    socialStatus(socialMessage("প্রকাশ করতে আগে সাইন ইন করো।", "Sign in before publishing."));
+    return;
+  }
+  document.getElementById("publish-title").value = `Potroneer's garden`;
+  document.getElementById("publish-description").value = "";
+  document.getElementById("publish-modal").classList.remove("hidden");
+}
+
+async function publishCurrent(event) {
+  event.preventDefault();
+  const submit = event.currentTarget.querySelector("button[type=submit]");
+  submit.disabled = true;
+  try {
+    const record = await social.saveTerrarium({
+      title: document.getElementById("publish-title").value.trim(),
+      description: document.getElementById("publish-description").value.trim(),
+      data: currentBuildData(),
+      thumbnail: await makeThumbnail(),
+      isPublic: document.getElementById("publish-public").checked,
+      remixOf: pendingRemixOf,
+      challengeDay: game.challenge.date,
+    });
+    await social.submitChallenge(game.challenge.date, record.id);
+    pendingRemixOf = null;
+    document.getElementById("publish-modal").classList.add("hidden");
+    gameAction("save");
+    socialStatus(socialMessage("প্রকাশিত হয়েছে!", "Published to the community!"));
+    await refreshSocialFeed();
+    selectSocialTab("mine");
+  } catch (error) {
+    socialStatus(error.message, true);
+  } finally {
+    submit.disabled = false;
+  }
 }
 function applyWetness() {
   const w = Math.sqrt(wetLevel); // fast onset so a splash already reads as wet
@@ -1344,12 +1574,9 @@ function loadGallery() {
   }
 }
 
-function restoreAutosave() {
-  const payload = loadAutosave();
-  if (!payload?.build) return;
-  const build = payload.build;
-  snapshot();
-  if (payload.game) hydrateGameState(game, payload.game);
+function loadBuildData(build, { history = true } = {}) {
+  if (!build) return;
+  if (history) snapshot();
   Object.assign(jarCustom, { frame: null, glass: null, w: 1, h: 1 }, build.custom ?? {});
   Object.assign(jarLight, { on: false, height: 0.55, bright: 0.6, color: 0xffe4bc }, build.jarLight ?? {});
   state.layers.length = 0;
@@ -1376,9 +1603,16 @@ function restoreAutosave() {
   rebuildAll();
   renderGameHud();
   renderStrip();
+  studio.markInteraction();
+}
+
+function restoreAutosave() {
+  const payload = loadAutosave();
+  if (!payload?.build) return;
+  if (payload.game) hydrateGameState(game, payload.game);
+  loadBuildData(payload.build);
   flashHint(getLang() === "bn" ? "শেষ অটোসেভ ফেরত আনা হয়েছে।" : "Last autosave restored.");
   playSfx("save");
-  studio.markInteraction();
 }
 
 function saveTerrarium() {
@@ -1432,21 +1666,16 @@ function renderGallery() {
     );
     card.innerHTML = `<img src="${e.thumb}" alt=""><div class="gal-meta"><span>${date}</span><span class="gal-actions"><button class="gal-load">${t("লোড")}</button><button class="gal-del">✕</button></span></div>`;
     card.querySelector(".gal-load").addEventListener("click", () => {
-      snapshot();
-      Object.assign(jarCustom, e.custom ?? { frame: null, glass: null, w: 1, h: 1 });
-      document.getElementById("jar-w").value = Math.round(jarCustom.w * 100);
-      document.getElementById("jar-h").value = Math.round(jarCustom.h * 100);
-      setJar(e.jarId);
-      state.layers.length = 0;
-      state.layers.push(...e.layers);
-      state.decorations.length = 0;
-      state.decorations.push(...e.decorations);
-      state.terrain.set(e.terrain);
-      if (e.terrainMat) state.terrainMat.set(e.terrainMat);
-      state.painted = e.painted ?? false;
-      rebuildAll();
+      loadBuildData({
+        jarId: e.jarId,
+        custom: e.custom,
+        layers: e.layers,
+        decorations: e.decorations,
+        terrain: e.terrain,
+        terrainMat: e.terrainMat,
+        painted: e.painted,
+      });
       galleryEl.classList.add("hidden");
-      studio.markInteraction();
     });
     card.querySelector(".gal-del").addEventListener("click", () => {
       const rest = loadGallery().filter((x) => x.id !== e.id);
@@ -1465,6 +1694,60 @@ document.getElementById("gallery-btn").addEventListener("click", () => {
 document.getElementById("gal-close").addEventListener("click", () => {
   galleryEl.classList.add("hidden");
 });
+
+document.getElementById("community-btn").addEventListener("click", openSocial);
+document.getElementById("social-close").addEventListener("click", closeSocial);
+document.getElementById("social-refresh").addEventListener("click", refreshSocialFeed);
+document.querySelectorAll(".social-tab").forEach((button) => {
+  button.addEventListener("click", () => selectSocialTab(button.dataset.socialTab));
+});
+document.querySelectorAll(".auth-mode").forEach((button) => {
+  button.addEventListener("click", () => {
+    socialAuthMode = button.dataset.authMode;
+    document.querySelectorAll(".auth-mode").forEach((item) => item.classList.toggle("is-active", item === button));
+    document.getElementById("social-display-name").classList.toggle("hidden", socialAuthMode !== "signup");
+    document.getElementById("social-display-name").required = socialAuthMode === "signup";
+    document.getElementById("social-auth-submit").textContent = socialMessage(
+      socialAuthMode === "signup" ? "অ্যাকাউন্ট খোলো" : "সাইন ইন",
+      socialAuthMode === "signup" ? "Create account" : "Sign in",
+    );
+  });
+});
+document.getElementById("social-auth-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submit = document.getElementById("social-auth-submit");
+  submit.disabled = true;
+  try {
+    const email = document.getElementById("social-email").value.trim();
+    const password = document.getElementById("social-password").value;
+    if (socialAuthMode === "signup") {
+      const result = await social.signUp({
+        email,
+        password,
+        displayName: document.getElementById("social-display-name").value.trim(),
+      });
+      socialStatus(result.needsVerification ? socialMessage("ইমেইল ভেরিফাই করে আবার সাইন ইন করো।", "Verify your email, then sign in.") : socialMessage("অ্যাকাউন্ট তৈরি হয়েছে।", "Account created."));
+    } else {
+      await social.signIn({ email, password });
+      socialStatus(socialMessage("সাইন ইন সফল হয়েছে।", "Signed in successfully."));
+    }
+    await renderSocialAccount();
+    await refreshSocialFeed();
+  } catch (error) {
+    socialStatus(error.message, true);
+  } finally {
+    submit.disabled = false;
+  }
+});
+document.getElementById("social-signout").addEventListener("click", async () => {
+  await social.signOut();
+  await renderSocialAccount();
+  await refreshSocialFeed();
+  socialStatus(socialMessage("সাইন আউট হয়েছে।", "Signed out."));
+});
+document.getElementById("social-publish-current").addEventListener("click", openPublish);
+document.getElementById("publish-close").addEventListener("click", () => document.getElementById("publish-modal").classList.add("hidden"));
+document.getElementById("publish-form").addEventListener("submit", publishCurrent);
 
 document.getElementById("restore-autosave").addEventListener("click", restoreAutosave);
 document.getElementById("game-panel-toggle").addEventListener("click", () => {
@@ -1768,3 +2051,12 @@ document.getElementById("reset").addEventListener("click", () => {
 
 updateHint();
 renderGameHud();
+
+// Open a shared cloud terrarium or an encoded local demo link when the app is
+// launched from a social URL.
+social.loadFromUrl().then((record) => {
+  if (!record?.data) return;
+  loadBuildData(record.data, { history: false });
+  flashHint(socialMessage("শেয়ার করা টেরারিয়াম লোড হয়েছে।", "Shared terrarium loaded."));
+}).catch(() => {});
+renderSocialAccount().catch(() => {});
