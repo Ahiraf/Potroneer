@@ -30,6 +30,9 @@
         <button id="save" class="nav-btn" data-i18n="সেভ">সেভ</button>
         <button id="gallery-btn" class="nav-btn" data-i18n="গ্যালারি">গ্যালারি</button>
         <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
+        <button id="theme-btn" class="nav-btn" data-i18n="থিম">থিম</button>
+        <button id="achievements-btn" class="nav-btn" data-i18n="অর্জন">অর্জন</button>
+        <button id="coop-btn" class="nav-btn" data-i18n="কো-অপ">কো-অপ</button>
         <button id="lang" class="nav-btn nav-btn--lang">EN</button>
       </div>
 
@@ -39,6 +42,7 @@
           <div>
             <span class="game-kicker">Potroneer</span>
             <strong id="game-level">লেভেল ১</strong>
+            <small id="game-evolution">বীজ · ০d</small>
           </div>
           <button class="game-collapse" id="game-panel-toggle" type="button" aria-label="Collapse progress">−</button>
         </div>
@@ -102,6 +106,18 @@
           <button id="sound" class="nav-btn" data-i18n="শব্দ">শব্দ</button>
           <button id="photo" class="nav-btn" data-i18n="ছবি">ছবি</button>
         </div>
+      </div>
+
+      <div class="theme-panel hidden" id="theme-panel">
+        <div class="cfg-head"><span data-i18n="থিম বেছে নাও">থিম বেছে নাও</span><button class="hud-btn" id="theme-close">✕</button></div>
+        <div class="theme-grid" id="theme-grid"></div>
+        <div class="theme-controls">
+          <label><span data-i18n="ঋতু">ঋতু</span><select id="season-select"></select></label>
+          <label><span data-i18n="আবহাওয়া">আবহাওয়া</span><select id="weather-select"></select></label>
+          <label class="cycle-toggle"><span data-i18n="দিন-রাত চক্র">দিন-রাত চক্র</span><input id="time-cycle-toggle" type="checkbox" checked /></label>
+          <input id="time-cycle" type="range" min="0" max="100" value="52" />
+        </div>
+        <div class="pack-row"><span data-i18n="কসমেটিক প্যাক">কসমেটিক প্যাক</span><div id="cosmetic-packs"></div></div>
       </div>
 
       <!-- jar customiser: frame colour, glass tint, shape sliders -->
@@ -213,6 +229,20 @@
           <label class="publish-check"><input id="publish-public" type="checkbox" checked /> <span data-i18n="পাবলিক গ্যালারিতে দেখাও">পাবলিক গ্যালারিতে দেখাও</span></label>
           <button class="social-primary" type="submit" data-i18n="ক্লাউডে সেভ করো">ক্লাউডে সেভ করো</button>
         </form>
+      </div>
+
+      <div class="photo-panel hidden" id="photo-panel">
+        <div class="cfg-head"><span data-i18n="ফটো মোড">ফটো মোড</span><button class="hud-btn" id="photo-close">✕</button></div>
+        <div id="photo-filters" class="photo-filters"></div>
+        <button id="photo-capture" class="social-primary" data-i18n="ছবি সেভ করো">ছবি সেভ করো</button>
+      </div>
+
+      <div class="achievements-modal hidden" id="achievements-modal">
+        <div class="achievements-card"><div class="cfg-head"><span data-i18n="অর্জন">অর্জন</span><strong id="achievement-count">০ / ১২</strong><button class="hud-btn" id="achievements-close">✕</button></div><div id="achievements-grid"></div></div>
+      </div>
+
+      <div class="coop-modal hidden" id="coop-modal">
+        <div class="coop-card"><div class="cfg-head"><span data-i18n="কো-অপ বাগান">কো-অপ বাগান</span><button class="hud-btn" id="coop-close">✕</button></div><p data-i18n="একসঙ্গে একটি বাগান বানাও">বন্ধুর সঙ্গে একই বাগান বানাও।</p><div class="coop-row"><input id="coop-room" class="social-input" type="text" maxlength="12" placeholder="Room code" /><button id="coop-join" class="social-primary" data-i18n="যোগ দাও">যোগ দাও</button><button id="coop-leave" class="small-action" data-i18n="বের হও">বের হও</button></div><span id="coop-status" class="social-status"></span></div>
       </div>
 
       <!-- brush parameter sliders (sculpt/paint tabs) -->

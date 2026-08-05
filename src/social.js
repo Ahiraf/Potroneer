@@ -64,6 +64,7 @@ export function createSocialClient() {
   const remote = Boolean(supabaseUrl && supabaseKey);
   const supabase = remote ? createClient(supabaseUrl, supabaseKey) : null;
   let authUser = null;
+  let coopChannel = null;
 
   async function currentUser() {
     if (!remote) return localUser();
@@ -283,6 +284,41 @@ export function createSocialClient() {
     return null;
   }
 
+  async function joinCoop(room, onSnapshot, onPresence) {
+    if (!remote || !supabase || !room) return { room, demo: true, members: 1 };
+    const user = await currentUser();
+    if (!user) throw new Error("Sign in before joining a co-op garden.");
+    if (coopChannel) await supabase.removeChannel(coopChannel);
+    coopChannel = supabase
+      .channel(`coop:${room}`, { config: { presence: { key: user.id } } })
+      .on("broadcast", { event: "snapshot" }, ({ payload }) => onSnapshot?.(payload))
+      .on("presence", { event: "sync" }, () => {
+        const state = coopChannel.presenceState();
+        onPresence?.(Object.keys(state).length);
+      });
+    await new Promise((resolve, reject) => {
+      coopChannel.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await coopChannel.track({ displayName: user.user_metadata?.display_name || user.email?.split("@")[0] || "Gardener" });
+          resolve();
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(new Error("Co-op room could not be reached."));
+      });
+    });
+    return { room, demo: false, members: 1 };
+  }
+
+  async function broadcastCoop(payload) {
+    if (!coopChannel) return false;
+    await coopChannel.send({ type: "broadcast", event: "snapshot", payload });
+    return true;
+  }
+
+  async function leaveCoop() {
+    if (coopChannel && supabase) await supabase.removeChannel(coopChannel);
+    coopChannel = null;
+  }
+
   return {
     mode: remote ? "cloud" : "demo",
     isCloud: remote,
@@ -300,5 +336,8 @@ export function createSocialClient() {
     challengeParticipants,
     shareUrl,
     loadFromUrl,
+    joinCoop,
+    broadcastCoop,
+    leaveCoop,
   };
 }

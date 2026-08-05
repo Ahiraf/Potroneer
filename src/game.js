@@ -141,6 +141,21 @@ export const DAILY_CHALLENGES = [
   },
 ];
 
+export const ACHIEVEMENTS = [
+  { id: "first-leaf", title: "First Leaf", bn: "প্রথম পাতা", desc: "Place your first plant.", descBn: "প্রথম গাছ বসাও।", icon: "🌱" },
+  { id: "caregiver", title: "Gentle Care", bn: "যত্নশীল", desc: "Water your terrarium for the first time.", descBn: "প্রথমবার টেরারিয়ামে পানি দাও।", icon: "💧" },
+  { id: "mist-maker", title: "Mist Maker", bn: "কুয়াশার কারিগর", desc: "Mist the glass for the first time.", descBn: "প্রথমবার কাচে স্প্রে করো।", icon: "🌫️" },
+  { id: "night-gardener", title: "Night Gardener", bn: "রাতের মালী", desc: "Turn on a grow light.", descBn: "একটি গ্রো লাইট চালু করো।", icon: "💡" },
+  { id: "weather-watcher", title: "Weather Watcher", bn: "আবহাওয়া পর্যবেক্ষক", desc: "Choose a weather effect.", descBn: "একটি আবহাওয়া বেছে নাও।", icon: "🌦️" },
+  { id: "theme-tour", title: "Theme Collector", bn: "থিম সংগ্রাহক", desc: "Explore a themed world.", descBn: "একটি থিমের পৃথিবী ঘুরে দেখো।", icon: "🎨" },
+  { id: "photographer", title: "Tiny Photographer", bn: "ছোট্ট ফটোগ্রাফার", desc: "Capture a filtered photo.", descBn: "ফিল্টার দিয়ে একটি ছবি তোলো।", icon: "📸" },
+  { id: "community-gardener", title: "Community Gardener", bn: "কমিউনিটি মালী", desc: "Publish a terrarium.", descBn: "একটি টেরারিয়াম প্রকাশ করো।", icon: "🌐" },
+  { id: "remixer", title: "Remix Artist", bn: "রিমিক্স শিল্পী", desc: "Remix another terrarium.", descBn: "অন্যের টেরারিয়াম রিমিক্স করো।", icon: "🪴" },
+  { id: "visitor", title: "Garden Visitor", bn: "বাগান অতিথি", desc: "Visit another terrarium.", descBn: "অন্য একটি টেরারিয়াম ভিজিট করো।", icon: "🚪" },
+  { id: "team-gardener", title: "Team Gardener", bn: "দলবদ্ধ মালী", desc: "Join a co-op garden.", descBn: "একটি কো-অপ বাগানে যোগ দাও।", icon: "🤝" },
+  { id: "evolved", title: "Living Ecosystem", bn: "জীবন্ত বাস্তুতন্ত্র", desc: "Grow your terrarium to stage four.", descBn: "টেরারিয়ামকে চতুর্থ ধাপে বড় করো।", icon: "🌳" },
+];
+
 const STARTER_KINDS = ["moss", "mossball", "leafy", "succulent", "airplant", "stone"];
 const ACTION_XP = { layer: 12, plant: 24, water: 10, mist: 10, light: 8, save: 6 };
 const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
@@ -171,7 +186,7 @@ export function levelForXp(xp) {
 
 function baseGameState() {
   return {
-    version: 1,
+    version: 2,
     xp: 0,
     level: 1,
     tutorialIndex: 0,
@@ -186,6 +201,14 @@ function baseGameState() {
     counters: { layer: 0, plant: 0, water: 0, mist: 0, light: 0, save: 0 },
     rewardAt: {},
     lastSim: Date.now(),
+    createdAt: Date.now(),
+    ageDays: 0,
+    evolutionStage: 0,
+    achievements: {},
+    theme: "studio",
+    season: "spring",
+    weather: "clear",
+    cosmeticPack: "starter",
     challenge: null,
   };
 }
@@ -198,6 +221,7 @@ export function createGameState(saved = {}) {
     care: { ...base.care, ...(saved.care ?? {}) },
     counters: { ...base.counters, ...(saved.counters ?? {}) },
     rewardAt: { ...(saved.rewardAt ?? {}) },
+    achievements: { ...(saved.achievements ?? {}) },
   };
   game.level = levelForXp(Number(game.xp) || 0);
   ensureDailyChallenge(game);
@@ -336,8 +360,28 @@ export function simulateCare(game, metrics, now = Date.now()) {
   if (metrics.plantCount > 0 && care.health > 0.55) {
     care.growth = clamp(care.growth + (care.health - 0.5) * elapsedHours * 0.025);
   }
+  game.ageDays = Math.max(0, (now - (game.createdAt || now)) / 86400000);
+  game.evolutionStage = Math.min(4, Math.floor(care.growth * 4 + game.ageDays / 14));
   refreshChallenge(game, metrics);
   return true;
+}
+
+export function unlockAchievement(game, id, now = Date.now()) {
+  if (!ACHIEVEMENTS.some((achievement) => achievement.id === id) || game.achievements?.[id]) return false;
+  game.achievements[id] = now;
+  return true;
+}
+
+export function achievementList(game) {
+  return ACHIEVEMENTS.map((achievement) => ({
+    ...achievement,
+    unlocked: Boolean(game.achievements?.[achievement.id]),
+    unlockedAt: game.achievements?.[achievement.id] ?? null,
+  }));
+}
+
+export function achievementCount(game) {
+  return Object.keys(game.achievements ?? {}).length;
 }
 
 export function recordGameAction(game, action, metrics, now = Date.now()) {

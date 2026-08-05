@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { themeById } from "./themes.js";
 
 // createStudio owns everything render/interaction related but stays ignorant of
 // terrariums specifically: it exposes a rotatable `world` group, a raycaster
@@ -345,6 +346,21 @@ export function createStudio(canvas) {
     slabOn = !!m.slab;
     layoutBase();
   }
+  let currentThemeId = "studio";
+  function setTheme(name) {
+    const theme = themeById(name);
+    currentThemeId = theme.id;
+    setMood(theme.mood);
+  }
+  function setTimeOfDay(value) {
+    const phase = ((Number(value) || 0) % 1 + 1) % 1;
+    const daylight = Math.max(0, Math.sin((phase - 0.25) * Math.PI * 2) * 0.5 + 0.5);
+    key.intensity = 0.58 + daylight * 1.15;
+    hemi.intensity = 0.25 + daylight * 0.65;
+    fill.intensity = 0.1 + daylight * 0.28;
+    rim.intensity = 0.5 + (1 - daylight) * 0.85;
+    renderer.toneMappingExposure = 0.82 + daylight * 0.3;
+  }
   // Initialise the whole scene through the studio mood so the first paint
   // matches the active mood button (background, lights, slab all consistent).
   setMood("studio");
@@ -541,6 +557,8 @@ export function createStudio(canvas) {
     markInteraction,
     setBaseY,
     setMood,
+    setTheme,
+    setTimeOfDay,
     capture,
     setTapHandler: (fn) => (tapHandler = fn),
     setOnFrame: (fn) => (onFrame = fn),

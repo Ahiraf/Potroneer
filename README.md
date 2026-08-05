@@ -14,6 +14,12 @@ favorites, remixing, visits, and a daily community challenge. It runs in local
 demo mode by default; configure Supabase to make the community shared across
 users and devices.
 
+The advanced world layer adds selectable themes (Wizarding Hall, Astronomy,
+Jungle, Urban Town, Green Village, Cherry Blossom, Floating Grove, Spider City,
+Lantern Village, Alpine Valley, and Caucasus Valley), seasons, day/night cycles, weather, animated
+critters, real-time evolution stages, filtered photo mode, achievements,
+cosmetic packs, and live co-op building rooms.
+
 ## What you can do
 
 1. **Lay the base.** Pick a substrate — মাটি (soil), বালু (sand), সাদা বালু
@@ -44,6 +50,8 @@ users and devices.
 - **`src/catalog.js`** — the one place that defines every material and its
   colour palette. The tray, the builders and the model all read from it.
 - **`src/main.js`** — wires state ↔ scene ↔ tray UI together.
+- **`src/themes.js`** and **`src/effects.js`** — theme presets, seasons, weather,
+  animated insects/small animals, and lightweight scene effects.
 
 ## Run it
 

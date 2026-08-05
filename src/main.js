@@ -44,8 +44,14 @@ import {
   saveGameState,
   simulateCare,
   xpForLevel,
+  ACHIEVEMENTS,
+  achievementList,
+  achievementCount,
+  unlockAchievement,
 } from "./game.js";
 import { createSocialClient } from "./social.js";
+import { createWorldEffects } from "./effects.js";
+import { THEMES, SEASONS, WEATHER, COSMETIC_PACKS, themeById } from "./themes.js";
 
 // kick off background loading of any real GLB models in /public/models;
 // once a model arrives, re-render icons so cards show the real thing
@@ -60,12 +66,21 @@ const canvas = document.getElementById("scene");
 const studio = createStudio(canvas);
 const state = createState();
 const social = createSocialClient();
+const worldEffects = createWorldEffects(studio.world);
 let socialUser = null;
 let socialActiveTab = "explore";
 let socialAuthMode = "signin";
 let socialRecords = [];
 let socialMineRecords = [];
 let pendingRemixOf = null;
+let currentThemeId = "studio";
+let seasonId = "spring";
+let weatherId = "clear";
+let cycleEnabled = true;
+let timeOfDay = 0.52;
+let coopRoom = null;
+let coopApplying = false;
+let coopTimer = null;
 
 // --- scene composition -----------------------------------------------------
 const substrateGroup = new THREE.Group();
@@ -220,6 +235,13 @@ function easeOut(x) {
 }
 studio.setOnFrame((now) => {
   animateMotes(now);
+  worldEffects.update(now);
+  if (cycleEnabled) {
+    timeOfDay = (timeOfDay + 0.0000025) % 1;
+    studio.setTimeOfDay?.(timeOfDay);
+    const timeSlider = document.getElementById("time-cycle");
+    if (timeSlider && document.activeElement !== timeSlider) timeSlider.value = Math.round(timeOfDay * 100);
+  }
   if (now - lastGameFrame > 2500) {
     lastGameFrame = now;
     syncGameCare(Date.now());
@@ -517,6 +539,11 @@ function sprayMist(screen) {
 // so repeated watering builds up; re-applied after any rebuild.
 let wetLevel = 0;
 const game = loadGameState();
+currentThemeId = game.theme || currentThemeId;
+seasonId = game.season || seasonId;
+weatherId = game.weather || weatherId;
+timeOfDay = typeof game.timeOfDay === "number" ? game.timeOfDay : timeOfDay;
+cycleEnabled = game.cycleEnabled ?? cycleEnabled;
 let autosaveTimer = null;
 let lastGameFrame = 0;
 let lastMistGameAction = 0;
@@ -571,6 +598,12 @@ function currentBuildData() {
     terrain: Array.from(state.terrain),
     terrainMat: Array.from(state.terrainMat),
     painted: state.painted,
+    themeId: currentThemeId,
+    seasonId,
+    weatherId,
+    timeOfDay,
+    cycleEnabled,
+    cosmeticPack: game.cosmeticPack || "starter",
   };
 }
 
@@ -587,6 +620,7 @@ function scheduleAutosave() {
     try {
       saveAutosave(autosavePayload());
       saveGameState(game);
+      broadcastCoopSnapshot();
       renderGameHud();
       const status = document.getElementById("autosave-status");
       if (status) status.textContent = getLang() === "bn" ? "অটোসেভ হয়েছে" : "Autosaved";
@@ -595,6 +629,119 @@ function scheduleAutosave() {
       if (status) status.textContent = getLang() === "bn" ? "সেভ হয়নি" : "Save failed";
     }
   }, 500);
+}
+
+function unlockGameAchievement(id) {
+  if (!unlockAchievement(game, id)) return;
+  playSfx("unlock");
+  const achievement = ACHIEVEMENTS.find((item) => item.id === id);
+  flashHint(getLang() === "bn" ? `অর্জন আনলক: ${achievement?.bn || id}` : `Achievement unlocked: ${achievement?.title || id}`);
+  renderAchievements();
+  saveGameState(game);
+}
+
+function renderAchievements() {
+  const count = document.getElementById("achievement-count");
+  if (count) count.textContent = `${achievementCount(game)} / ${ACHIEVEMENTS.length}`;
+  const grid = document.getElementById("achievements-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  achievementList(game).forEach((item) => {
+    const card = document.createElement("div");
+    card.className = `achievement-card${item.unlocked ? " is-unlocked" : ""}`;
+    card.innerHTML = `<span class="achievement-icon">${item.unlocked ? item.icon : "🔒"}</span><div><strong>${getLang() === "bn" ? item.bn : item.title}</strong><p>${getLang() === "bn" ? item.descBn : item.desc}</p></div>`;
+    grid.append(card);
+  });
+}
+
+function renderThemePanel() {
+  const grid = document.getElementById("theme-grid");
+  if (grid) {
+    grid.innerHTML = "";
+    THEMES.forEach((theme) => {
+      const button = document.createElement("button");
+      button.className = `theme-card${theme.id === currentThemeId ? " is-active" : ""}`;
+      button.dataset.theme = theme.id;
+      button.innerHTML = `<span class="theme-swatch theme-swatch--${theme.id}"></span><strong>${getLang() === "bn" ? theme.bn : theme.label}</strong>`;
+      button.addEventListener("click", () => setTheme(theme.id));
+      grid.append(button);
+    });
+  }
+  const season = document.getElementById("season-select");
+  const weather = document.getElementById("weather-select");
+  if (season && !season.options.length) SEASONS.forEach((item) => season.add(new Option(getLang() === "bn" ? item.bn : item.label, item.id)));
+  if (weather && !weather.options.length) WEATHER.forEach((item) => weather.add(new Option(getLang() === "bn" ? item.bn : item.label, item.id)));
+  if (season) season.value = seasonId;
+  if (weather) weather.value = weatherId;
+  const cycle = document.getElementById("time-cycle-toggle");
+  if (cycle) cycle.checked = cycleEnabled;
+  const slider = document.getElementById("time-cycle");
+  if (slider) slider.value = Math.round(timeOfDay * 100);
+  const packs = document.getElementById("cosmetic-packs");
+  if (packs) {
+    packs.innerHTML = "";
+    COSMETIC_PACKS.forEach((pack) => {
+      const button = document.createElement("button");
+      button.className = `pack-chip${(game.cosmeticPack || "starter") === pack.id ? " is-active" : ""}`;
+      button.textContent = getLang() === "bn" ? pack.bn : pack.label;
+      button.style.setProperty("--pack-color", pack.color);
+      button.addEventListener("click", () => applyCosmeticPack(pack.id));
+      packs.append(button);
+    });
+  }
+}
+
+function setTheme(id, reward = true) {
+  const theme = themeById(id);
+  currentThemeId = theme.id;
+  game.theme = theme.id;
+  studio.setTheme?.(theme.id);
+  worldEffects.setTheme(theme);
+  if (theme.weather) setWeather(theme.weather, false);
+  renderThemePanel();
+  if (reward) unlockGameAchievement("theme-tour");
+  scheduleAutosave();
+}
+
+function setSeason(id) {
+  const season = SEASONS.find((item) => item.id === id) || SEASONS[0];
+  seasonId = season.id;
+  game.season = season.id;
+  setWeather(season.weather, false);
+  renderThemePanel();
+  scheduleAutosave();
+}
+
+function setWeather(id, reward = true) {
+  const weather = WEATHER.some((item) => item.id === id) ? id : "clear";
+  weatherId = weather;
+  game.weather = weather;
+  worldEffects.setWeather(weather);
+  if (reward) unlockGameAchievement("weather-watcher");
+  renderThemePanel();
+  scheduleAutosave();
+}
+
+const PACK_STYLES = {
+  starter: { frame: null, glass: null }, wizarding: { frame: "#3b2a52", glass: "#d9d0ef" }, cosmic: { frame: "#35476e", glass: "#9dc3e9" },
+  jungle: { frame: "#285b3a", glass: "#b9e0bd" }, urban: { frame: "#5f6570", glass: "#c6d3d9" }, village: { frame: "#765338", glass: "#e1c7a4" },
+  blossom: { frame: "#92516e", glass: "#f2c9d9" }, avatar: { frame: "#39758a", glass: "#b9e1df" }, hero: { frame: "#842d2b", glass: "#d6e5ef" },
+  lantern: { frame: "#7c4f22", glass: "#f4c78d" }, alpine: { frame: "#526d7b", glass: "#cce0ea" }, caucasus: { frame: "#496b55", glass: "#d3e5d8" },
+};
+function applyCosmeticPack(id) {
+  const style = PACK_STYLES[id] || PACK_STYLES.starter;
+  game.cosmeticPack = id;
+  jarCustom.frame = style.frame;
+  jarCustom.glass = style.glass;
+  applyJarColors();
+  renderThemePanel();
+  scheduleAutosave();
+}
+
+function broadcastCoopSnapshot() {
+  if (!coopRoom || coopApplying) return;
+  clearTimeout(coopTimer);
+  coopTimer = setTimeout(() => social.broadcastCoop({ sender: socialUser?.id, build: currentBuildData(), game }), 250);
 }
 
 function syncGameCare(now = Date.now()) {
@@ -615,6 +762,8 @@ function syncGameCare(now = Date.now()) {
 
 function gameAction(type, value = null) {
   const result = recordGameAction(game, { type, value }, gameMetrics());
+  const achievementByAction = { plant: "first-leaf", water: "caregiver", mist: "mist-maker", light: "night-gardener" };
+  if (achievementByAction[type]) unlockGameAchievement(achievementByAction[type]);
   if (result.xpEarned > 0) {
     const sound = type === "water" ? "water" : type === "mist" ? "mist" : type === "plant" || type === "layer" ? "plop" : "save";
     playSfx(result.challengeCompleted ? "unlock" : sound);
@@ -627,6 +776,7 @@ function gameAction(type, value = null) {
   if (result.challengeCompleted) {
     flashHint(getLang() === "bn" ? "আজকের চ্যালেঞ্জ সম্পূর্ণ! XP পেয়েছো।" : "Daily challenge complete! XP earned.");
   }
+  if ((game.evolutionStage || 0) >= 4) unlockGameAchievement("evolved");
   if (result.tutorialAdvanced) playSfx("plop");
   applyPlantGrowth();
   scheduleAutosave();
@@ -641,6 +791,11 @@ function renderGameHud() {
   const current = xpForLevel(game.level);
   const next = xpForLevel(game.level + 1);
   levelEl.textContent = getLang() === "bn" ? `লেভেল ${toUiDigits(game.level)}` : `Level ${game.level}`;
+  const evolution = document.getElementById("game-evolution");
+  if (evolution) {
+    const stages = getLang() === "bn" ? ["বীজ", "কুঁড়ি", "বর্ধনশীল", "সমৃদ্ধ", "বাস্তুতন্ত্র"] : ["Seed", "Sprout", "Growing", "Thriving", "Ecosystem"];
+    evolution.textContent = `${stages[game.evolutionStage || 0]} · ${Math.floor(game.ageDays || 0)}d`;
+  }
   xpFill.style.width = `${progressPercent(game)}%`;
   xpValue.textContent = `${toUiDigits(Math.max(0, game.xp - current))} / ${toUiDigits(next - current)} XP`;
   setCareMeter("water", game.care.water);
@@ -863,6 +1018,7 @@ async function visitSocialRecord(record, remix) {
   if (!record?.data) return;
   loadBuildData(record.data, { history: true });
   pendingRemixOf = remix ? record.id : null;
+  unlockGameAchievement(remix ? "remixer" : "visitor");
   closeSocial();
   flashHint(remix ? socialMessage("রিমিক্স শুরু হয়েছে — নিজের মতো করে বদলে সেভ করো।", "Remix started — make it yours and save it.") : socialMessage("অন্য একজনের টেরারিয়াম ভিজিট করছো।", "Visiting another terrarium."));
   studio.markInteraction();
@@ -897,6 +1053,7 @@ async function publishCurrent(event) {
     pendingRemixOf = null;
     document.getElementById("publish-modal").classList.add("hidden");
     gameAction("save");
+    unlockGameAchievement("community-gardener");
     socialStatus(socialMessage("প্রকাশিত হয়েছে!", "Published to the community!"));
     await refreshSocialFeed();
     selectSocialTab("mine");
@@ -1588,6 +1745,18 @@ function loadBuildData(build, { history = true } = {}) {
   state.terrainMat.fill(255);
   if (build.terrainMat) state.terrainMat.set(build.terrainMat);
   state.painted = build.painted ?? false;
+  if (build.themeId) setTheme(build.themeId, false);
+  if (build.seasonId) {
+    seasonId = build.seasonId;
+    game.season = seasonId;
+  }
+  if (build.weatherId) setWeather(build.weatherId, false);
+  if (typeof build.timeOfDay === "number") {
+    timeOfDay = build.timeOfDay;
+    studio.setTimeOfDay?.(timeOfDay);
+  }
+  if (typeof build.cycleEnabled === "boolean") cycleEnabled = build.cycleEnabled;
+  if (build.cosmeticPack) applyCosmeticPack(build.cosmeticPack);
   wetLevel = build.wetLevel ?? 0;
   setJar(build.jarId ?? currentJarId);
   document.getElementById("jar-w").value = Math.round(jarCustom.w * 100);
@@ -1603,6 +1772,7 @@ function loadBuildData(build, { history = true } = {}) {
   rebuildAll();
   renderGameHud();
   renderStrip();
+  renderThemePanel();
   studio.markInteraction();
 }
 
@@ -1982,14 +2152,116 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+const PHOTO_FILTERS = [
+  { id: "natural", label: "Natural", css: "none" },
+  { id: "film", label: "Film", css: "contrast(1.08) saturate(0.86) sepia(0.12)" },
+  { id: "moss", label: "Moss", css: "saturate(1.2) hue-rotate(12deg) brightness(1.04)" },
+  { id: "moon", label: "Moon", css: "contrast(1.1) saturate(0.72) hue-rotate(190deg) brightness(0.96)" },
+];
+let photoFilterId = "natural";
+function renderPhotoFilters() {
+  const el = document.getElementById("photo-filters");
+  if (!el) return;
+  el.innerHTML = "";
+  PHOTO_FILTERS.forEach((filter) => {
+    const button = document.createElement("button");
+    button.className = `photo-filter${filter.id === photoFilterId ? " is-active" : ""}`;
+    button.textContent = filter.label;
+    button.addEventListener("click", () => { photoFilterId = filter.id; renderPhotoFilters(); });
+    el.append(button);
+  });
+}
+async function captureFilteredPhoto() {
+  const source = studio.capture();
+  const filter = PHOTO_FILTERS.find((item) => item.id === photoFilterId) || PHOTO_FILTERS[0];
+  const img = new Image();
+  await new Promise((resolve) => { img.onload = resolve; img.src = source; });
+  const output = document.createElement("canvas");
+  output.width = img.width;
+  output.height = img.height;
+  const context = output.getContext("2d");
+  context.filter = filter.css;
+  context.drawImage(img, 0, 0);
+  if (photoFilterId === "moon") {
+    const vignette = context.createRadialGradient(img.width / 2, img.height / 2, img.width * 0.2, img.width / 2, img.height / 2, img.width * 0.75);
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(1, "rgba(4,8,20,.34)");
+    context.fillStyle = vignette;
+    context.fillRect(0, 0, img.width, img.height);
+  }
+  return output.toDataURL("image/png");
+}
 document.getElementById("photo").addEventListener("click", () => {
-  const url = studio.capture();
+  document.getElementById("photo-panel").classList.remove("hidden");
+  renderPhotoFilters();
+});
+document.getElementById("photo-close").addEventListener("click", () => document.getElementById("photo-panel").classList.add("hidden"));
+document.getElementById("photo-capture").addEventListener("click", async () => {
   const a = document.createElement("a");
-  a.href = url;
-  a.download = `potroneer-${Date.now()}.png`;
+  a.href = await captureFilteredPhoto();
+  a.download = `potroneer-${photoFilterId}-${Date.now()}.png`;
   a.click();
+  unlockGameAchievement("photographer");
   flashHint("ছবি সেভ হয়ে গেছে! বন্ধুদের দেখাও।");
 });
+
+const themePanelEl = document.getElementById("theme-panel");
+document.getElementById("theme-btn").addEventListener("click", () => {
+  themePanelEl.classList.toggle("hidden");
+  renderThemePanel();
+});
+document.getElementById("theme-close").addEventListener("click", () => themePanelEl.classList.add("hidden"));
+document.getElementById("season-select").addEventListener("change", (event) => setSeason(event.target.value));
+document.getElementById("weather-select").addEventListener("change", (event) => setWeather(event.target.value));
+document.getElementById("time-cycle-toggle").addEventListener("change", (event) => {
+  cycleEnabled = event.target.checked;
+  scheduleAutosave();
+});
+document.getElementById("time-cycle").addEventListener("input", (event) => {
+  timeOfDay = Number(event.target.value) / 100;
+  studio.setTimeOfDay?.(timeOfDay);
+  cycleEnabled = false;
+  document.getElementById("time-cycle-toggle").checked = false;
+  scheduleAutosave();
+});
+
+const achievementsModal = document.getElementById("achievements-modal");
+document.getElementById("achievements-btn").addEventListener("click", () => { renderAchievements(); achievementsModal.classList.remove("hidden"); });
+document.getElementById("achievements-close").addEventListener("click", () => achievementsModal.classList.add("hidden"));
+
+const coopModal = document.getElementById("coop-modal");
+document.getElementById("coop-btn").addEventListener("click", () => coopModal.classList.remove("hidden"));
+document.getElementById("coop-close").addEventListener("click", () => coopModal.classList.add("hidden"));
+document.getElementById("coop-join").addEventListener("click", joinCoopRoom);
+document.getElementById("coop-leave").addEventListener("click", leaveCoopRoom);
+
+async function joinCoopRoom() {
+  const input = document.getElementById("coop-room");
+  const room = (input.value.trim() || Math.random().toString(36).slice(2, 8)).toUpperCase();
+  input.value = room;
+  const status = document.getElementById("coop-status");
+  try {
+    const result = await social.joinCoop(room, (payload) => {
+      if (!payload || payload.sender === socialUser?.id || !payload.build) return;
+      coopApplying = true;
+      if (payload.game) hydrateGameState(game, payload.game);
+      loadBuildData(payload.build, { history: false });
+      coopApplying = false;
+      renderGameHud();
+    }, (members) => { status.textContent = `${members} ${members === 1 ? "gardener" : "gardeners"} connected`; });
+    coopRoom = room;
+    status.textContent = result.demo ? `Demo room ${room} — sign in for live co-op` : `Room ${room} connected`;
+    unlockGameAchievement("team-gardener");
+    scheduleAutosave();
+  } catch (error) {
+    status.textContent = error.message;
+  }
+}
+async function leaveCoopRoom() {
+  await social.leaveCoop();
+  coopRoom = null;
+  document.getElementById("coop-status").textContent = "Co-op room closed";
+}
 
 const soundBtn = document.getElementById("sound");
 soundBtn.addEventListener("click", () => {
@@ -2051,6 +2323,12 @@ document.getElementById("reset").addEventListener("click", () => {
 
 updateHint();
 renderGameHud();
+renderThemePanel();
+renderAchievements();
+studio.setTheme?.(currentThemeId);
+worldEffects.setTheme(themeById(currentThemeId));
+worldEffects.setWeather(weatherId);
+studio.setTimeOfDay?.(timeOfDay);
 
 // Open a shared cloud terrarium or an encoded local demo link when the app is
 // launched from a social URL.
