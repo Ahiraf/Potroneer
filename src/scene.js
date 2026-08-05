@@ -11,7 +11,10 @@ export function createStudio(canvas) {
     antialias: true,
     alpha: false,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // A high-density canvas is beautiful but expensive once the jar contains
+  // many procedural meshes. Keep a crisp cap on desktop and a gentler one on
+  // phones so touch sessions stay responsive.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 700 ? 1.25 : 1.6));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -282,7 +285,7 @@ export function createStudio(canvas) {
       if (o.isMesh) {
         o.castShadow = false;
         o.receiveShadow = true;
-        o.frustumCulled = false;
+        o.frustumCulled = true;
       }
     });
     roomModel = root;
@@ -375,6 +378,8 @@ export function createStudio(canvas) {
   let grabHandler = null;
   let objectDragHandler = null;
   let objectDropHandler = null;
+  const activePointers = new Map();
+  let pinchDistance = 0;
 
   function markInteraction() {
     lastInteraction = performance.now();
@@ -382,7 +387,15 @@ export function createStudio(canvas) {
 
   function onDown(e) {
     markInteraction();
+    activePointers.set(e.pointerId ?? 1, { x: e.clientX, y: e.clientY });
     canvas.setPointerCapture?.(e.pointerId ?? 1);
+    if (activePointers.size >= 2) {
+      const points = [...activePointers.values()];
+      pinchDistance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      mode = "pinch";
+      dragging = false;
+      return;
+    }
     const p = pointer(e);
     // Did the user grab a placed decoration? If so, drag it, don't rotate.
     if (grabHandler && grabHandler(p)) {
@@ -397,6 +410,17 @@ export function createStudio(canvas) {
   }
 
   function onMove(e) {
+    if (activePointers.has(e.pointerId ?? 1)) {
+      activePointers.set(e.pointerId ?? 1, { x: e.clientX, y: e.clientY });
+    }
+    if (mode === "pinch" && activePointers.size >= 2) {
+      const points = [...activePointers.values()];
+      const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      if (pinchDistance > 0) camDistT = clamp(camDistT - (distance - pinchDistance) * 0.008, 3.2, 9.5);
+      pinchDistance = distance;
+      markInteraction();
+      return;
+    }
     const p = pointer(e);
     if (mode === "object") {
       objectDragHandler?.(p);
@@ -415,6 +439,15 @@ export function createStudio(canvas) {
 
   function onUp(e) {
     canvas.releasePointerCapture?.(e.pointerId ?? 1);
+    activePointers.delete(e.pointerId ?? 1);
+    if (mode === "pinch") {
+      if (activePointers.size < 2) {
+        mode = null;
+        pinchDistance = 0;
+      }
+      markInteraction();
+      return;
+    }
     if (mode === "object") {
       objectDropHandler?.();
       canvas.style.cursor = "";
@@ -433,6 +466,7 @@ export function createStudio(canvas) {
   canvas.addEventListener("pointerdown", onDown);
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
 
   // --- zoom: scroll to lean right up to the glass ------------------------
   const camDir = camera.position.clone().normalize();

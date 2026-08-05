@@ -32,6 +32,44 @@
         <button id="lang" class="nav-btn nav-btn--lang">EN</button>
       </div>
 
+      <!-- game layer: progression, care meters, guided objective, and daily challenge -->
+      <section class="game-panel" id="game-panel" aria-label="Potroneer progress">
+        <div class="game-panel-head">
+          <div>
+            <span class="game-kicker">Potroneer</span>
+            <strong id="game-level">লেভেল ১</strong>
+          </div>
+          <button class="game-collapse" id="game-panel-toggle" type="button" aria-label="Collapse progress">−</button>
+        </div>
+        <div class="game-xp-row">
+          <div class="game-xp-bar"><span id="game-xp-fill"></span></div>
+          <span id="game-xp-value">০ / ১০০ XP</span>
+        </div>
+        <div class="care-grid" aria-label="Terrarium care">
+          <div class="care-meter"><span>💧</span><div><b id="care-water">জল ৫২%</b><i id="care-water-fill"></i></div></div>
+          <div class="care-meter"><span>🌫️</span><div><b id="care-humidity">আর্দ্রতা ৪৬%</b><i id="care-humidity-fill"></i></div></div>
+          <div class="care-meter"><span>☀️</span><div><b id="care-light">আলো ৪৮%</b><i id="care-light-fill"></i></div></div>
+          <div class="care-meter"><span>🌱</span><div><b id="care-soil">মাটি ৩২%</b><i id="care-soil-fill"></i></div></div>
+        </div>
+        <div class="game-objective">
+          <span class="game-label" id="game-objective-label">গাইডেড অবজেক্টিভ</span>
+          <strong id="game-tutorial-title">প্রথম স্তর দাও</strong>
+          <p id="game-tutorial-body">নুড়ি, লেকা বা বালু দিয়ে বাগানের শুরু করো।</p>
+          <span class="game-check" id="game-tutorial-check">১ / ৬</span>
+        </div>
+        <div class="game-challenge">
+          <div class="game-challenge-head"><span class="game-label" id="game-challenge-label">আজকের চ্যালেঞ্জ</span><span id="game-challenge-reward">+১২০ XP</span></div>
+          <strong id="game-challenge-title">একটি মস বাগান বানাও</strong>
+          <p id="game-challenge-body">একটি টেরারিয়ামে তিনটি মস বসাও।</p>
+          <div class="challenge-progress"><span id="game-challenge-fill"></span></div>
+          <span id="game-challenge-value">০ / ৩</span>
+        </div>
+        <div class="game-panel-foot">
+          <button class="restore-btn" id="restore-autosave" type="button">↺ শেষ সেভ ফেরাও</button>
+          <span id="autosave-status">অটোসেভ চালু</span>
+        </div>
+      </section>
+
       <!-- background picker (opens from the পরিবেশ navbar button) -->
       <div class="scene-panel hidden" id="scene-panel">
         <div class="sp-row">

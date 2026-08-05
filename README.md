@@ -5,6 +5,10 @@ a digital glass jar, layer by layer, and make it your own.
 
 Made with [Three.js](https://threejs.org) and [Vite](https://vitejs.dev).
 
+Potroneer also includes a lightweight cozy-game layer: guided objectives, plant
+care and growth, XP and unlocks, daily challenges, autosave/restore, synthesized
+ambient audio, and touch-friendly camera controls.
+
 ## What you can do
 
 1. **Lay the base.** Pick a substrate — মাটি (soil), বালু (sand), সাদা বালু

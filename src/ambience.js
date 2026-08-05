@@ -8,6 +8,16 @@ let master = null;
 let timer = null;
 let playing = false;
 
+function ensureAudio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain();
+    master.connect(ctx.destination);
+  }
+  if (ctx.state === "suspended") ctx.resume();
+  return ctx;
+}
+
 function pluck() {
   const now = ctx.currentTime;
   const freq = NOTES[(Math.random() * NOTES.length) | 0];
@@ -47,15 +57,38 @@ export function toggleAmbience() {
     master?.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
     return false;
   }
-  if (!ctx) {
-    ctx = new (window.AudioContext || window.webkitAudioContext)();
-    master = ctx.createGain();
-    master.connect(ctx.destination);
-  }
-  ctx.resume();
+  ensureAudio();
   master.gain.setValueAtTime(0.5, ctx.currentTime);
   playing = true;
   pluck();
   schedule();
   return true;
+}
+
+// Short, quiet interaction sounds keep the editor feeling physical without
+// requiring audio assets. They are intentionally gated by the ambience toggle
+// so a silent session stays completely silent.
+export function playSfx(kind = "tap") {
+  if (!playing) return;
+  ensureAudio();
+  const now = ctx.currentTime;
+  const gain = ctx.createGain();
+  const osc = ctx.createOscillator();
+  const settings = {
+    plop: [220, 120, 0.16, 0.16],
+    water: [420, 660, 0.1, 0.12],
+    mist: [760, 980, 0.07, 0.08],
+    unlock: [520, 1040, 0.3, 0.18],
+    save: [360, 540, 0.12, 0.1],
+  }[kind] ?? [360, 420, 0.08, 0.08];
+  osc.type = kind === "water" || kind === "mist" ? "sine" : "triangle";
+  osc.frequency.setValueAtTime(settings[0], now);
+  osc.frequency.exponentialRampToValueAtTime(settings[1], now + settings[2]);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(settings[3], now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + settings[2] + 0.12);
+  osc.connect(gain);
+  gain.connect(master);
+  osc.start(now);
+  osc.stop(now + settings[2] + 0.16);
 }

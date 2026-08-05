@@ -24,10 +24,27 @@ import {
   paintMaterial,
   JAR,
 } from "./state.js";
-import { toggleAmbience } from "./ambience.js";
+import { toggleAmbience, playSfx } from "./ambience.js";
 import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
 import { preloadModels, getModelClone } from "./models.js";
+import {
+  claimChallengeReward,
+  PLANT_KINDS,
+  UNLOCKS,
+  getChallenge,
+  getTutorial,
+  hydrateGameState,
+  isKindUnlocked,
+  loadAutosave,
+  loadGameState,
+  progressPercent,
+  recordGameAction,
+  saveAutosave,
+  saveGameState,
+  simulateCare,
+  xpForLevel,
+} from "./game.js";
 
 // kick off background loading of any real GLB models in /public/models;
 // once a model arrives, re-render icons so cards show the real thing
@@ -195,6 +212,10 @@ function easeOut(x) {
 }
 studio.setOnFrame((now) => {
   animateMotes(now);
+  if (now - lastGameFrame > 2500) {
+    lastGameFrame = now;
+    syncGameCare(Date.now());
+  }
   const dt = 16.7;
   for (let i = tweens.length - 1; i >= 0; i--) {
     const tw = tweens[i];
@@ -286,6 +307,7 @@ function rebuildAll() {
     decorGroup.add(obj);
   });
   if (wetLevel > 0) applyWetness();
+  applyPlantGrowth();
   updateHint();
 }
 
@@ -307,6 +329,10 @@ function undo() {
 
 // --- placement -------------------------------------------------------------
 function placeDecoration(worldPoint, def) {
+  if (state.decorations.length >= (window.innerWidth < 700 ? 72 : 120)) {
+    flashHint(getLang() === "bn" ? "জার ভরে গেছে — কিছু জিনিস সরিয়ে আবার চেষ্টা করো।" : "This garden is full — remove something before adding more.");
+    return;
+  }
   const local = studio.world.worldToLocal(worldPoint.clone());
   const obj = getModelClone(def.kind) ?? buildDecoration(def.kind, def.variant);
 
@@ -337,6 +363,7 @@ function placeDecoration(worldPoint, def) {
   obj.userData.baseScale = targetScale;
 
   tween(420, (p) => obj.scale.setScalar(0.001 + p * targetScale));
+  gameAction("plant", def.kind);
 }
 
 // --- dragging placed decorations ------------------------------------------
@@ -469,13 +496,186 @@ function sprayMist(screen) {
     mistGroup.add(drop);
   }
   // cap total droplets so long sprays stay cheap
-  while (mistGroup.children.length > 1200) mistGroup.remove(mistGroup.children[0]);
+  while (mistGroup.children.length > 420) mistGroup.remove(mistGroup.children[0]);
+  if (performance.now() - lastMistGameAction > 700) {
+    lastMistGameAction = performance.now();
+    game.care.humidity = Math.min(1, game.care.humidity + 0.12);
+    gameAction("mist");
+  }
   studio.markInteraction();
 }
 
 // Wetness darkens + glosses the substrate and freshens the planting. Progressive
 // so repeated watering builds up; re-applied after any rebuild.
 let wetLevel = 0;
+const game = loadGameState();
+let autosaveTimer = null;
+let lastGameFrame = 0;
+let lastMistGameAction = 0;
+let lastWaterGameAction = 0;
+
+function gameMetrics() {
+  const plantCount = state.decorations.filter((rec) => PLANT_KINDS.has(rec.kind)).length;
+  const mossCount = state.decorations.filter((rec) => rec.kind === "moss" || rec.kind === "mossball").length;
+  return {
+    plantCount,
+    mossCount,
+    layerCount: state.layers.length,
+    hasSoil: state.layers.some((layer) => layer.type === "soil"),
+    lightOn: jarLight.on,
+  };
+}
+
+function setCareMeter(id, value) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  const label = document.getElementById(`care-${id}`);
+  const fill = document.getElementById(`care-${id}-fill`);
+  if (label) label.textContent = `${gameLabel(id)} ${toUiDigits(pct)}%`;
+  if (fill) {
+    fill.style.width = `${pct}%`;
+    fill.style.background = pct < 30 ? "var(--danger)" : pct < 55 ? "#c9a95e" : "var(--green)";
+  }
+}
+
+function gameLabel(id) {
+  const labels = {
+    water: getLang() === "bn" ? "জল" : "Water",
+    humidity: getLang() === "bn" ? "আর্দ্রতা" : "Humidity",
+    light: getLang() === "bn" ? "আলো" : "Light",
+    soil: getLang() === "bn" ? "মাটি" : "Soil",
+  };
+  return labels[id] ?? id;
+}
+
+function toUiDigits(value) {
+  if (getLang() !== "bn") return String(value);
+  return String(value).replace(/[0-9]/g, (d) => "০১২৩৪৫৬৭৮৯"[Number(d)]);
+}
+
+function autosavePayload() {
+  return {
+    game,
+    build: {
+      jarId: currentJarId,
+      custom: { ...jarCustom },
+      jarLight: { ...jarLight },
+      wetLevel,
+      layers: state.layers,
+      decorations: state.decorations,
+      terrain: Array.from(state.terrain),
+      terrainMat: Array.from(state.terrainMat),
+      painted: state.painted,
+    },
+  };
+}
+
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    try {
+      saveAutosave(autosavePayload());
+      saveGameState(game);
+      renderGameHud();
+      const status = document.getElementById("autosave-status");
+      if (status) status.textContent = getLang() === "bn" ? "অটোসেভ হয়েছে" : "Autosaved";
+    } catch {
+      const status = document.getElementById("autosave-status");
+      if (status) status.textContent = getLang() === "bn" ? "সেভ হয়নি" : "Save failed";
+    }
+  }, 500);
+}
+
+function syncGameCare(now = Date.now()) {
+  const wasClaimed = game.challenge?.claimed;
+  const changed = simulateCare(game, gameMetrics(), now);
+  const passiveReward = !wasClaimed ? claimChallengeReward(game) : 0;
+  if (changed) {
+    applyPlantGrowth();
+    renderGameHud();
+    saveGameState(game);
+  }
+  if (passiveReward > 0) {
+    playSfx("unlock");
+    flashHint(getLang() === "bn" ? "আজকের চ্যালেঞ্জ সম্পূর্ণ! XP পেয়েছো।" : "Daily challenge complete! XP earned.");
+    scheduleAutosave();
+  }
+}
+
+function gameAction(type, value = null) {
+  const result = recordGameAction(game, { type, value }, gameMetrics());
+  if (result.xpEarned > 0) {
+    const sound = type === "water" ? "water" : type === "mist" ? "mist" : type === "plant" || type === "layer" ? "plop" : "save";
+    playSfx(result.challengeCompleted ? "unlock" : sound);
+  }
+  if (result.levelUp) {
+    playSfx("unlock");
+    flashHint(getLang() === "bn" ? `লেভেল ${game.level}! নতুন জিনিস আনলক হয়েছে।` : `Level ${game.level}! New items unlocked.`);
+    renderStrip();
+  }
+  if (result.challengeCompleted) {
+    flashHint(getLang() === "bn" ? "আজকের চ্যালেঞ্জ সম্পূর্ণ! XP পেয়েছো।" : "Daily challenge complete! XP earned.");
+  }
+  if (result.tutorialAdvanced) playSfx("plop");
+  applyPlantGrowth();
+  scheduleAutosave();
+  renderGameHud();
+}
+
+function renderGameHud() {
+  const levelEl = document.getElementById("game-level");
+  const xpFill = document.getElementById("game-xp-fill");
+  const xpValue = document.getElementById("game-xp-value");
+  if (!levelEl || !xpFill || !xpValue) return;
+  const current = xpForLevel(game.level);
+  const next = xpForLevel(game.level + 1);
+  levelEl.textContent = getLang() === "bn" ? `লেভেল ${toUiDigits(game.level)}` : `Level ${game.level}`;
+  xpFill.style.width = `${progressPercent(game)}%`;
+  xpValue.textContent = `${toUiDigits(Math.max(0, game.xp - current))} / ${toUiDigits(next - current)} XP`;
+  setCareMeter("water", game.care.water);
+  setCareMeter("humidity", game.care.humidity);
+  setCareMeter("light", game.care.light);
+  setCareMeter("soil", game.care.soil);
+
+  const tutorial = getTutorial(game);
+  const tutorialTitle = document.getElementById("game-tutorial-title");
+  const tutorialBody = document.getElementById("game-tutorial-body");
+  const tutorialCheck = document.getElementById("game-tutorial-check");
+  if (tutorial) {
+    tutorialTitle.textContent = getLang() === "bn" ? tutorial.bn : tutorial.title;
+    tutorialBody.textContent = getLang() === "bn" ? tutorial.bodyBn : tutorial.body;
+    tutorialCheck.textContent = `${toUiDigits(game.tutorialIndex + 1)} / ${toUiDigits(6)}`;
+  } else {
+    tutorialTitle.textContent = getLang() === "bn" ? "তুমি প্রস্তুত!" : "You are ready!";
+    tutorialBody.textContent = getLang() === "bn" ? "এখন নিজের ছোট্ট পৃথিবী বানাও।" : "Now build a little world of your own.";
+    tutorialCheck.textContent = "✓";
+  }
+
+  const challenge = getChallenge(game);
+  const challengeTitle = document.getElementById("game-challenge-title");
+  const challengeBody = document.getElementById("game-challenge-body");
+  const challengeReward = document.getElementById("game-challenge-reward");
+  const challengeFill = document.getElementById("game-challenge-fill");
+  const challengeValue = document.getElementById("game-challenge-value");
+  challengeTitle.textContent = getLang() === "bn" ? challenge.titleBn : challenge.title;
+  challengeBody.textContent = getLang() === "bn" ? challenge.bodyBn : challenge.body;
+  challengeReward.textContent = `+${toUiDigits(challenge.reward)} XP`;
+  challengeFill.style.width = `${Math.min(100, (game.challenge.progress / challenge.target) * 100)}%`;
+  challengeValue.textContent = `${toUiDigits(Math.round(game.challenge.progress * 100) / 100)} / ${toUiDigits(challenge.target)}`;
+
+  const restore = document.getElementById("restore-autosave");
+  if (restore) restore.classList.toggle("is-hidden", !loadAutosave());
+}
+
+function applyPlantGrowth() {
+  const health = game.care.health;
+  const growth = 1 + game.care.growth * 0.12;
+  decorGroup.children.forEach((obj) => {
+    const rec = obj.userData.record;
+    if (!rec || !PLANT_KINDS.has(rec.kind)) return;
+    obj.scale.setScalar((obj.userData.baseScale ?? rec.scale ?? 1) * growth);
+    obj.userData.vitality = health;
+  });
+}
 function applyWetness() {
   const w = Math.sqrt(wetLevel); // fast onset so a splash already reads as wet
   const tint = 1 - 0.6 * w; // strong darkening — wet soil goes deep brown
@@ -592,6 +792,12 @@ function water(screen, isTap) {
     spawnSplash(hit.point);
     lastWater = now;
   }
+  if (isTap || now - lastWaterGameAction > 700) {
+    lastWaterGameAction = now;
+    game.care.water = Math.min(1, game.care.water + (isTap ? 0.22 : 0.08));
+    game.care.humidity = Math.min(1, game.care.humidity + 0.03);
+    gameAction("water");
+  }
   studio.markInteraction();
 }
 
@@ -703,6 +909,7 @@ function tryAddLayer(id) {
   addLayer(state, id);
   rebuildSubstrate(true);
   updateHint();
+  gameAction("layer", id);
 }
 
 // Place a decoration at a screen point (used by tap and by drag-from-strip).
@@ -1055,15 +1262,18 @@ function renderStrip() {
     .forEach((item) => {
       const group = item._group;
       const favKey = `${group}:${item.id}`;
+      const locked = group === "decor" && !isKindUnlocked(game, item.kind);
       const card = document.createElement("button");
       card.className = "item-chip";
       card.dataset.id = item.id;
+      card.classList.toggle("is-locked", locked);
       const inTray = tray.has(favKey);
       card.innerHTML =
         `<span class="fav-btn ${favs.has(favKey) ? "is-fav" : ""}" title="পছন্দ">${favs.has(favKey) ? "♥" : "♡"}</span>` +
         `<span class="tray-btn ${inTray ? "is-in" : ""}" title="${t("ট্রে")}">${inTray ? "✓" : "＋"}</span>` +
         `<img class="item-img" draggable="false" src="${iconFor(group, item)}" alt="">` +
-        `<span class="item-label">${tLabel(item.label)}</span>`;
+        `<span class="item-label">${tLabel(item.label)}</span>` +
+        (locked ? `<span class="item-lock">🔒</span>` : "");
       const active =
         group === "jar"
           ? item.id === currentJarId
@@ -1085,12 +1295,21 @@ function renderStrip() {
       const isBtn = (el) =>
         el.classList.contains("fav-btn") || el.classList.contains("tray-btn");
       card.addEventListener("pointerdown", (e) => {
-        if (isBtn(e.target)) return;
+        if (isBtn(e.target) || locked) return;
         beginChipDrag(group, item, e);
       });
       card.addEventListener("click", (e) => {
         if (isBtn(e.target)) return;
         if (chipDrag?.ghost) return; // was a drag, not a click
+        if (locked) {
+          const unlock = UNLOCKS.find((entry) => entry.kind === item.kind);
+          flashHint(
+            getLang() === "bn"
+              ? `লেভেল ${toUiDigits(unlock?.level ?? 2)}-এ এটি আনলক হবে।`
+              : `Unlocks at level ${unlock?.level ?? 2}.`,
+          );
+          return;
+        }
         if (group === "jar") {
           if (item.id !== currentJarId) {
             snapshot();
@@ -1125,6 +1344,43 @@ function loadGallery() {
   }
 }
 
+function restoreAutosave() {
+  const payload = loadAutosave();
+  if (!payload?.build) return;
+  const build = payload.build;
+  snapshot();
+  if (payload.game) hydrateGameState(game, payload.game);
+  Object.assign(jarCustom, { frame: null, glass: null, w: 1, h: 1 }, build.custom ?? {});
+  Object.assign(jarLight, { on: false, height: 0.55, bright: 0.6, color: 0xffe4bc }, build.jarLight ?? {});
+  state.layers.length = 0;
+  state.layers.push(...(build.layers ?? []));
+  state.decorations.length = 0;
+  state.decorations.push(...(build.decorations ?? []));
+  state.terrain.fill(0);
+  state.terrain.set(build.terrain ?? []);
+  state.terrainMat.fill(255);
+  if (build.terrainMat) state.terrainMat.set(build.terrainMat);
+  state.painted = build.painted ?? false;
+  wetLevel = build.wetLevel ?? 0;
+  setJar(build.jarId ?? currentJarId);
+  document.getElementById("jar-w").value = Math.round(jarCustom.w * 100);
+  document.getElementById("jar-h").value = Math.round(jarCustom.h * 100);
+  document.getElementById("light-h").value = Math.round(jarLight.height * 100);
+  document.getElementById("light-b").value = Math.round(jarLight.bright * 100);
+  lightToggleEl.textContent = t(jarLight.on ? "চালু" : "বন্ধ");
+  lightToggleEl.classList.toggle("is-on", jarLight.on);
+  rebuildJarLight();
+  mistGroup.clear();
+  fxGroup.clear();
+  hidePour();
+  rebuildAll();
+  renderGameHud();
+  renderStrip();
+  flashHint(getLang() === "bn" ? "শেষ অটোসেভ ফেরত আনা হয়েছে।" : "Last autosave restored.");
+  playSfx("save");
+  studio.markInteraction();
+}
+
 function saveTerrarium() {
   const full = studio.capture();
   const img = new Image();
@@ -1151,6 +1407,8 @@ function saveTerrarium() {
     try {
       localStorage.setItem(GAL_KEY, JSON.stringify(entries.slice(0, 24)));
       flashHint("টেরারিয়াম সংরক্ষিত!");
+      gameAction("save");
+      playSfx("save");
     } catch {
       flashHint("জায়গা নেই — গ্যালারি থেকে কিছু মুছে ফেলো।");
     }
@@ -1206,6 +1464,13 @@ document.getElementById("gallery-btn").addEventListener("click", () => {
 });
 document.getElementById("gal-close").addEventListener("click", () => {
   galleryEl.classList.add("hidden");
+});
+
+document.getElementById("restore-autosave").addEventListener("click", restoreAutosave);
+document.getElementById("game-panel-toggle").addEventListener("click", () => {
+  const panel = document.getElementById("game-panel");
+  const collapsed = panel.classList.toggle("is-collapsed");
+  document.getElementById("game-panel-toggle").textContent = collapsed ? "+" : "−";
 });
 
 // --- jar customiser (🎨) ----------------------------------------------------
@@ -1268,6 +1533,8 @@ lightToggleEl.addEventListener("click", () => {
   jarLight.on = !jarLight.on;
   lightToggleEl.textContent = t(jarLight.on ? "চালু" : "বন্ধ");
   lightToggleEl.classList.toggle("is-on", jarLight.on);
+  game.care.light = jarLight.on ? Math.max(game.care.light, 0.72) : Math.min(game.care.light, 0.5);
+  gameAction("light");
   rebuildJarLight();
 });
 document.getElementById("light-h").addEventListener("input", (e) => {
@@ -1360,6 +1627,7 @@ function applyLang() {
   renderTools();
   renderStrip();
   updateHint();
+  renderGameHud();
   updateTrayUI();
 }
 
@@ -1381,6 +1649,7 @@ selected = { group: "base", id: BASE_LAYERS[0].id };
 selectTab("decor");
 renderStrip();
 applyLang();
+renderGameHud();
 
 // --- hint / progress -------------------------------------------------------
 // (hintEl / hintStepEl / hintTextEl / flashTimer are declared above the init
@@ -1483,10 +1752,19 @@ document.getElementById("reset").addEventListener("click", () => {
   fxGroup.clear();
   hidePour();
   wetLevel = 0;
+  game.care.water = 0.52;
+  game.care.humidity = 0.46;
+  game.care.light = jarLight.on ? 0.75 : 0.48;
+  game.care.soil = 0.32;
+  game.care.health = 0.72;
+  game.care.growth = 0;
   pickPlane.position.y = JAR.floorY + 0.001;
   tweens.length = 0;
   updateHint();
+  scheduleAutosave();
+  renderGameHud();
   studio.markInteraction();
 });
 
 updateHint();
+renderGameHud();
