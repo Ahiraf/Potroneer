@@ -401,6 +401,13 @@ export function createStudio(canvas) {
     lastInteraction = performance.now();
   }
 
+  function resetView() {
+    target.x = 0.05;
+    target.y = 0.4;
+    camDistT = 6.6;
+    markInteraction();
+  }
+
   function onDown(e) {
     markInteraction();
     activePointers.set(e.pointerId ?? 1, { x: e.clientX, y: e.clientY });
@@ -559,6 +566,7 @@ export function createStudio(canvas) {
     setMood,
     setTheme,
     setTimeOfDay,
+    resetView,
     capture,
     setTapHandler: (fn) => (tapHandler = fn),
     setOnFrame: (fn) => (onFrame = fn),

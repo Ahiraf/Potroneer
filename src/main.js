@@ -81,6 +81,23 @@ let timeOfDay = 0.52;
 let coopRoom = null;
 let coopApplying = false;
 let coopTimer = null;
+const COMFORT_KEY = "potroneer-comfort";
+let savedComfort = {};
+try {
+  savedComfort = JSON.parse(localStorage.getItem(COMFORT_KEY) || "{}");
+} catch {
+  savedComfort = {};
+}
+const comfort = {
+  softUi: true,
+  reducedMotion: false,
+  opacity: 88,
+  sound: false,
+  ...savedComfort,
+};
+let focusMode = false;
+let radialOpen = false;
+let focusToolArmed = false;
 
 // --- scene composition -----------------------------------------------------
 const substrateGroup = new THREE.Group();
@@ -818,14 +835,18 @@ function renderGameHud() {
   const tutorialTitle = document.getElementById("game-tutorial-title");
   const tutorialBody = document.getElementById("game-tutorial-body");
   const tutorialCheck = document.getElementById("game-tutorial-check");
+  const tutorialCta = document.getElementById("game-tutorial-cta");
   if (tutorial) {
     tutorialTitle.textContent = getLang() === "bn" ? tutorial.bn : tutorial.title;
     tutorialBody.textContent = getLang() === "bn" ? tutorial.bodyBn : tutorial.body;
     tutorialCheck.textContent = `${toUiDigits(game.tutorialIndex + 1)} / ${toUiDigits(6)}`;
+    tutorialCta?.classList.remove("is-hidden");
+    if (tutorialCta) tutorialCta.textContent = t("এখন করো");
   } else {
     tutorialTitle.textContent = getLang() === "bn" ? "তুমি প্রস্তুত!" : "You are ready!";
     tutorialBody.textContent = getLang() === "bn" ? "এখন নিজের ছোট্ট পৃথিবী বানাও।" : "Now build a little world of your own.";
     tutorialCheck.textContent = "✓";
+    tutorialCta?.classList.add("is-hidden");
   }
 
   const challenge = getChallenge(game);
@@ -1327,6 +1348,12 @@ function tryPlaceDecoration(screen, id) {
 }
 
 studio.setTapHandler((screen) => {
+  if (focusMode && radialOpen) return;
+  if (focusMode && !focusToolArmed) {
+    openRadial();
+    return;
+  }
+  if (focusMode) focusToolArmed = false;
   // care tools act on a single tap too
   if (activeTool === "mist") {
     sprayMist(screen);
@@ -1423,7 +1450,8 @@ function selectTab(tab) {
   activeTab = tab;
   // reflect the active tab on <body> so CSS can shift the tool list when the
   // Decorate sidebar is present
-  document.body.className = `tab-${tab}`;
+  document.body.classList.remove("tab-sculpt", "tab-paint", "tab-decor", "tab-scene");
+  document.body.classList.add(`tab-${tab}`);
   document
     .querySelectorAll(".tab")
     .forEach((b) => b.classList.toggle("is-active", b.dataset.tab === tab));
@@ -1436,6 +1464,105 @@ function selectTab(tab) {
   if (tab === "sculpt") selectTool("raise");
   else if (tab === "paint") selectTool("grass");
   else selectTool("place");
+}
+
+function persistComfort() {
+  localStorage.setItem(COMFORT_KEY, JSON.stringify(comfort));
+}
+
+function applyComfortSettings() {
+  document.body.classList.toggle("soft-ui", comfort.softUi);
+  document.body.classList.toggle("reduced-motion", comfort.reducedMotion);
+  document.documentElement.style.setProperty("--hud-alpha", `${Math.max(0.55, Math.min(1, comfort.opacity / 100))}`);
+  if (worldEffects.root) worldEffects.root.visible = !comfort.reducedMotion;
+  const soft = document.getElementById("comfort-soft");
+  const motion = document.getElementById("comfort-motion");
+  const opacity = document.getElementById("comfort-opacity");
+  const sound = document.getElementById("comfort-sound");
+  if (soft) soft.checked = comfort.softUi;
+  if (motion) motion.checked = comfort.reducedMotion;
+  if (opacity) opacity.value = comfort.opacity;
+  if (sound) sound.checked = comfort.sound;
+  if (typeof soundBtn !== "undefined" && soundBtn.classList.contains("is-active") !== comfort.sound) {
+    const on = toggleAmbience();
+    soundBtn.classList.toggle("is-active", on);
+  }
+}
+
+function openRadial() {
+  radialOpen = true;
+  document.getElementById("radial-menu")?.classList.remove("hidden");
+}
+
+function closeRadial() {
+  radialOpen = false;
+  document.getElementById("radial-menu")?.classList.add("hidden");
+}
+
+function focusPlantTool() {
+  activeCat = "plants";
+  const plant = DECORATIONS.find((item) => item.cat === "plants" && isKindUnlocked(game, item.kind));
+  if (plant) selected = { group: "decor", id: plant.id };
+  renderStrip();
+  selectTab("decor");
+  selectTool("place");
+  flashHint("একটি গাছ বেছে জারের ভেতরে ট্যাপ করো।");
+}
+
+function chooseRadialAction(action) {
+  closeRadial();
+  focusToolArmed = action !== "photo";
+  if (action === "plant") focusPlantTool();
+  else if (action === "water" || action === "mist") {
+    selectTab("decor");
+    selectTool(action);
+    flashHint(action === "water" ? "জারের মাটিতে ট্যাপ করে পানি দাও।" : "কাচে ট্যাপ করে স্প্রে করো।");
+  } else if (action === "decor") {
+    selectTab("decor");
+    selectTool("place");
+    flashHint("একটি সাজানোর জিনিস বেছে জারে ট্যাপ করো।");
+  } else if (action === "photo") {
+    document.getElementById("photo-panel")?.classList.remove("hidden");
+    renderPhotoFilters();
+  }
+}
+
+function setFocusMode(on = !focusMode) {
+  focusMode = on;
+  document.body.classList.toggle("focus-mode", focusMode);
+  document.getElementById("focus-hud")?.classList.toggle("hidden", !focusMode);
+  document.getElementById("focus-btn")?.classList.toggle("is-active", focusMode);
+  const button = document.getElementById("focus-btn");
+  if (button) button.textContent = t(focusMode ? "ফোকাস থেকে বের হও" : "ফোকাস");
+  document.getElementById("more-menu")?.classList.add("hidden");
+  if (focusMode) studio.resetView?.();
+  closeRadial();
+}
+
+function runTutorialStep() {
+  const tutorial = getTutorial(game);
+  if (!tutorial) return;
+  if (tutorial.action === "layer") {
+    activeCat = "base";
+    selected = { group: "base", id: BASE_LAYERS[0].id };
+    selectTab("decor");
+    renderStrip();
+    flashHint("প্রথম বেস স্তরটি বেছে জারে ট্যাপ করো।");
+  } else if (tutorial.action === "soil") {
+    activeCat = "base";
+    selected = { group: "base", id: "soil" };
+    selectTab("decor");
+    renderStrip();
+    flashHint("মাটি বেছে জারে ট্যাপ করো।");
+  } else if (tutorial.action === "plant") {
+    focusPlantTool();
+  } else if (tutorial.action === "water" || tutorial.action === "mist") {
+    selectTab("decor");
+    selectTool(tutorial.action);
+  } else if (tutorial.action === "light") {
+    refreshJarSwatches();
+    jarPanelEl.classList.remove("hidden");
+  }
 }
 
 document.querySelectorAll(".tab").forEach((b) => {
@@ -2031,6 +2158,9 @@ function openItemPanel(obj) {
   adjTarget = obj;
   jarPanelEl.classList.add("hidden");
   const rec = obj.userData.record;
+  const context = document.getElementById("item-context");
+  const definition = DECORATIONS.find((item) => item.id === rec.id);
+  if (context) context.textContent = definition ? tLabel(definition.label) : t("নির্বাচিত আইটেম");
   document.getElementById("item-size").value = Math.round((rec.scale ?? 1) * 100);
   const deg = ((rec.rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   document.getElementById("item-rot").value = Math.round((deg / (Math.PI * 2)) * 360);
@@ -2278,6 +2408,68 @@ const soundBtn = document.getElementById("sound");
 soundBtn.addEventListener("click", () => {
   const on = toggleAmbience();
   soundBtn.classList.toggle("is-active", on); // keep the text label, highlight when on
+  comfort.sound = on;
+  persistComfort();
+});
+
+const moreBtn = document.getElementById("more-btn");
+const moreMenu = document.getElementById("more-menu");
+moreBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+  moreMenu.classList.toggle("hidden");
+});
+document.getElementById("focus-btn").addEventListener("click", () => setFocusMode());
+document.getElementById("focus-exit").addEventListener("click", () => setFocusMode(false));
+document.getElementById("focus-quick").addEventListener("click", openRadial);
+document.getElementById("calm-camera").addEventListener("click", () => {
+  studio.resetView?.();
+  flashHint("ক্যামেরা কেন্দ্রে ফিরে এসেছে।");
+});
+document.querySelectorAll("[data-radial-action]").forEach((button) => {
+  button.addEventListener("click", () => chooseRadialAction(button.dataset.radialAction));
+});
+document.getElementById("game-tutorial-cta").addEventListener("click", runTutorialStep);
+
+const comfortModal = document.getElementById("comfort-modal");
+document.getElementById("comfort-btn").addEventListener("click", () => {
+  moreMenu.classList.add("hidden");
+  comfortModal.classList.remove("hidden");
+  applyComfortSettings();
+});
+document.getElementById("comfort-close").addEventListener("click", () => comfortModal.classList.add("hidden"));
+document.getElementById("comfort-soft").addEventListener("change", (event) => {
+  comfort.softUi = event.target.checked;
+  applyComfortSettings();
+  persistComfort();
+});
+document.getElementById("comfort-motion").addEventListener("change", (event) => {
+  comfort.reducedMotion = event.target.checked;
+  applyComfortSettings();
+  persistComfort();
+});
+document.getElementById("comfort-opacity").addEventListener("input", (event) => {
+  comfort.opacity = Number(event.target.value);
+  applyComfortSettings();
+  persistComfort();
+});
+document.getElementById("comfort-sound").addEventListener("change", (event) => {
+  comfort.sound = event.target.checked;
+  if (soundBtn.classList.contains("is-active") !== comfort.sound) {
+    const on = toggleAmbience();
+    soundBtn.classList.toggle("is-active", on);
+  }
+  persistComfort();
+});
+document.getElementById("comfort-camera").addEventListener("click", () => {
+  studio.resetView?.();
+  comfortModal.classList.add("hidden");
+  flashHint("ক্যামেরা শান্ত অবস্থায় ফিরে এসেছে।");
+});
+applyComfortSettings();
+
+window.addEventListener("pointerdown", (event) => {
+  if (!moreMenu.contains(event.target) && event.target !== moreBtn) moreMenu.classList.add("hidden");
+  if (radialOpen && !document.getElementById("radial-menu").contains(event.target) && event.target !== canvas) closeRadial();
 });
 
 document.querySelectorAll(".mood-btn").forEach((btn) => {

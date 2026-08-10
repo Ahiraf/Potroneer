@@ -21,33 +21,42 @@
         <button class="tab is-active" data-tab="decor">সাজানো</button>
       </nav>
 
-      <!-- grouped actions: world, editing, library, and community -->
+      <!-- primary actions stay calm and compact; secondary tools live in More -->
       <div class="nav-actions" aria-label="Potroneer controls">
-        <div class="nav-group nav-group--world">
-          <span class="nav-group-label" data-i18n="বিশ্ব">বিশ্ব</span>
-          <button id="bg-btn" class="nav-btn" data-i18n="পরিবেশ">পরিবেশ</button>
-          <button id="theme-btn" class="nav-btn" data-i18n="থিম">থিম</button>
-          <button id="sound" class="nav-btn" data-i18n="শব্দ">শব্দ</button>
-          <button id="photo" class="nav-btn" data-i18n="ছবি">ছবি</button>
+        <div class="nav-primary">
+          <div class="nav-group nav-group--world">
+            <span class="nav-group-label" data-i18n="বিশ্ব">বিশ্ব</span>
+            <button id="bg-btn" class="nav-btn" data-i18n="পরিবেশ">পরিবেশ</button>
+            <button id="theme-btn" class="nav-btn" data-i18n="থিম">থিম</button>
+          </div>
+          <div class="nav-group nav-group--edit">
+            <span class="nav-group-label" data-i18n="সম্পাদনা">সম্পাদনা</span>
+            <button id="undo" class="nav-btn" data-i18n="ফেরাও">ফেরাও</button>
+            <button id="reset" class="nav-btn nav-btn--danger" data-i18n="রিসেট">রিসেট</button>
+            <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
+          </div>
+          <div class="nav-group nav-group--library">
+            <span class="nav-group-label" data-i18n="সংগ্রহ">সংগ্রহ</span>
+            <button id="save" class="nav-btn" data-i18n="সেভ">সেভ</button>
+          </div>
+          <div class="nav-group nav-group--social">
+            <span class="nav-group-label" data-i18n="সমাজ">সমাজ</span>
+            <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
+          </div>
+          <button id="calm-camera" class="nav-btn nav-btn--quiet" data-i18n="ক্যামেরা">ক্যামেরা</button>
+          <button id="focus-btn" class="nav-btn nav-btn--focus" data-i18n="ফোকাস">ফোকাস</button>
+          <button id="more-btn" class="nav-btn" data-i18n="আরও">আরও</button>
+          <button id="lang" class="nav-btn nav-btn--lang">EN</button>
         </div>
-        <div class="nav-group nav-group--edit">
-          <span class="nav-group-label" data-i18n="সম্পাদনা">সম্পাদনা</span>
-          <button id="undo" class="nav-btn" data-i18n="ফেরাও">ফেরাও</button>
-          <button id="reset" class="nav-btn nav-btn--danger" data-i18n="রিসেট">রিসেট</button>
-          <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
-        </div>
-        <div class="nav-group nav-group--library">
-          <span class="nav-group-label" data-i18n="সংগ্রহ">সংগ্রহ</span>
-          <button id="save" class="nav-btn" data-i18n="সেভ">সেভ</button>
+        <div class="more-menu hidden" id="more-menu">
+          <span class="more-menu-title" data-i18n="আরও টুল">আরও টুল</span>
           <button id="gallery-btn" class="nav-btn" data-i18n="গ্যালারি">গ্যালারি</button>
           <button id="achievements-btn" class="nav-btn" data-i18n="অর্জন">অর্জন</button>
-        </div>
-        <div class="nav-group nav-group--social">
-          <span class="nav-group-label" data-i18n="সমাজ">সমাজ</span>
-          <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
           <button id="coop-btn" class="nav-btn" data-i18n="কো-অপ">কো-অপ</button>
+          <button id="sound" class="nav-btn" data-i18n="শব্দ">শব্দ</button>
+          <button id="photo" class="nav-btn" data-i18n="ছবি">ছবি</button>
+          <button id="comfort-btn" class="nav-btn" data-i18n="আরাম">আরাম</button>
         </div>
-        <button id="lang" class="nav-btn nav-btn--lang">EN</button>
       </div>
 
       <!-- game layer: progression, care meters, guided objective, and daily challenge -->
@@ -75,6 +84,7 @@
           <strong id="game-tutorial-title">প্রথম স্তর দাও</strong>
           <p id="game-tutorial-body">নুড়ি, লেকা বা বালু দিয়ে বাগানের শুরু করো।</p>
           <span class="game-check" id="game-tutorial-check">১ / ৬</span>
+          <button class="tutorial-cta" id="game-tutorial-cta" data-i18n="এখন করো">এখন করো</button>
         </div>
         <div class="game-challenge">
           <div class="game-challenge-head"><span class="game-label" id="game-challenge-label">আজকের চ্যালেঞ্জ</span><span id="game-challenge-reward">+১২০ XP</span></div>
@@ -129,6 +139,20 @@
         <div class="pack-row"><span data-i18n="কসমেটিক প্যাক">কসমেটিক প্যাক</span><div id="cosmetic-packs"></div></div>
       </div>
 
+      <div class="focus-hud hidden" id="focus-hud">
+        <span class="focus-hud-label" data-i18n="ফোকাস মোড">ফোকাস মোড</span>
+        <button id="focus-quick" class="focus-quick" data-i18n="দ্রুত কাজ">দ্রুত কাজ</button>
+        <button id="focus-exit" class="focus-exit" data-i18n="বের হও">বের হও</button>
+      </div>
+
+      <div class="radial-menu hidden" id="radial-menu" aria-label="Quick actions">
+        <button class="radial-action radial-action--plant" data-radial-action="plant"><span>🌱</span><small data-i18n="গাছ">গাছ</small></button>
+        <button class="radial-action radial-action--water" data-radial-action="water"><span>💧</span><small data-i18n="পানি">পানি</small></button>
+        <button class="radial-action radial-action--mist" data-radial-action="mist"><span>🌫️</span><small data-i18n="স্প্রে">স্প্রে</small></button>
+        <button class="radial-action radial-action--decor" data-radial-action="decor"><span>🎨</span><small data-i18n="সাজাও">সাজাও</small></button>
+        <button class="radial-action radial-action--photo" data-radial-action="photo"><span>📷</span><small data-i18n="ছবি">ছবি</small></button>
+      </div>
+
       <!-- jar customiser: frame colour, glass tint, shape sliders -->
       <div class="cfg-panel hidden" id="jar-panel">
         <div class="cfg-head"><span data-i18n="জার কাস্টমাইজ">জার কাস্টমাইজ</span><button class="hud-btn cfg-close" data-close="jar-panel">✕</button></div>
@@ -144,7 +168,7 @@
 
       <!-- item adjuster: opens when a placed decoration is tapped -->
       <div class="cfg-panel hidden" id="item-panel">
-        <div class="cfg-head"><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><button class="hud-btn cfg-close" data-close="item-panel">✕</button></div>
+        <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context">নির্বাচিত আইটেম</small></div><button class="hud-btn cfg-close" data-close="item-panel">✕</button></div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="সাইজ">সাইজ</span><input id="item-size" type="range" min="30" max="220" value="100" /></div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="ঘোরাও">ঘোরাও</span><input id="item-rot" type="range" min="0" max="360" value="0" /></div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="রং">রং</span><div class="swatches" id="item-swatches"></div></div>
@@ -252,6 +276,18 @@
 
       <div class="coop-modal hidden" id="coop-modal">
         <div class="coop-card"><div class="cfg-head"><span data-i18n="কো-অপ বাগান">কো-অপ বাগান</span><button class="hud-btn" id="coop-close">✕</button></div><p data-i18n="একসঙ্গে একটি বাগান বানাও">বন্ধুর সঙ্গে একই বাগান বানাও।</p><div class="coop-row"><input id="coop-room" class="social-input" type="text" maxlength="12" placeholder="Room code" /><button id="coop-join" class="social-primary" data-i18n="যোগ দাও">যোগ দাও</button><button id="coop-leave" class="small-action" data-i18n="বের হও">বের হও</button></div><span id="coop-status" class="social-status"></span></div>
+      </div>
+
+      <div class="comfort-modal hidden" id="comfort-modal">
+        <div class="comfort-card">
+          <div class="cfg-head"><span data-i18n="আরাম সেটিংস">আরাম সেটিংস</span><button class="hud-btn" id="comfort-close">✕</button></div>
+          <p data-i18n="দৃশ্যকে তোমার মতো শান্ত করো">দৃশ্যকে তোমার মতো শান্ত করো।</p>
+          <label class="comfort-row"><span data-i18n="শান্ত UI">শান্ত UI</span><input id="comfort-soft" type="checkbox" checked /></label>
+          <label class="comfort-row"><span data-i18n="কম অ্যানিমেশন">কম অ্যানিমেশন</span><input id="comfort-motion" type="checkbox" /></label>
+          <label class="comfort-row"><span data-i18n="UI স্বচ্ছতা">UI স্বচ্ছতা</span><input id="comfort-opacity" type="range" min="55" max="100" value="88" /></label>
+          <label class="comfort-row"><span data-i18n="শব্দ">শব্দ</span><input id="comfort-sound" type="checkbox" /></label>
+          <button id="comfort-camera" class="social-primary" data-i18n="ক্যামেরা শান্ত করো">ক্যামেরা শান্ত করো</button>
+        </div>
       </div>
 
       <!-- brush parameter sliders (sculpt/paint tabs) -->
