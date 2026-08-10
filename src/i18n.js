@@ -36,6 +36,10 @@ const EN = {
   "আলো": "Lights",
   // scene panel
   "পরিবেশ": "Scene",
+  "বিশ্ব": "World",
+  "সম্পাদনা": "Edit",
+  "সংগ্রহ": "Library",
+  "সমাজ": "Social",
   "অন্যান্য": "Other",
   "খোঁজো…": "Search…",
   // navbar text actions

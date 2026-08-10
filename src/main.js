@@ -181,8 +181,19 @@ function setJar(typeId) {
   pickPlane = buildPickPlane();
   studio.world.add(pickPlane);
 
-  // Sit the table surface flush against this jar's base.
-  studio.setBaseY(type.interior.floorY - type.interior.wallThickness);
+  // Sit the table surface flush against the *actual* lowest point of the
+  // vessel. Polyhedral jars (geodesic, gem, pyramid) extend below their
+  // interior floor metric, so using floorY directly makes them sink into the
+  // display slab. Normalize the vessel first, then place the slab at that
+  // physical bottom edge.
+  jarGroup.updateWorldMatrix(true, true);
+  const jarBounds = new THREE.Box3().setFromObject(jarGroup);
+  const fallbackBottom = it.floorY - it.wallThickness;
+  const hasVisibleVessel = !type.none && jarGroup.children.some((child) => child.visible);
+  const actualBottom = hasVisibleVessel && Number.isFinite(jarBounds.min.y) ? jarBounds.min.y : fallbackBottom;
+  const targetBottom = fallbackBottom;
+  jarGroup.position.y += targetBottom - actualBottom;
+  studio.setBaseY(targetBottom);
 
   // Fresh dust motes sized to this jar's interior.
   if (motes) studio.world.remove(motes);

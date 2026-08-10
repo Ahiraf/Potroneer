@@ -21,18 +21,32 @@
         <button class="tab is-active" data-tab="decor">সাজানো</button>
       </nav>
 
-      <!-- always-visible text navbar (top-right) -->
-      <div class="nav-actions">
-        <button id="bg-btn" class="nav-btn" data-i18n="পরিবেশ">পরিবেশ</button>
-        <button id="undo" class="nav-btn" data-i18n="ফেরাও">ফেরাও</button>
-        <button id="reset" class="nav-btn nav-btn--danger" data-i18n="রিসেট">রিসেট</button>
-        <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
-        <button id="save" class="nav-btn" data-i18n="সেভ">সেভ</button>
-        <button id="gallery-btn" class="nav-btn" data-i18n="গ্যালারি">গ্যালারি</button>
-        <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
-        <button id="theme-btn" class="nav-btn" data-i18n="থিম">থিম</button>
-        <button id="achievements-btn" class="nav-btn" data-i18n="অর্জন">অর্জন</button>
-        <button id="coop-btn" class="nav-btn" data-i18n="কো-অপ">কো-অপ</button>
+      <!-- grouped actions: world, editing, library, and community -->
+      <div class="nav-actions" aria-label="Potroneer controls">
+        <div class="nav-group nav-group--world">
+          <span class="nav-group-label" data-i18n="বিশ্ব">বিশ্ব</span>
+          <button id="bg-btn" class="nav-btn" data-i18n="পরিবেশ">পরিবেশ</button>
+          <button id="theme-btn" class="nav-btn" data-i18n="থিম">থিম</button>
+          <button id="sound" class="nav-btn" data-i18n="শব্দ">শব্দ</button>
+          <button id="photo" class="nav-btn" data-i18n="ছবি">ছবি</button>
+        </div>
+        <div class="nav-group nav-group--edit">
+          <span class="nav-group-label" data-i18n="সম্পাদনা">সম্পাদনা</span>
+          <button id="undo" class="nav-btn" data-i18n="ফেরাও">ফেরাও</button>
+          <button id="reset" class="nav-btn nav-btn--danger" data-i18n="রিসেট">রিসেট</button>
+          <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
+        </div>
+        <div class="nav-group nav-group--library">
+          <span class="nav-group-label" data-i18n="সংগ্রহ">সংগ্রহ</span>
+          <button id="save" class="nav-btn" data-i18n="সেভ">সেভ</button>
+          <button id="gallery-btn" class="nav-btn" data-i18n="গ্যালারি">গ্যালারি</button>
+          <button id="achievements-btn" class="nav-btn" data-i18n="অর্জন">অর্জন</button>
+        </div>
+        <div class="nav-group nav-group--social">
+          <span class="nav-group-label" data-i18n="সমাজ">সমাজ</span>
+          <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
+          <button id="coop-btn" class="nav-btn" data-i18n="কো-অপ">কো-অপ</button>
+        </div>
         <button id="lang" class="nav-btn nav-btn--lang">EN</button>
       </div>
 
@@ -100,11 +114,6 @@
             <button class="mood-btn" data-mood="dining" data-i18n="ডাইনিং">ডাইনিং</button>
             <button class="mood-btn" data-mood="armory" data-i18n="আর্মরি">আর্মরি</button>
           </div>
-        </div>
-        <div class="sp-row">
-          <span class="sp-label" data-i18n="অন্যান্য">অন্যান্য</span>
-          <button id="sound" class="nav-btn" data-i18n="শব্দ">শব্দ</button>
-          <button id="photo" class="nav-btn" data-i18n="ছবি">ছবি</button>
         </div>
       </div>
 
