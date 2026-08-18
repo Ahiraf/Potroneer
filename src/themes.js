@@ -3,14 +3,14 @@ export const THEMES = [
   { id: "hogwarts", label: "Wizarding Hall", bn: "জাদুর হল", mood: "library", weather: "sparkle", critters: "owls", pack: "wizarding" },
   { id: "space", label: "Astronomy", bn: "মহাকাশ", mood: "space", weather: "stars", critters: "satellites", pack: "cosmic" },
   { id: "jungle", label: "Jungle", bn: "জঙ্গল", mood: "garden", weather: "mist", critters: "fireflies", pack: "jungle" },
-  { id: "town", label: "Urban Town", bn: "শহর", mood: "cafe", weather: "clear", critters: "birds", pack: "urban" },
-  { id: "village", label: "Green Village", bn: "সবুজ গ্রাম", mood: "day", weather: "breeze", critters: "birds", pack: "village" },
-  { id: "cherry", label: "Cherry Blossom", bn: "চেরি ব্লসম", mood: "dusk", weather: "petals", critters: "butterflies", pack: "blossom" },
-  { id: "avatar", label: "Floating Grove", bn: "ভাসমান বন", mood: "mountain", weather: "glow", critters: "fireflies", pack: "avatar" },
-  { id: "spiderman", label: "Spider City", bn: "স্পাইডার সিটি", mood: "night", weather: "web", critters: "spiders", pack: "hero" },
-  { id: "chinese-village", label: "Lantern Village", bn: "লণ্ঠন গ্রাম", mood: "dusk", weather: "lanterns", critters: "fireflies", pack: "lantern" },
+  { id: "town", label: "Urban Town", bn: "শহর", mood: "town", weather: "clear", critters: "birds", pack: "urban" },
+  { id: "village", label: "Green Village", bn: "সবুজ গ্রাম", mood: "village", weather: "breeze", critters: "birds", pack: "village" },
+  { id: "cherry", label: "Cherry Blossom", bn: "চেরি ব্লসম", mood: "blossom", weather: "petals", critters: "butterflies", pack: "blossom" },
+  { id: "avatar", label: "Floating Grove", bn: "ভাসমান বন", mood: "grove", weather: "glow", critters: "fireflies", pack: "avatar" },
+  { id: "spiderman", label: "Spider City", bn: "স্পাইডার সিটি", mood: "spidercity", weather: "web", critters: "spiders", pack: "hero" },
+  { id: "chinese-village", label: "Lantern Village", bn: "লণ্ঠন গ্রাম", mood: "lantern", weather: "lanterns", critters: "fireflies", pack: "lantern" },
   { id: "alpine", label: "Alpine Valley", bn: "পাহাড়ি উপত্যকা", mood: "mountain", weather: "snow", critters: "birds", pack: "alpine" },
-  { id: "caucasus", label: "Caucasus Valley", bn: "ককেশাস উপত্যকা", mood: "mountain", weather: "breeze", critters: "birds", pack: "caucasus" },
+  { id: "caucasus", label: "Caucasus Valley", bn: "ককেশাস উপত্যকা", mood: "valley", weather: "breeze", critters: "birds", pack: "caucasus" },
 ];
 
 export const SEASONS = [

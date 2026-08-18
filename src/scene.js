@@ -153,6 +153,63 @@ export function createStudio(canvas) {
       ground: 0xa8b2ba,
       exposure: 0.9,
     },
+    // --- painted theme worlds (distinct backdrop per theme, no GLB needed) ---
+    town: {
+      draw: "scenic", scene: "city",
+      sky: ["#f4c98a", "#f7e0c8"],
+      glow: "rgba(255,225,170,0.7)", glowX: 720,
+      layers: [["#c98f6e", 320, 120], ["#8f5f52", 360, 170], ["#5c3b3e", 400, 210]],
+      fog: 0xe6b98a, key: 0xffd8a0, keyI: 1.3, hemiI: 0.6, ground: 0xb98f6a, exposure: 0.98,
+      vignette: "rgba(40,24,20,0.3)",
+    },
+    village: {
+      draw: "scenic", scene: "hills",
+      sky: ["#bfe3f2", "#eef6e6"],
+      glow: "rgba(255,250,220,0.65)", glowX: 340,
+      layers: [["#bcd79a", 330, 40], ["#9ec47c", 370, 55], ["#6f9e54", 420, 60]],
+      fog: 0xd6ead0, key: 0xfff4d8, keyI: 1.45, hemiI: 0.8, ground: 0xbcd39c, exposure: 1.0,
+      vignette: "rgba(40,60,30,0.22)",
+    },
+    blossom: {
+      draw: "scenic", scene: "hills", trees2: "rgba(90,60,66,0.6)", dots: "rgba(246,190,214,0.9)", dotCount: 30, dotR: 3,
+      sky: ["#fbd8e6", "#fdeef1"],
+      glow: "rgba(255,235,245,0.7)", glowX: 512,
+      layers: [["#f0c3d4", 340, 40], ["#e3a9c1", 390, 55], ["#c98aa6", 440, 55]],
+      fog: 0xf3cede, key: 0xfff0f4, keyI: 1.4, hemiI: 0.78, ground: 0xe6c1cf, exposure: 1.0,
+      vignette: "rgba(70,40,55,0.24)",
+    },
+    grove: {
+      draw: "scenic", scene: "islands", dots: "rgba(150,240,210,0.8)", dotCount: 26, dotR: 2.5,
+      sky: ["#8fd6d0", "#d7f2ea"],
+      glow: "rgba(210,255,240,0.6)", glowX: 512, orb: "rgba(230,255,248,0.85)", orbR: 40,
+      layers: [["#7bc3bd", 320, 45], ["#4f9e9c", 380, 55], ["#2e6e72", 440, 60]],
+      fog: 0xa8e0d8, key: 0xdfffee, keyI: 1.2, hemiI: 0.7, ground: 0x7fbdb5, exposure: 0.97,
+      vignette: "rgba(15,45,45,0.28)",
+    },
+    spidercity: {
+      draw: "scenic", scene: "city", stars: "rgba(200,220,255,0.9)",
+      sky: ["#1b2540", "#2c3352"],
+      glow: "rgba(120,150,220,0.4)", glowX: 512,
+      layers: [["#2a3556", 320, 130], ["#1c2742", 360, 180], ["#111a30", 400, 220]],
+      fog: 0x1f2942, key: 0x9db4ff, keyI: 0.8, hemiI: 0.35, ground: 0x3a4560, exposure: 0.9,
+      vignette: "rgba(4,8,20,0.42)",
+    },
+    lantern: {
+      draw: "scenic", scene: "city", dots: "rgba(255,180,90,0.95)", dotCount: 34, dotR: 3.5, stars: "rgba(255,225,180,0.6)",
+      sky: ["#2a2140", "#5a3550"],
+      glow: "rgba(255,180,110,0.5)", glowX: 512,
+      layers: [["#4a3550", 330, 90], ["#39273f", 370, 130], ["#241827", 410, 170]],
+      fog: 0x3a2740, key: 0xffc487, keyI: 0.95, hemiI: 0.4, ground: 0x4a3446, exposure: 0.92,
+      vignette: "rgba(20,10,20,0.4)",
+    },
+    valley: {
+      draw: "scenic", scene: "peaks",
+      sky: ["#cfe6ea", "#eef4ec"],
+      glow: "rgba(255,250,230,0.6)", glowX: 620,
+      layers: [["#b7ccc0", 300, 70], ["#8faa9a", 360, 90], ["#5f7d6c", 420, 90]],
+      fog: 0xd4e2da, key: 0xfff2dc, keyI: 1.25, hemiI: 0.72, ground: 0xaec2b2, exposure: 0.98,
+      vignette: "rgba(30,50,40,0.24)",
+    },
   };
 
   scene.background = makeStudioBackdrop(MOODS.studio);
@@ -306,10 +363,23 @@ export function createStudio(canvas) {
       placeRoom(cached, def);
       return;
     }
-    roomLoader.load(`/${def.file}`, (gltf) => {
-      roomCache.set(def.file, gltf);
-      if (token === roomToken) placeRoom(gltf, def); // still the active mood?
-    });
+    roomLoader.load(
+      `/${def.file}`,
+      (gltf) => {
+        roomCache.set(def.file, gltf);
+        if (token === roomToken) placeRoom(gltf, def); // still the active mood?
+      },
+      undefined,
+      () => {
+        // model missing/failed — fall back to the neutral studio backdrop so the
+        // scene never goes blank
+        if (token !== roomToken) return;
+        ground.visible = true;
+        ground.material.map = null;
+        ground.material.needsUpdate = true;
+        scene.background = makeStudioBackdrop(MOODS.studio);
+      },
+    );
   }
 
   // Switch the whole scene to a different mood — a flat studio/time-of-day
@@ -607,6 +677,7 @@ function makeStudioBackdrop(mood) {
       space: drawSpace,
       mountain: drawMountain,
       rain: drawRain,
+      scenic: drawScenic,
     };
     painters[mood.draw](ctx, mood);
     const tex0 = new THREE.CanvasTexture(c);
@@ -1000,6 +1071,124 @@ function drawRain(ctx) {
     ctx.arc(Math.random() * 1024, Math.random() * 512, r, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+// Generic scenic backdrop driven entirely by a palette on the mood, so each
+// theme can have its own distinct, reliably-rendered world without shipping a
+// heavy GLB room. `mood.scene` selects the silhouette style; the colours and
+// optional accent dots make each theme read differently at a glance.
+function drawScenic(ctx, mood) {
+  const [top, bottom] = mood.sky || ["#cfe0ec", "#eef3f0"];
+  const sky = ctx.createLinearGradient(0, 0, 0, 512);
+  sky.addColorStop(0, top);
+  sky.addColorStop(1, bottom);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 1024, 512);
+
+  // a soft light source (sun / moon / glow)
+  if (mood.glow) {
+    const gx = mood.glowX ?? 512;
+    const g = ctx.createRadialGradient(gx, 150, 8, gx, 180, mood.glowR ?? 320);
+    g.addColorStop(0, mood.glow);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 1024, 512);
+  }
+  if (mood.orb) {
+    ctx.fillStyle = mood.orb;
+    ctx.beginPath();
+    ctx.arc(mood.glowX ?? 512, 150, mood.orbR ?? 46, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // distant stars / floating sparks scattered high in the sky
+  if (mood.stars) {
+    ctx.fillStyle = mood.stars;
+    for (let i = 0; i < 90; i++) {
+      const r = Math.random() * 1.6 + 0.3;
+      ctx.globalAlpha = 0.3 + Math.random() * 0.6;
+      ctx.beginPath();
+      ctx.arc(Math.random() * 1024, Math.random() * 300, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // layered silhouettes from far (light) to near (dark) for depth
+  const layers = mood.layers || [[mood.silh || "#33463a", 360, 60]];
+  layers.forEach(([color, baseY, amp], li) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 512);
+    if (mood.scene === "city") {
+      let x = -30;
+      let i = li * 7;
+      const line = [];
+      while (x < 1054) {
+        const w = 34 + ((i * 37) % 66);
+        const h = amp * (0.5 + ((i * 53) % 100) / 100);
+        line.push([x, baseY - h, w, h]);
+        x += w + 6;
+        i++;
+      }
+      ctx.lineTo(0, baseY);
+      line.forEach(([bx, by, bw]) => { ctx.lineTo(bx, by); ctx.lineTo(bx + bw, by); });
+      ctx.lineTo(1024, baseY);
+    } else if (mood.scene === "peaks") {
+      const step = 150 - li * 20;
+      for (let x = -step; x <= 1024 + step; x += step) {
+        ctx.lineTo(x + step / 2, baseY - amp);
+        ctx.lineTo(x + step, baseY + amp * 0.15);
+      }
+    } else {
+      // rolling hills / islands / canopy — smooth waves
+      const f1 = 0.005 + li * 0.002;
+      const seed = li * 1.7;
+      for (let x = 0; x <= 1024; x += 8) {
+        const y = baseY - amp * (Math.sin(x * f1 + seed) * 0.6 + Math.sin(x * f1 * 2.3 + seed) * 0.25 + 0.15);
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.lineTo(1024, 512);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // tree / trunk silhouettes standing on the nearest layer (blossom, jungle…)
+  if (mood.trees2) {
+    ctx.strokeStyle = mood.trees2;
+    for (let i = 0; i < 7; i++) {
+      const x = 90 + i * 140 + jitter2(30);
+      ctx.lineWidth = 5 + Math.random() * 5;
+      ctx.beginPath();
+      ctx.moveTo(x, 460);
+      ctx.bezierCurveTo(x + jitter2(20), 400, x + jitter2(30), 360, x + jitter2(30), 330);
+      ctx.stroke();
+    }
+  }
+
+  // accent dots: lanterns, blossom petals, fireflies drifting mid-scene
+  if (mood.dots) {
+    for (let i = 0; i < (mood.dotCount ?? 24); i++) {
+      const x = Math.random() * 1024;
+      const y = 120 + Math.random() * 300;
+      const r = mood.dotR ?? 3;
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+      glow.addColorStop(0, mood.dots);
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // gentle vignette to seat the jar
+  const vig = ctx.createRadialGradient(512, 256, 260, 512, 256, 680);
+  vig.addColorStop(0, "rgba(0,0,0,0)");
+  vig.addColorStop(1, mood.vignette || "rgba(20,20,28,0.28)");
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, 1024, 512);
 }
 
 // A slightly-irregular slab footprint (riven slate is never a perfect rect):
