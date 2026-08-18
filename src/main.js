@@ -51,6 +51,7 @@ import {
 } from "./game.js";
 import { createSocialClient } from "./social.js";
 import { createWorldEffects } from "./effects.js";
+import { toast, floatText, burst, flyTo, centerTop } from "./juice.js";
 import { THEMES, SEASONS, WEATHER, COSMETIC_PACKS, themeById } from "./themes.js";
 
 // kick off background loading of any real GLB models in /public/models;
@@ -663,7 +664,12 @@ function unlockGameAchievement(id) {
   if (!unlockAchievement(game, id)) return;
   playSfx("unlock");
   const achievement = ACHIEVEMENTS.find((item) => item.id === id);
-  flashHint(getLang() === "bn" ? `অর্জন আনলক: ${achievement?.bn || id}` : `Achievement unlocked: ${achievement?.title || id}`);
+  toast(
+    getLang() === "bn" ? `অর্জন: ${achievement?.bn || id}` : `Achievement: ${achievement?.title || id}`,
+    { icon: achievement?.icon || "🏅", tone: "achievement", duration: 3200 },
+  );
+  const { x, y } = centerTop();
+  burst(x, y, { count: 22, colors: ["#f0c36a", "#ffe9a8", "#e88fb0", "#7bc3bd"] });
   renderAchievements();
   saveGameState(game);
 }
@@ -788,6 +794,14 @@ function syncGameCare(now = Date.now()) {
   }
 }
 
+// Float a "+N XP" number up from the XP bar so every rewarded action lands.
+function spawnXpFloat(amount) {
+  const anchor = document.getElementById("game-xp-value") || document.getElementById("game-panel");
+  if (!anchor) return;
+  const r = anchor.getBoundingClientRect();
+  floatText(`+${toUiDigits(amount)} XP`, r.left + r.width / 2, r.top, "xp");
+}
+
 function gameAction(type, value = null) {
   const result = recordGameAction(game, { type, value }, gameMetrics());
   const achievementByAction = { plant: "first-leaf", water: "caregiver", mist: "mist-maker", light: "night-gardener" };
@@ -795,14 +809,19 @@ function gameAction(type, value = null) {
   if (result.xpEarned > 0) {
     const sound = type === "water" ? "water" : type === "mist" ? "mist" : type === "plant" || type === "layer" ? "plop" : "save";
     playSfx(result.challengeCompleted ? "unlock" : sound);
+    spawnXpFloat(result.xpEarned);
   }
   if (result.levelUp) {
     playSfx("unlock");
-    flashHint(getLang() === "bn" ? `লেভেল ${game.level}! নতুন জিনিস আনলক হয়েছে।` : `Level ${game.level}! New items unlocked.`);
+    const { x, y } = centerTop();
+    toast(getLang() === "bn" ? `লেভেল ${toUiDigits(game.level)}! নতুন জিনিস আনলক হয়েছে।` : `Level ${game.level}! New items unlocked.`, { icon: "⭐", tone: "level", duration: 3000 });
+    burst(x, y, { count: 28, spread: 170, colors: ["#f0c36a", "#ffe9a8", "#79a963", "#f5f2e8"] });
     renderStrip();
   }
   if (result.challengeCompleted) {
-    flashHint(getLang() === "bn" ? "আজকের চ্যালেঞ্জ সম্পূর্ণ! XP পেয়েছো।" : "Daily challenge complete! XP earned.");
+    const { x, y } = centerTop();
+    toast(getLang() === "bn" ? "আজকের চ্যালেঞ্জ সম্পূর্ণ! 🏆" : "Daily challenge complete! 🏆", { icon: "🏆", tone: "challenge", duration: 3000 });
+    burst(x, y, { count: 24, colors: ["#f0c36a", "#e88fb0", "#7bc3bd"] });
   }
   if ((game.evolutionStage || 0) >= 4) unlockGameAchievement("evolved");
   if (result.tutorialAdvanced) playSfx("plop");
@@ -1343,6 +1362,8 @@ function tryPlaceDecoration(screen, id) {
   if (def) {
     snapshot();
     placeDecoration(hit.point, def);
+    // a soft earthy puff at the touch point so placing reads as physical
+    if (screen?.x != null) burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
     updateHint();
   }
 }
@@ -1665,6 +1686,9 @@ function updateTrayUI() {
   const label = t("ট্রে থেকে বানাও");
   buildToggleEl.textContent = n ? `${label} (${n})` : label;
   buildToggleEl.classList.toggle("is-on", buildMode);
+  // nudge the player toward step 2 of the flow: items are waiting in the tray
+  // but the build hasn't started yet
+  buildToggleEl.classList.toggle("is-ready", n > 0 && !buildMode);
   catBtnEl.classList.toggle("is-locked", buildMode);
 }
 buildToggleEl.addEventListener("click", () => {
@@ -1812,7 +1836,12 @@ function renderStrip() {
       });
       card.querySelector(".tray-btn").addEventListener("click", (e) => {
         e.stopPropagation();
+        const added = !tray.has(favKey);
         toggleTray(favKey);
+        if (added) {
+          playSfx("plop");
+          flyTo(card, buildToggleEl, iconFor(group, item));
+        }
         updateTrayUI();
         renderStrip();
       });
