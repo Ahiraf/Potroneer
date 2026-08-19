@@ -1,3 +1,4 @@
+import { startIntro, introReady, onIntroDone, replayIntro } from "./intro.js";
 import * as THREE from "three";
 import { createStudio } from "./scene.js";
 import { buildJar, buildPickPlane, JAR_TYPES, JAR_BY_ID } from "./jar.js";
@@ -52,7 +53,20 @@ import {
 import { createSocialClient } from "./social.js";
 import { createWorldEffects } from "./effects.js";
 import { toast, floatText, burst, flyTo, centerTop } from "./juice.js";
-import { THEMES, SEASONS, WEATHER, COSMETIC_PACKS, themeById } from "./themes.js";
+import {
+  THEMES,
+  THEME_GROUPS,
+  SEASONS,
+  WEATHER,
+  COSMETIC_PACKS,
+  themeById,
+  themeThumb,
+  applyThemeSkin,
+} from "./themes.js";
+
+// Play the boot sequence right away — it hides the rest of this module's
+// start-up work behind the logo sting and trailer.
+startIntro();
 
 // kick off background loading of any real GLB models in /public/models;
 // once a model arrives, re-render icons so cards show the real thing
@@ -74,7 +88,8 @@ let socialAuthMode = "signin";
 let socialRecords = [];
 let socialMineRecords = [];
 let pendingRemixOf = null;
-let currentThemeId = "studio";
+// A photo world by default: the studio sweep is still one tap away in থিম ▸ আঁকা.
+let currentThemeId = "leaf-shadow-wall";
 let seasonId = "spring";
 let weatherId = "clear";
 let cycleEnabled = true;
@@ -688,15 +703,42 @@ function renderAchievements() {
   });
 }
 
+// Which theme group the picker is showing. Groups keep 49 worlds browsable:
+// the user picks a family first, then a picture.
+let themeGroupId = "all";
+
 function renderThemePanel() {
+  const tabs = document.getElementById("theme-groups");
   const grid = document.getElementById("theme-grid");
+  const bn = getLang() === "bn";
+  if (tabs) {
+    tabs.innerHTML = "";
+    const groups = [{ id: "all", label: "All", bn: "সব", icon: "✦" }, ...THEME_GROUPS];
+    groups.forEach((group) => {
+      const button = document.createElement("button");
+      button.className = `theme-group${group.id === themeGroupId ? " is-active" : ""}`;
+      button.innerHTML = `<span>${group.icon}</span>${bn ? group.bn : group.label}`;
+      button.addEventListener("click", () => {
+        themeGroupId = group.id;
+        renderThemePanel();
+      });
+      tabs.append(button);
+    });
+  }
   if (grid) {
     grid.innerHTML = "";
-    THEMES.forEach((theme) => {
+    const list = THEMES.filter((theme) => themeGroupId === "all" || theme.group === themeGroupId);
+    list.forEach((theme) => {
       const button = document.createElement("button");
       button.className = `theme-card${theme.id === currentThemeId ? " is-active" : ""}`;
       button.dataset.theme = theme.id;
-      button.innerHTML = `<span class="theme-swatch theme-swatch--${theme.id}"></span><strong>${getLang() === "bn" ? theme.bn : theme.label}</strong>`;
+      button.style.setProperty("--card-accent", theme.accent || "#6d9e4f");
+      const thumb = themeThumb(theme);
+      // Photo themes preview the real backdrop; painted ones show their swatch.
+      const art = thumb
+        ? `<img class="theme-thumb" src="${thumb}" alt="" loading="lazy" decoding="async" />`
+        : `<span class="theme-swatch theme-swatch--${theme.id}"></span>`;
+      button.innerHTML = `${art}<strong>${bn ? theme.bn : theme.label}</strong>`;
       button.addEventListener("click", () => setTheme(theme.id));
       grid.append(button);
     });
@@ -729,6 +771,9 @@ function setTheme(id, reward = true) {
   const theme = themeById(id);
   currentThemeId = theme.id;
   game.theme = theme.id;
+  // The whole UI wears the theme: buttons, panels, pills and hint all re-tint
+  // from the picture's own accent colour.
+  applyThemeSkin(theme);
   studio.setTheme?.(theme.id);
   worldEffects.setTheme(theme);
   if (theme.weather) setWeather(theme.weather, false);
@@ -2087,11 +2132,27 @@ document.getElementById("publish-close").addEventListener("click", () => documen
 document.getElementById("publish-form").addEventListener("submit", publishCurrent);
 
 document.getElementById("restore-autosave").addEventListener("click", restoreAutosave);
-document.getElementById("game-panel-toggle").addEventListener("click", () => {
+// The progress panel starts folded to a single line: the terrarium is what the
+// screen is for, and level/XP/care are a glance away rather than a wall.
+const PROGRESS_OPEN_KEY = "potroneer-progress-open";
+function setProgressOpen(open) {
   const panel = document.getElementById("game-panel");
-  const collapsed = panel.classList.toggle("is-collapsed");
-  document.getElementById("game-panel-toggle").textContent = collapsed ? "+" : "−";
+  panel.classList.toggle("is-collapsed", !open);
+  document.getElementById("game-panel-toggle").textContent = open ? "−" : "+";
+  try {
+    localStorage.setItem(PROGRESS_OPEN_KEY, open ? "1" : "0");
+  } catch {
+    /* private mode — the panel just reverts to folded next session */
+  }
+}
+document.getElementById("game-panel-toggle").addEventListener("click", () => {
+  setProgressOpen(document.getElementById("game-panel").classList.contains("is-collapsed"));
 });
+try {
+  setProgressOpen(localStorage.getItem(PROGRESS_OPEN_KEY) === "1");
+} catch {
+  setProgressOpen(false);
+}
 
 // --- jar customiser (🎨) ----------------------------------------------------
 const FRAME_COLORS = [null, "#26282c", "#b08d3e", "#a05a32", "#e8e4dc", "#7a5a34", "#3a5a8c", "#c76a94"];
@@ -2242,7 +2303,13 @@ function applyLang() {
     chip.querySelector(".s-label").textContent = t(names[chip.dataset.param]);
   });
   document.querySelectorAll("[data-i18n]").forEach((el) => {
-    el.textContent = t(el.dataset.i18n);
+    // Icon buttons keep their glyph: only the label span gets rewritten, and
+    // the tooltip follows so the icon-only layout stays readable.
+    const label = t(el.dataset.i18n);
+    const target = el.querySelector(".nav-text");
+    if (target) target.textContent = label;
+    else el.textContent = label;
+    if (el.hasAttribute("title")) el.title = label;
   });
   searchEl.placeholder = t("খোঁজো…");
   const cat = CATEGORIES.find((c) => c.id === activeCat);
@@ -2259,8 +2326,11 @@ langBtn.addEventListener("click", () => {
   applyLang();
 });
 
-// Hint-bar elements: declared before the init block below because
-// applyLang()/updateHint() run during the first paint and read them.
+// Hint-bar elements and the digit map: declared before the init block below
+// because applyLang()/updateHint() run during the first paint and read them.
+// (In English the hint step number is transliterated, so booting in English
+// used to hit this const before it was initialised.)
+const BN_DIGITS = { "১": "1", "২": "2", "৩": "3", "৪": "4", "৫": "5", "৬": "6" };
 const hintEl = document.getElementById("hint");
 const hintStepEl = hintEl.querySelector(".hint-step");
 const hintTextEl = hintEl.querySelector("p");
@@ -2297,7 +2367,6 @@ function updateHint() {
   }
 }
 
-const BN_DIGITS = { "১": "1", "২": "2", "৩": "3", "৪": "4", "৫": "5", "৬": "6" };
 function setHint(step, text) {
   hintStepEl.textContent = getLang() === "en" ? (BN_DIGITS[step] ?? step) : step;
   hintTextEl.textContent = t(text);
@@ -2381,6 +2450,28 @@ document.getElementById("theme-btn").addEventListener("click", () => {
   renderThemePanel();
 });
 document.getElementById("theme-close").addEventListener("click", () => themePanelEl.classList.add("hidden"));
+
+// How far photo backdrops are pushed behind the glass. Remembered across
+// sessions: how much background a person can live with is a personal setting.
+const CALM_KEY = "potroneer-backdrop-calm";
+const calmInput = document.getElementById("backdrop-calm");
+function applyBackdropCalm(value, save = true) {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
+  calmInput.value = v;
+  studio.setBackdropCalm?.(v / 100);
+  if (!save) return;
+  try {
+    localStorage.setItem(CALM_KEY, String(v));
+  } catch {
+    /* private mode — the slider just resets next session */
+  }
+}
+calmInput.addEventListener("input", (event) => applyBackdropCalm(event.target.value));
+try {
+  applyBackdropCalm(localStorage.getItem(CALM_KEY) ?? 45, false);
+} catch {
+  applyBackdropCalm(45, false);
+}
 document.getElementById("season-select").addEventListener("change", (event) => setSeason(event.target.value));
 document.getElementById("weather-select").addEventListener("change", (event) => setWeather(event.target.value));
 document.getElementById("time-cycle-toggle").addEventListener("change", (event) => {
@@ -2557,6 +2648,7 @@ updateHint();
 renderGameHud();
 renderThemePanel();
 renderAchievements();
+applyThemeSkin(themeById(currentThemeId));
 studio.setTheme?.(currentThemeId);
 worldEffects.setTheme(themeById(currentThemeId));
 worldEffects.setWeather(weatherId);
@@ -2570,3 +2662,27 @@ social.loadFromUrl().then((record) => {
   flashHint(socialMessage("শেয়ার করা টেরারিয়াম লোড হয়েছে।", "Shared terrarium loaded."));
 }).catch(() => {});
 renderSocialAccount().catch(() => {});
+
+// --- intro hand-off --------------------------------------------------------
+// The scene is built and the HUD is populated, so the intro's Enter button can
+// go live. Anything slow left over (GLB models, shared links) keeps streaming
+// in behind the studio, which is fine — the jar is already usable.
+introReady();
+
+onIntroDone(({ audioOn }) => {
+  // The intro's speaker button already counts as the gesture WebAudio needs, so
+  // carrying that choice into the ambience keeps the sound continuous.
+  if (audioOn && !comfort.sound) {
+    const on = toggleAmbience();
+    soundBtn.classList.toggle("is-active", on);
+    comfort.sound = on;
+    persistComfort();
+  }
+  studio.markInteraction?.();
+  flashHint("জার ঘোরাতে টেনে ধরো — নিচের তাক থেকে জিনিস বেছে নাও।");
+});
+
+document.getElementById("intro-replay")?.addEventListener("click", () => {
+  moreMenu.classList.add("hidden");
+  replayIntro();
+});

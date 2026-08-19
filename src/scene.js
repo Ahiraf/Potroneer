@@ -382,11 +382,22 @@ export function createStudio(canvas) {
     );
   }
 
+  let moodDef = null; // the active mood definition (its lights get scaled below)
+  // Photo themes scale the room light so the table never out-shines the picture.
+  // setTimeOfDay() honours it too, otherwise the day-night slider would undo it.
+  let photoLight = 1;
+  function applyLightScale() {
+    if (!moodDef) return;
+    key.intensity = (moodDef.keyI ?? 1.4) * photoLight;
+    hemi.intensity = (moodDef.hemiI ?? 0.7) * photoLight;
+    renderer.toneMappingExposure = (moodDef.exposure ?? 1) * clamp(0.8 + photoLight * 0.24, 0.8, 1.06);
+  }
   // Switch the whole scene to a different mood — a flat studio/time-of-day
   // backdrop, or a full 3D room environment.
   function setMood(name) {
     const m = MOODS[name];
     if (!m) return;
+    moodDef = m;
     if (m.room) {
       // 3D room: the model provides walls + floor; hide the flat ground and
       // swap the canvas backdrop for a solid tone the room sits against.
@@ -405,31 +416,180 @@ export function createStudio(canvas) {
       scene.fog.near = 11;
       scene.fog.far = 26;
       ground.material.color.set(m.ground);
+      moodGround.set(m.ground);
       // Studio mood swaps the warm wood table for a plain neutral sweep + slate.
       ground.material.map = m.slab ? null : woodTex;
       ground.material.needsUpdate = true;
     }
     key.color.set(m.key);
+    photoLight = 1; // painted moods light the room at full strength
     key.intensity = m.keyI;
     hemi.intensity = m.hemiI;
     renderer.toneMappingExposure = m.exposure;
     slabOn = !!m.slab;
     layoutBase();
   }
+  // --- photo backdrops ---------------------------------------------------
+  // A theme photo never goes on screen raw. It is redrawn into a canvas that is
+  // blurred (so the sharp jar reads as the subject), pushed toward a common
+  // brightness (so a white balcony and a midnight cave both sit behind the
+  // glass equally well), darkened toward the bottom where the table meets it,
+  // and vignetted. Everything here exists to keep the terrarium legible.
+  const photoCache = new Map();
+  const moodGround = new THREE.Color(0xd0d3d7); // the active mood's table colour
+  let photoToken = 0;
+  let activePhoto = null; // { img, theme } while a photo theme is showing
+  // 0 = the photo stays vivid, 1 = pushed right back into a soft dark wash.
+  // The theme panel exposes this so the user gets the final say on how much the
+  // backdrop is allowed to compete with what they are building.
+  let photoCalm = 0.55;
+
+  // Aim every backdrop at the same modest brightness, wherever the photo
+  // started: bright balconies get pulled down hard, near-black caves lifted.
+  // The table under the jar is scaled by the same factor so one light governs
+  // the whole picture.
+  function backdropBrightness(theme) {
+    const lum = theme.lum ?? 0.35;
+    const targetLum = 0.5 - photoCalm * 0.26; // the calm slider picks the target
+    return clamp(targetLum / Math.max(lum, 0.05), 0.3, 1.4);
+  }
+
+  function drawPhotoBackdrop(img, theme) {
+    const w = Math.max(960, Math.round(canvas.clientWidth || window.innerWidth));
+    const h = Math.max(600, Math.round(canvas.clientHeight || window.innerHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.min(1920, w);
+    c.height = Math.round(c.width * (h / w));
+    const ctx = c.getContext("2d");
+
+    const bright = backdropBrightness(theme);
+    const blur = Math.max(2, Math.round((c.width / 260) * (0.6 + photoCalm))); // depth of field
+    const sat = (1.05 - photoCalm * 0.35).toFixed(2);
+    ctx.filter = `blur(${blur}px) saturate(${sat}) brightness(${bright.toFixed(2)})`;
+    // Overscan so the blur never smears in a transparent edge.
+    const pad = blur * 3;
+    const s = Math.max((c.width + pad * 2) / img.width, (c.height + pad * 2) / img.height);
+    const dw = img.width * s;
+    const dh = img.height * s;
+    ctx.drawImage(img, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
+    ctx.filter = "none";
+
+    // Haze straight behind the jar: the glass and its greens need a calm,
+    // low-contrast field to sit against.
+    const haze = ctx.createRadialGradient(
+      c.width * 0.5, c.height * 0.62, c.width * 0.04,
+      c.width * 0.5, c.height * 0.62, c.width * 0.52,
+    );
+    haze.addColorStop(0, `rgba(8, 10, 9, ${(0.14 + photoCalm * 0.34).toFixed(2)})`);
+    haze.addColorStop(0.55, `rgba(8, 10, 9, ${(0.07 + photoCalm * 0.2).toFixed(2)})`);
+    haze.addColorStop(1, "rgba(8, 10, 9, 0)");
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    // Floor-ward falloff so the table edge fades into the picture.
+    const drop = ctx.createLinearGradient(0, c.height * 0.3, 0, c.height);
+    drop.addColorStop(0, "rgba(6, 8, 7, 0)");
+    drop.addColorStop(0.55, "rgba(6, 8, 7, 0.22)");
+    drop.addColorStop(1, "rgba(6, 8, 7, 0.46)");
+    ctx.fillStyle = drop;
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    // Vignette.
+    const vig = ctx.createRadialGradient(
+      c.width * 0.5, c.height * 0.5, c.width * 0.3,
+      c.width * 0.5, c.height * 0.5, c.width * 0.78,
+    );
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, `rgba(0,0,0,${(0.14 + photoCalm * 0.24).toFixed(2)})`);
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    // Sample the finished backdrop where the table's far edge will meet it and
+    // use that as the fog colour — the horizon then dissolves instead of
+    // ending on a hard line between two different pictures.
+    const band = ctx.getImageData(0, Math.round(c.height * 0.42), c.width, Math.max(1, Math.round(c.height * 0.08)));
+    let r = 0, g = 0, b = 0;
+    const px = band.data.length / 4;
+    for (let i = 0; i < band.data.length; i += 4) {
+      r += band.data[i];
+      g += band.data[i + 1];
+      b += band.data[i + 2];
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return { tex, horizon: new THREE.Color(r / px / 255, g / px / 255, b / px / 255) };
+  }
+
+  function applyPhoto(img, theme) {
+    activePhoto = { img, theme };
+    scene.background?.dispose?.();
+    const { tex, horizon } = drawPhotoBackdrop(img, theme);
+    scene.background = tex;
+    // Fog takes the colour the backdrop actually has at the horizon, so the far
+    // edge of the table melts into the picture.
+    const tone = new THREE.Color(theme.tone || "#20241f");
+    scene.fog.color.copy(horizon);
+    scene.fog.near = 11;
+    scene.fog.far = 26;
+    // Pull the table into the photo's light too — a moonlit room shouldn't have
+    // a noon-bright tabletop under the jar.
+    if (ground.visible) {
+      ground.material.color.copy(moodGround).lerp(tone, 0.5);
+      ground.material.needsUpdate = true;
+    }
+    // Dim the room's own light to match how far back the photo was pushed: the
+    // table and the jar then sit in the same light as the picture behind them,
+    // instead of a bright tabletop against a dark wall.
+    const b = backdropBrightness(theme);
+    photoLight = clamp(0.4 + b * 0.5, 0.42, 1.1);
+    applyLightScale();
+  }
+
+  /** Theme panel slider: how far photo backdrops are pushed back (0–1). */
+  function setBackdropCalm(value) {
+    photoCalm = clamp(Number(value) || 0, 0, 1);
+    if (activePhoto) applyPhoto(activePhoto.img, activePhoto.theme);
+  }
+
+  function setPhoto(theme) {
+    const token = ++photoToken;
+    const url = `/themes/${theme.id}.jpg`;
+    const cached = photoCache.get(url);
+    if (cached) {
+      applyPhoto(cached, theme);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      photoCache.set(url, img);
+      if (token === photoToken) applyPhoto(img, theme); // still the active theme?
+    };
+    img.onerror = () => {
+      // Missing asset — keep the mood's painted backdrop rather than a void.
+      if (token === photoToken) activePhoto = null;
+    };
+    img.src = url;
+  }
+
   let currentThemeId = "studio";
   function setTheme(name) {
     const theme = themeById(name);
     currentThemeId = theme.id;
+    photoToken++; // cancel any in-flight photo from the previous theme
+    activePhoto = null;
+    // The mood still drives lights, exposure, fog and the table surface; a photo
+    // theme then replaces just the backdrop image on top of that lighting.
     setMood(theme.mood);
+    if (theme.photo) setPhoto(theme);
   }
   function setTimeOfDay(value) {
     const phase = ((Number(value) || 0) % 1 + 1) % 1;
     const daylight = Math.max(0, Math.sin((phase - 0.25) * Math.PI * 2) * 0.5 + 0.5);
-    key.intensity = 0.58 + daylight * 1.15;
-    hemi.intensity = 0.25 + daylight * 0.65;
-    fill.intensity = 0.1 + daylight * 0.28;
+    key.intensity = (0.58 + daylight * 1.15) * photoLight;
+    hemi.intensity = (0.25 + daylight * 0.65) * photoLight;
+    fill.intensity = (0.1 + daylight * 0.28) * photoLight;
     rim.intensity = 0.5 + (1 - daylight) * 0.85;
-    renderer.toneMappingExposure = 0.82 + daylight * 0.3;
+    renderer.toneMappingExposure = (0.82 + daylight * 0.3) * clamp(0.8 + photoLight * 0.24, 0.8, 1.06);
   }
   // Initialise the whole scene through the studio mood so the first paint
   // matches the active mood button (background, lights, slab all consistent).
@@ -597,6 +757,9 @@ export function createStudio(canvas) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    // Backdrop photos are drawn cover-fit for the current viewport, so a resize
+    // has to redraw them or the picture stretches.
+    if (activePhoto) applyPhoto(activePhoto.img, activePhoto.theme);
   }
   window.addEventListener("resize", resize);
   resize();
@@ -635,6 +798,7 @@ export function createStudio(canvas) {
     setBaseY,
     setMood,
     setTheme,
+    setBackdropCalm,
     setTimeOfDay,
     resetView,
     capture,

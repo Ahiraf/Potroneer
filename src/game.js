@@ -205,7 +205,7 @@ function baseGameState() {
     ageDays: 0,
     evolutionStage: 0,
     achievements: {},
-    theme: "studio",
+    theme: "leaf-shadow-wall",
     season: "spring",
     weather: "clear",
     cosmeticPack: "starter",
