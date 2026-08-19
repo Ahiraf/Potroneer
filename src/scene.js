@@ -398,6 +398,11 @@ export function createStudio(canvas) {
     const m = MOODS[name];
     if (!m) return;
     moodDef = m;
+    // A mood always owns the backdrop it paints: drop the theme photo, and bump
+    // the token so a photo still decoding for the previous theme can't land on
+    // top of the mood the user just picked.
+    activePhoto = null;
+    photoToken++;
     if (m.room) {
       // 3D room: the model provides walls + floor; hide the flat ground and
       // swap the canvas backdrop for a solid tone the room sits against.
