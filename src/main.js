@@ -1,7 +1,7 @@
 import { startIntro, introReady, onIntroDone, replayIntro } from "./intro.js";
 import * as THREE from "three";
 import { createStudio } from "./scene.js";
-import { buildJar, buildPickPlane, JAR_TYPES, JAR_BY_ID } from "./jar.js";
+import { buildJar, buildPickPlane, jarInnerSilhouette, JAR_TYPES, JAR_BY_ID } from "./jar.js";
 import {
   buildLayer,
   buildDecoration,
@@ -23,6 +23,7 @@ import {
   sculpt,
   flatten,
   paintMaterial,
+  jarRadiusAt,
   JAR,
 } from "./state.js";
 import { toggleAmbience, playSfx } from "./ambience.js";
@@ -146,13 +147,12 @@ function buildMotes(interior) {
   const n = 55;
   const positions = new Float32Array(n * 3);
   const seeds = [];
-  const r = interior.innerRadius * 0.8;
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
-    const rr = Math.sqrt(Math.random()) * r;
+    const y = interior.floorY + 0.3 + Math.random() * (interior.bodyHeight - 0.4);
+    const rr = Math.sqrt(Math.random()) * jarRadiusAt(y) * 0.8;
     positions[i * 3] = Math.cos(a) * rr;
-    positions[i * 3 + 1] =
-      interior.floorY + 0.3 + Math.random() * (interior.bodyHeight - 0.4);
+    positions[i * 3 + 1] = y;
     positions[i * 3 + 2] = Math.sin(a) * rr;
     seeds.push(Math.random() * Math.PI * 2);
   }
@@ -198,7 +198,7 @@ function setJar(typeId) {
     bodyHeight: type.interior.bodyHeight * jarCustom.h,
     floorY: type.interior.floorY * jarCustom.h,
   };
-  setJarInterior(it);
+  setJarInterior(it, jarInnerSilhouette(typeId, it));
 
   if (jarGroup) studio.world.remove(jarGroup);
   if (pickPlane) studio.world.remove(pickPlane);
@@ -236,8 +236,9 @@ function setJar(typeId) {
   // The build survives jar changes — you can decorate in the open and slip a
   // jar over it later, like the reference. Just nudge anything that would
   // poke through the new glass back inside the footprint.
-  const rx = JAR.innerRadius * JAR.stretchX * 0.9;
-  const rz = JAR.innerRadius * 0.9;
+  const rDec = jarRadiusAt(substrateTop(state)) * 0.9;
+  const rx = rDec * JAR.stretchX;
+  const rz = rDec;
   state.decorations.forEach((rec) => {
     const n = Math.hypot(rec.x / rx, rec.z / rz);
     if (n > 1) {
@@ -247,7 +248,7 @@ function setJar(typeId) {
     }
   });
   rebuildAll();
-  pickPlane.position.y = substrateTop(state) + 0.001;
+  placePickPlane(substrateTop(state));
   rebuildJarLight(); // re-mount the lamp on the new jar shape/size
 }
 
@@ -299,6 +300,17 @@ studio.setOnFrame((now) => {
   }
 });
 
+// Park the invisible placement disc at the current surface, shrunk to the
+// interior width at that height so taps can't drop decorations outside a
+// curved-in jar.
+function placePickPlane(y) {
+  if (!pickPlane) return;
+  pickPlane.position.y = y + 0.001;
+  const base = Math.max(0.05, JAR.innerRadius - 0.05);
+  const k = Math.max(0.05, jarRadiusAt(y) - 0.05) / base;
+  pickPlane.scale.set(k, 1, k);
+}
+
 // --- rebuild substrate from state -----------------------------------------
 let terrainCap = null;
 
@@ -330,11 +342,11 @@ function rebuildSubstrate(animateLast = false) {
     const topDef = state.layers.length
       ? BASE_BY_ID[state.layers[state.layers.length - 1].type]
       : BASE_BY_ID.soil;
-    terrainCap = buildTerrainCap(topDef);
+    terrainCap = buildTerrainCap(topDef, substrateTop(state));
     updateTerrainCap(terrainCap, state, substrateTop(state));
     substrateGroup.add(terrainCap);
   }
-  pickPlane.position.y = substrateTop(state) + 0.001;
+  placePickPlane(substrateTop(state));
   if (wetLevel > 0) applyWetness(); // keep a watered look through rebuilds
 }
 
@@ -2636,7 +2648,7 @@ document.getElementById("reset").addEventListener("click", () => {
   game.care.soil = 0.32;
   game.care.health = 0.72;
   game.care.growth = 0;
-  pickPlane.position.y = JAR.floorY + 0.001;
+  placePickPlane(JAR.floorY);
   tweens.length = 0;
   updateHint();
   scheduleAutosave();

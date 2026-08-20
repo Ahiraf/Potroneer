@@ -200,6 +200,78 @@ export const JAR_TYPES = [
 
 export const JAR_BY_ID = Object.fromEntries(JAR_TYPES.map((j) => [j.id, j]));
 
+// ---------------------------------------------------------------------------
+// Interior silhouette
+// ---------------------------------------------------------------------------
+// How wide the *inside* of this vessel is at each height, from the floor up to
+// the top of the usable body. Round jars (globe, bowl, egg) and faceted ones
+// (gem, geodesic, pyramid) pinch in sharply near the floor, so substrate cut to
+// the jar's widest radius would push straight out through the glass. Builders
+// read this through JAR.silhouette / jarRadiusAt().
+export function jarInnerSilhouette(typeId, it) {
+  const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
+  if (type.none || type.modelJar || type.bottle || type.house) return null;
+  const floor = it.floorY;
+  const top = it.floorY + it.bodyHeight;
+  const N = 24;
+  const samples = [];
+
+  if (type.poly) {
+    // Faceted vessels: use the *inscribed* radius, since a flat pane cuts
+    // closer to the axis than the vertices it spans.
+    for (let i = 0; i <= N; i++) {
+      const y = floor + ((top - floor) * i) / N;
+      let r;
+      if (type.poly === "pyramid") {
+        const h = it.bodyHeight + 1.1;
+        const apexY = it.floorY - 0.06 + h;
+        const circum = it.innerRadius * 1.55 * Math.max(0, (apexY - y) / h);
+        r = circum * Math.SQRT1_2; // square cross-section: apothem
+      } else {
+        const R = it.innerRadius * (type.poly === "ico" ? 1.4 : 1.42);
+        const cy = it.floorY + R * (type.poly === "ico" ? 0.6 : 0.58);
+        const inR = R * (type.poly === "ico" ? 0.7558 : 0.7947);
+        const dy = Math.min(Math.abs(y - cy), inR);
+        r = Math.sqrt(Math.max(0, inR * inR - dy * dy));
+      }
+      samples.push({ y, r: Math.max(0.05, r - it.wallThickness) });
+    }
+    return samples;
+  }
+
+  if (!type.profile) return null;
+  // Drop the axis points that merely close the lathe's base/top cap — they are
+  // not wall, and treating them as wall would pinch the floor to nothing.
+  let pts = type.profile(it);
+  while (pts.length > 2 && pts[0].x < 0.02) pts = pts.slice(1);
+  while (pts.length > 2 && pts[pts.length - 1].x < 0.02) pts = pts.slice(0, -1);
+  for (let i = 0; i <= N; i++) {
+    const y = floor + ((top - floor) * i) / N;
+    samples.push({ y, r: Math.max(0.05, latheRadiusAt(pts, y) - it.wallThickness) });
+  }
+  return samples;
+}
+
+// Outer radius of a lathe profile at height `y` — the tightest of every segment
+// spanning that height, so a flared rim can never widen what sits below it.
+function latheRadiusAt(pts, y) {
+  let r = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const lo = Math.min(a.y, b.y);
+    const hi = Math.max(a.y, b.y);
+    if (y < lo || y > hi) continue;
+    const t = hi === lo ? 0 : (y - a.y) / (b.y - a.y);
+    r = Math.min(r, a.x + (b.x - a.x) * t);
+  }
+  if (r === Infinity) {
+    // Above/below the profile: hold the nearest end's radius.
+    r = y <= pts[0].y ? pts[0].x : pts[pts.length - 1].x;
+  }
+  return r;
+}
+
 // The hero jar from the reference: a tall apothecary jar — straight body,
 // short shoulder easing into a wide neck, cork stopper on top.
 function corkJarProfile(it) {
@@ -409,8 +481,12 @@ export function buildJar(typeId, envMap, itOverride) {
   const glass = new THREE.Mesh(glassGeo, glassMat);
   group.add(glass);
 
-  // Inner floor disc so there's never a gap under the substrate.
-  const floorGeo = new THREE.CircleGeometry(it.innerRadius, 48);
+  // Inner floor disc so there's never a gap under the substrate. Sized to the
+  // interior at floor height, not the jar's widest point, or it juts out of a
+  // round vessel's underside.
+  const sil = jarInnerSilhouette(type.id, it);
+  const floorR = sil ? Math.min(it.innerRadius, sil[0].r) : it.innerRadius;
+  const floorGeo = new THREE.CircleGeometry(floorR, 48);
   const floorMat = new THREE.MeshStandardMaterial({
     color: "#3c2c1e",
     roughness: 1,

@@ -14,10 +14,39 @@ export const JAR = {
   floorY: -1.15, // world Y of the inside floor
   wallThickness: 0.06,
   stretchX: 1, // >1 for lying-down bottles: footprint becomes an ellipse
+  // Sampled interior silhouette: [{ y, r }, …] bottom -> top. `innerRadius` is
+  // only the *widest* half-extent, so round vessels (globe, bowl, egg, gem)
+  // narrow well below it near the floor. Anything that fills the jar has to
+  // ask jarRadiusAt(y) instead, or it pokes out through the glass.
+  silhouette: null,
 };
 
-export function setJarInterior(interior) {
+export function setJarInterior(interior, silhouette = null) {
   Object.assign(JAR, { stretchX: 1 }, interior);
+  JAR.silhouette = silhouette && silhouette.length >= 2 ? silhouette : null;
+}
+
+// Largest radius the substrate/terrain/decorations may occupy at height `y`.
+// Falls back to the straight-walled innerRadius when the jar has no silhouette.
+export function jarRadiusAt(y) {
+  const s = JAR.silhouette;
+  if (!s) return JAR.innerRadius;
+  let r;
+  if (y <= s[0].y) r = s[0].r;
+  else if (y >= s[s.length - 1].y) r = s[s.length - 1].r;
+  else {
+    r = s[s.length - 1].r;
+    for (let i = 1; i < s.length; i++) {
+      if (y <= s[i].y) {
+        const a = s[i - 1];
+        const b = s[i];
+        const t = b.y === a.y ? 0 : (y - a.y) / (b.y - a.y);
+        r = a.r + (b.r - a.r) * t;
+        break;
+      }
+    }
+  }
+  return Math.max(0.05, Math.min(r, JAR.innerRadius));
 }
 
 // Widest half-extent of the footprint — the terrain grid spans this.

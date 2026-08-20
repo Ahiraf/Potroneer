@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { BASE_BY_ID, BASE_LAYERS, DECOR_BY_ID } from "./catalog.js";
-import { JAR, heightAt, jarGridR, TERRAIN_N } from "./state.js";
+import { JAR, heightAt, jarGridR, jarRadiusAt, TERRAIN_N } from "./state.js";
 
 // ---------------------------------------------------------------------------
 // Small shared helpers
@@ -131,9 +131,13 @@ export function buildJarLamp(jar, { height = 0.55, bright = 0.6, color = 0xffe4b
 export function buildLayer(layer, baseY, isTop) {
   const def = BASE_BY_ID[layer.type];
   const group = new THREE.Group();
-  const r = JAR.innerRadius - 0.02;
+  // Taper the layer to the jar's interior at its own bottom and top, so a
+  // round vessel's substrate curves in with the glass instead of bulging
+  // straight out through it.
+  const rBot = Math.max(0.05, jarRadiusAt(baseY) - 0.02);
+  const rTop = Math.max(0.05, jarRadiusAt(baseY + layer.height) - 0.02);
 
-  const geo = new THREE.CylinderGeometry(r, r, layer.height, 40, 2, false);
+  const geo = new THREE.CylinderGeometry(rTop, rBot, layer.height, 40, 2, false);
   // Tilt + jitter the top surface: a gentle directional slope (real substrate
   // is banked asymmetrically for depth) plus per-vertex noise so sediment
   // settles unevenly.
@@ -190,7 +194,7 @@ function scatterGrains(def, topY) {
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
   const s = new THREE.Vector3();
-  const rMax = JAR.innerRadius - 0.08;
+  const rMax = Math.max(0.05, jarRadiusAt(topY) - 0.08);
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
     const rad = Math.sqrt(Math.random()) * rMax;
@@ -213,10 +217,15 @@ function scatterGrains(def, topY) {
 
 // A polar-grid disc that sits on top of the substrate and deforms live as the
 // user sculpts. Dense enough (rings × sectors) to take smooth brush strokes.
-export function buildTerrainCap(def) {
+export function buildTerrainCap(def, surfaceY = JAR.floorY) {
   const rings = 14;
   const sectors = 48;
-  const R = JAR.innerRadius - 0.03;
+  // Sized to the interior where the cap actually sits — and to where its skirt
+  // hangs — so the surface never overshoots a curved-in wall.
+  const R = Math.max(
+    0.05,
+    Math.min(jarRadiusAt(surfaceY), jarRadiusAt(surfaceY - 0.12)) - 0.03,
+  );
 
   const positions = [0, 0, 0]; // centre vertex
   const jitters = [0];

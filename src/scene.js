@@ -728,6 +728,14 @@ export function createStudio(canvas) {
 
   // --- zoom: scroll to lean right up to the glass ------------------------
   const camDir = camera.position.clone().normalize();
+  // Pitch is an *orbit of the camera*, not a tilt of the jar: the table is a
+  // fixed horizontal plane, so leaning the world on its X axis pushed the
+  // jar's base straight through the tabletop. Keep the vessel upright and
+  // raise/lower the eye instead.
+  const camFlat = new THREE.Vector3(camDir.x, 0, camDir.z).normalize();
+  const camBaseElev = Math.asin(clamp(camDir.y, -1, 1));
+  const ELEV_MIN = 0.04; // never drop the eye to (or below) the tabletop
+  const ELEV_MAX = 1.15;
   let camDist = camera.position.length();
   let camDistT = camDist;
   canvas.addEventListener(
@@ -778,12 +786,15 @@ export function createStudio(canvas) {
     // critically-damped-ish easing toward target
     rot.x += (target.x - rot.x) * 0.12;
     rot.y += (target.y - rot.y) * 0.12;
-    world.rotation.x = rot.x;
-    world.rotation.y = rot.y;
+    world.rotation.y = rot.y; // turntable spin only — X tilt would sink the jar
 
     // smooth dolly zoom
     camDist += (camDistT - camDist) * 0.1;
-    camera.position.copy(camDir).multiplyScalar(camDist);
+    const elev = clamp(camBaseElev + rot.x, ELEV_MIN, ELEV_MAX);
+    const ce = Math.cos(elev);
+    camera.position
+      .set(camFlat.x * ce, Math.sin(elev), camFlat.z * ce)
+      .multiplyScalar(camDist);
     camera.lookAt(0, 0.1, 0);
 
     onFrame?.(now);
