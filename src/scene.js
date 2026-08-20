@@ -679,7 +679,12 @@ export function createStudio(canvas) {
   function onDown(e) {
     markInteraction();
     activePointers.set(e.pointerId ?? 1, { x: e.clientX, y: e.clientY });
-    canvas.setPointerCapture?.(e.pointerId ?? 1);
+    // capture can throw if the pointer has already been released elsewhere
+    try {
+      canvas.setPointerCapture?.(e.pointerId ?? 1);
+    } catch {
+      /* not capturable — dragging still works from the window listeners */
+    }
     if (activePointers.size >= 2) {
       const points = [...activePointers.values()];
       pinchDistance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
