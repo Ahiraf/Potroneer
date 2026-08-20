@@ -1865,12 +1865,62 @@ document.querySelectorAll(".tab").forEach((b) => {
   b.addEventListener("click", () => selectTab(b.dataset.tab));
 });
 
-// number-key shortcuts within the active tab's tool list
+// Keyboard verbs. Numbers pick a tool inside the current tab; the rest are the
+// things you do constantly with a mouse in the other hand — recentre, hide the
+// interface, and nudge the piece you are adjusting a hair at a time.
+const NUDGE = 0.03;
 window.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT") return;
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return; // undo/redo handle their own
+
   const ids = TAB_TOOLS[activeTab];
   const idx = Number(e.key) - 1;
-  if (ids[idx]) selectTool(ids[idx]);
+  if (!Number.isNaN(idx) && ids[idx]) {
+    selectTool(ids[idx]);
+    return;
+  }
+
+  const key = e.key.toLowerCase();
+  if (key === " " || e.code === "Space") {
+    e.preventDefault();
+    studio.resetView?.();
+    return;
+  }
+  if (key === "h") {
+    e.preventDefault();
+    setRailHidden(!document.body.classList.contains("rail-hidden"));
+    return;
+  }
+  if (key === "z") {
+    e.preventDefault();
+    e.shiftKey ? redo() : undo();
+    return;
+  }
+  if (key === "escape" && adjTarget) {
+    adjTarget = null;
+    document.getElementById("item-panel")?.classList.add("hidden");
+    return;
+  }
+
+  // Arrow keys nudge whichever piece the item panel is open on.
+  const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (step && adjTarget?.userData?.record) {
+    e.preventDefault();
+    const rec = adjTarget.userData.record;
+    const amount = NUDGE * (e.shiftKey ? 3 : 1);
+    rec.x += step[0] * amount;
+    rec.z += step[1] * amount;
+    // stay inside the glass at the height the piece actually sits at
+    const limit = jarRadiusAt(rec.y) * 0.92;
+    const n = Math.hypot(rec.x / (limit * JAR.stretchX), rec.z / limit);
+    if (n > 1) {
+      rec.x /= n;
+      rec.z /= n;
+    }
+    rec.y = surfaceY(rec.x, rec.z);
+    adjTarget.position.set(rec.x, rec.y, rec.z);
+    studio.markInteraction();
+  }
 });
 
 // --- HUD: category flyout + favorites + item strip -------------------------
