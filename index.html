@@ -182,25 +182,49 @@
       <!-- Top bar: five things you reach for constantly, as icon buttons.
            Everything else lives one tap away in More, grouped by what it does,
            so the screen around the jar stays empty. -->
-      <div class="nav-actions" aria-label="Potroneer controls">
-        <div class="nav-primary">
-          <button id="theme-btn" class="nav-btn" data-i18n="থিম" title="থিম">
-            <span class="nav-ico">🖼</span><span class="nav-text">থিম</span>
-          </button>
-          <button id="undo" class="nav-btn" data-i18n="ফেরাও" title="ফেরাও">
+      <!-- Right rail: everything you reach for, as physical keycaps. It hides
+           in one press (the ✕, like Townscaper's panel) and the jar gets the
+           whole screen back; the round handle brings it home. -->
+      <aside class="rail" id="rail" aria-label="Potroneer controls">
+        <button class="rail-hide" id="rail-hide" type="button" aria-label="Hide controls" title="Hide controls">✕</button>
+
+        <div class="rail-card rail-card--brand">
+          <span class="rail-brand">Potroneer</span>
+          <span class="rail-brand-sub" data-i18n="কাঁচের নিচে ছোট্ট এক জগৎ">কাঁচের নিচে ছোট্ট এক জগৎ</span>
+        </div>
+
+        <div class="rail-card">
+          <span class="rail-title" data-i18n="বানানো">বানানো</span>
+          <div class="nav-primary">
+            <button id="theme-btn" class="nav-btn" data-i18n="থিম" title="থিম">
+              <span class="nav-ico">🖼</span><span class="nav-text">থিম</span>
+            </button>
+            <button id="calm-camera" class="nav-btn nav-btn--quiet" data-i18n="ক্যামেরা" title="ক্যামেরা">
+              <span class="nav-ico">🎥</span><span class="nav-text">ক্যামেরা</span>
+            </button>
+            <button id="save" class="nav-btn" data-i18n="সেভ" title="সেভ">
+              <span class="nav-ico">💾</span><span class="nav-text">সেভ</span>
+            </button>
+            <button id="more-btn" class="nav-btn" data-i18n="আরও" title="আরও" aria-expanded="false">
+              <span class="nav-ico">⋯</span><span class="nav-text">আরও</span>
+            </button>
+          </div>
+          <button id="undo" class="nav-btn nav-btn--wide" data-i18n="ফেরাও" title="ফেরাও">
             <span class="nav-ico">↶</span><span class="nav-text">ফেরাও</span>
           </button>
-          <button id="save" class="nav-btn" data-i18n="সেভ" title="সেভ">
-            <span class="nav-ico">💾</span><span class="nav-text">সেভ</span>
+        </div>
+
+        <div class="rail-card rail-card--sound">
+          <button id="sound" class="sound-toggle" type="button" aria-pressed="false" title="শব্দ">
+            <span class="sound-ico">🔊</span>
           </button>
-          <button id="calm-camera" class="nav-btn nav-btn--quiet" data-i18n="ক্যামেরা" title="ক্যামেরা">
-            <span class="nav-ico">🎥</span><span class="nav-text">ক্যামেরা</span>
-          </button>
-          <button id="more-btn" class="nav-btn" data-i18n="আরও" title="আরও" aria-expanded="false">
-            <span class="nav-ico">⋯</span><span class="nav-text">আরও</span>
-          </button>
+          <input id="volume" class="fader" type="range" min="0" max="100" value="50" aria-label="Volume" />
+        </div>
+
+        <div class="rail-card rail-card--lang">
           <button id="lang" class="nav-btn nav-btn--lang" title="English / বাংলা">EN</button>
         </div>
+
         <div class="more-menu hidden" id="more-menu">
           <span class="more-menu-title" data-i18n="বানানো">বানানো</span>
           <div class="more-row">
@@ -221,13 +245,14 @@
           </div>
           <span class="more-menu-title" data-i18n="সেটিংস">সেটিংস</span>
           <div class="more-row">
-            <button id="sound" class="nav-btn" data-i18n="শব্দ">শব্দ</button>
             <button id="comfort-btn" class="nav-btn" data-i18n="আরাম">আরাম</button>
             <button id="intro-replay" class="nav-btn" data-i18n="ইন্ট্রো">ইন্ট্রো</button>
             <button id="reset" class="nav-btn nav-btn--danger" data-i18n="রিসেট">রিসেট</button>
           </div>
         </div>
-      </div>
+      </aside>
+
+      <button class="rail-show" id="rail-show" type="button" aria-label="Show controls" title="Show controls">☰</button>
 
       <!-- game layer: progression, care meters, guided objective, and daily challenge -->
       <section class="game-panel" id="game-panel" aria-label="Potroneer progress">

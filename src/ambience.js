@@ -7,6 +7,9 @@ let ctx = null;
 let master = null;
 let timer = null;
 let playing = false;
+// 0..1, the level the user set on the fader. Kept separate from `playing` so
+// muting and un-muting restores the volume they chose rather than a default.
+let volume = 0.5;
 
 function ensureAudio() {
   if (!ctx) {
@@ -58,11 +61,26 @@ export function toggleAmbience() {
     return false;
   }
   ensureAudio();
-  master.gain.setValueAtTime(0.5, ctx.currentTime);
+  master.gain.setValueAtTime(volume, ctx.currentTime);
   playing = true;
   pluck();
   schedule();
   return true;
+}
+
+/** Set the output level (0–1). Takes effect immediately when sound is on. */
+export function setVolume(value) {
+  volume = Math.min(1, Math.max(0, Number(value) || 0));
+  if (playing && master) master.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.08);
+  return volume;
+}
+
+export function getVolume() {
+  return volume;
+}
+
+export function isPlaying() {
+  return playing;
 }
 
 // Short, quiet interaction sounds keep the editor feeling physical without

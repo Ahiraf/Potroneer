@@ -254,16 +254,249 @@ body {
    One short row of icon buttons in a single pill. Only the five things used
    constantly live here; everything else is in the More sheet below it, so the
    space around the jar stays clear. */
-.nav-actions {
+/* ============ the rail ============
+   Townscaper's panel, in Potroneer's materials: every control is a keycap that
+   physically presses, grouped into slabs, and the whole thing folds away in one
+   press so the jar owns the screen. `--font-game` is a rounded system stack —
+   toy-like, and it degrades to the platform's Bengali face without breaking.
+   Colours all come from the theme tokens, so the rail wears the world. */
+:root {
+  --font-game: ui-rounded, "SF Pro Rounded", "Avenir Next", "Hind Siliguri", system-ui, sans-serif;
+  --key-lip: rgba(0, 0, 0, 0.45);
+}
+.rail {
   position: absolute;
   top: 10px;
   right: 12px;
+  width: 190px;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: 8px;
   z-index: 8;
+  font-family: var(--font-game);
+  transition: transform 0.28s cubic-bezier(0.32, 0.9, 0.36, 1), opacity 0.2s ease;
 }
+body.rail-hidden .rail {
+  transform: translateX(calc(100% + 18px));
+  opacity: 0;
+  pointer-events: none;
+}
+.rail-card {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  background: var(--hud-strong);
+  border: 1px solid var(--hud-border);
+  border-radius: 16px;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+}
+.rail-card--brand {
+  gap: 2px;
+  text-align: center;
+  padding: 9px 8px;
+}
+.rail-brand {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.rail-brand-sub {
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--ink-dim);
+}
+.rail-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.9;
+}
+/* Keycaps: a lip underneath, and pressing actually sinks them. */
+.rail .nav-btn,
+.sound-toggle,
+.rail-hide,
+.rail-show {
+  font-family: var(--font-game);
+  background: var(--hud-raised);
+  border: 1px solid var(--hud-border);
+  box-shadow: 0 3px 0 var(--key-lip), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.14s ease;
+}
+.rail .nav-btn:active,
+.sound-toggle:active,
+.rail-hide:active,
+.rail-show:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--key-lip);
+}
+.rail .nav-primary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.rail .nav-btn {
+  justify-content: center;
+  padding: 8px 6px;
+  font-size: 11.5px;
+}
+.rail .nav-btn--wide {
+  width: 100%;
+}
+.rail-card--lang {
+  padding: 6px;
+}
+.rail-card--lang .nav-btn {
+  width: 100%;
+  justify-content: center;
+}
+/* Sound: a mute keycap and a fader you can see the level of. */
+.rail-card--sound {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.sound-toggle {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  color: var(--ink);
+  border-radius: 9px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sound-toggle[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.sound-toggle[aria-pressed="false"] {
+  color: var(--ink-dim);
+}
+.fader {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: none;
+  cursor: pointer;
+}
+.fader::-webkit-slider-runnable-track {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--fill, 50%),
+    rgba(255, 255, 255, 0.1) var(--fill, 50%) 100%
+  );
+  border: 1px solid var(--hud-border);
+}
+.fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 20px;
+  margin-top: -5px;
+  border-radius: 5px;
+  background: var(--ink);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 0 var(--key-lip);
+}
+.fader::-moz-range-track {
+  height: 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.fader::-moz-range-progress {
+  height: 12px;
+  border-radius: 6px;
+  background: var(--accent);
+}
+.fader::-moz-range-thumb {
+  width: 14px;
+  height: 20px;
+  border-radius: 5px;
+  background: var(--ink);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+.fader:focus-visible,
+.rail .nav-btn:focus-visible,
+.sound-toggle:focus-visible,
+.rail-hide:focus-visible,
+.rail-show:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Fold away / bring back. */
+.rail-hide {
+  position: absolute;
+  top: -4px;
+  left: -34px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--ink-dim);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.rail-hide:hover {
+  color: var(--ink);
+}
+.rail-show {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  z-index: 8;
+  color: var(--ink);
+  border-radius: 13px;
+  font-size: 16px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s ease 0.1s;
+}
+body.rail-hidden .rail-show {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Folding the rail folds the rest of the chrome with it — that is the whole
+   point of the press: the jar, alone, on the table. */
+body.rail-hidden .tabs,
+body.rail-hidden .hud-bottom,
+body.rail-hidden .hud-tools,
+body.rail-hidden .sliders,
+body.rail-hidden .hint,
+body.rail-hidden .game-panel {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s ease;
+}
+@media (max-width: 900px) {
+  .rail {
+    width: 164px;
+  }
+  .rail .nav-text {
+    display: none;
+  }
+}
+
 .nav-primary {
   display: flex;
   align-items: center;
@@ -1850,7 +2083,7 @@ body.focus-mode .theme-panel,
 body.focus-mode #jar-panel,
 body.focus-mode #item-panel,
 body.focus-mode .more-menu { display: none !important; }
-body.focus-mode .nav-actions { top: 14px; right: 14px; }
+body.focus-mode .rail { display: none; }
 body.focus-mode #calm-camera,
 body.focus-mode #more-btn { display: none; }
 
@@ -1888,9 +2121,10 @@ body.focus-mode #more-btn { display: none; }
   .game-challenge p {
     font-size: 10px;
   }
-  .nav-actions {
+  .rail {
     top: 8px;
     right: 8px;
+    width: 148px;
   }
   .more-menu { position: fixed; top: 54px; right: 8px; width: min(280px, calc(100vw - 16px)); z-index: 20; }
   .nav-btn {

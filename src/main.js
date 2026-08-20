@@ -26,11 +26,12 @@ import {
   jarRadiusAt,
   JAR,
 } from "./state.js";
-import { toggleAmbience, playSfx } from "./ambience.js";
+import { toggleAmbience, playSfx, setVolume, isPlaying } from "./ambience.js";
 import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
 import { preloadModels, getModelClone } from "./models.js";
 import { createHand } from "./hand.js";
+import { createCursorGhost } from "./ghost.js";
 import {
   claimChallengeReward,
   PLANT_KINDS,
@@ -88,6 +89,10 @@ const studio = createStudio(canvas);
 // so it always reaches in over the player's shoulder however the jar is turned.
 const hand = createHand();
 studio.scene.add(hand.group);
+
+// The cursor ghost rides in `world`, on the substrate, so it turns with the jar.
+const cursorGhost = createCursorGhost();
+studio.world.add(cursorGhost.group);
 let handFrame = performance.now();
 const state = createState();
 const social = createSocialClient();
@@ -119,6 +124,7 @@ const comfort = {
   reducedMotion: false,
   opacity: 88,
   sound: false,
+  volume: 50,
   ...savedComfort,
 };
 let focusMode = false;
@@ -288,7 +294,9 @@ function easeOut(x) {
   return 1 - Math.pow(1 - x, 3);
 }
 studio.setOnFrame((now) => {
-  hand.update(now, Math.min(50, now - handFrame));
+  const handDt = Math.min(50, now - handFrame);
+  hand.update(now, handDt);
+  cursorGhost.update(now, handDt);
   handFrame = now;
   animateMotes(now);
   worldEffects.update(now);
@@ -797,6 +805,10 @@ function setTheme(id, reward = true) {
   // The whole UI wears the theme: buttons, panels, pills and hint all re-tint
   // from the picture's own accent colour.
   applyThemeSkin(theme);
+  // the ghost ring wears the theme accent, like the rest of the interface
+  cursorGhost.setColor(
+    getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#6d9e4f",
+  );
   studio.setTheme?.(theme.id);
   worldEffects.setTheme(theme);
   if (theme.weather) setWeather(theme.weather, false);
@@ -1432,6 +1444,7 @@ function tryPlaceDecoration(screen, id) {
     // The tweezers dip, open, and *then* the plant appears — the hand is doing
     // the placing, not decorating a placement that already happened.
     hand.carry(handPreview(def));
+    cursorGhost.hide();
     handCarrying = null; // the tweezers are empty again once this one is let go
     hand.placeAt(hit.point, () => {
       placeDecoration(hit.point, def);
@@ -1457,22 +1470,30 @@ canvas.addEventListener("pointermove", (e) => {
   if (e.buttons) return; // mid-drag: the user is turning the jar, not aiming
   if (activeTool !== "place" || selected.group !== "decor" || !hasBase(state)) {
     hand.hide();
+    cursorGhost.hide();
     handCarrying = null;
     return;
   }
   const hit = studio.raycast({ x: e.clientX, y: e.clientY }, surfaceTargets());
   if (!hit) {
     hand.hide();
+    cursorGhost.hide();
     return;
   }
+  const def = DECORATIONS.find((d) => d.id === selected.id);
   if (handCarrying !== selected.id) {
     handCarrying = selected.id;
-    const def = DECORATIONS.find((d) => d.id === selected.id);
     hand.carry(def ? handPreview(def) : null);
+    cursorGhost.setItem(def ? handPreview(def) : null);
   }
   hand.hoverTo(hit.point);
+  const local = studio.world.worldToLocal(hit.point.clone());
+  cursorGhost.showAt(local, 0.34 * Math.min(1.25, Math.max(0.55, JAR.innerRadius)));
 });
-canvas.addEventListener("pointerleave", () => hand.hide());
+canvas.addEventListener("pointerleave", () => {
+  hand.hide();
+  cursorGhost.hide();
+});
 
 studio.setTapHandler((screen) => {
   if (focusMode && radialOpen) return;
@@ -1610,9 +1631,15 @@ function applyComfortSettings() {
   if (motion) motion.checked = comfort.reducedMotion;
   if (opacity) opacity.value = comfort.opacity;
   if (sound) sound.checked = comfort.sound;
-  if (typeof soundBtn !== "undefined" && soundBtn.classList.contains("is-active") !== comfort.sound) {
-    const on = toggleAmbience();
-    soundBtn.classList.toggle("is-active", on);
+  if (typeof volumeSlider !== "undefined" && volumeSlider) {
+    volumeSlider.value = comfort.volume;
+    setVolume(comfort.volume / 100);
+    paintFader();
+  }
+  if (typeof soundBtn !== "undefined" && isPlaying() !== comfort.sound) {
+    // Autoplay rules mean this only takes on a user gesture; the toggle reports
+    // what actually happened rather than what we asked for.
+    syncSoundUi(toggleAmbience());
   }
 }
 
@@ -2586,12 +2613,49 @@ async function leaveCoopRoom() {
 }
 
 const soundBtn = document.getElementById("sound");
+const volumeSlider = document.getElementById("volume");
+
+// The fader paints its own fill, so the level is readable at a glance rather
+// than only under the thumb.
+function paintFader() {
+  volumeSlider.style.setProperty("--fill", `${volumeSlider.value}%`);
+}
+function syncSoundUi(on) {
+  soundBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  soundBtn.classList.toggle("is-active", on);
+  soundBtn.querySelector(".sound-ico").textContent = on ? "🔊" : "🔇";
+}
+
 soundBtn.addEventListener("click", () => {
   const on = toggleAmbience();
-  soundBtn.classList.toggle("is-active", on); // keep the text label, highlight when on
+  syncSoundUi(on);
   comfort.sound = on;
   persistComfort();
 });
+
+volumeSlider.addEventListener("input", () => {
+  comfort.volume = Number(volumeSlider.value);
+  setVolume(comfort.volume / 100);
+  paintFader();
+  // Nudging the fader while muted is a request to hear it.
+  if (comfort.volume > 0 && !isPlaying()) {
+    toggleAmbience();
+    syncSoundUi(true);
+    comfort.sound = true;
+  }
+});
+volumeSlider.addEventListener("change", persistComfort);
+
+// --- rail: fold the whole interface away, and bring it back ----------------
+const rail = document.getElementById("rail");
+function setRailHidden(hidden) {
+  document.body.classList.toggle("rail-hidden", hidden);
+  document.getElementById("rail-hide")?.setAttribute("aria-expanded", hidden ? "false" : "true");
+  if (hidden) moreMenu?.classList.add("hidden");
+}
+document.getElementById("rail-hide").addEventListener("click", () => setRailHidden(true));
+document.getElementById("rail-show").addEventListener("click", () => setRailHidden(false));
+void rail;
 
 const moreBtn = document.getElementById("more-btn");
 const moreMenu = document.getElementById("more-menu");
@@ -2635,10 +2699,7 @@ document.getElementById("comfort-opacity").addEventListener("input", (event) => 
 });
 document.getElementById("comfort-sound").addEventListener("change", (event) => {
   comfort.sound = event.target.checked;
-  if (soundBtn.classList.contains("is-active") !== comfort.sound) {
-    const on = toggleAmbience();
-    soundBtn.classList.toggle("is-active", on);
-  }
+  if (isPlaying() !== comfort.sound) syncSoundUi(toggleAmbience());
   persistComfort();
 });
 document.getElementById("comfort-camera").addEventListener("click", () => {
