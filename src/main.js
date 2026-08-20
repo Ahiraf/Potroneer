@@ -1896,6 +1896,10 @@ window.addEventListener("keydown", (e) => {
     e.shiftKey ? redo() : undo();
     return;
   }
+  if (key === "escape" && cameraMode) {
+    setCameraMode(false);
+    return;
+  }
   if (key === "escape" && adjTarget) {
     adjTarget = null;
     document.getElementById("item-panel")?.classList.add("hidden");
@@ -2954,10 +2958,63 @@ moreBtn.addEventListener("click", (event) => {
 document.getElementById("focus-btn").addEventListener("click", () => setFocusMode());
 document.getElementById("focus-exit").addEventListener("click", () => setFocusMode(false));
 document.getElementById("focus-quick").addEventListener("click", openRadial);
-document.getElementById("calm-camera").addEventListener("click", () => {
-  studio.resetView?.();
-  flashHint("ক্যামেরা কেন্দ্রে ফিরে এসেছে।");
-});
+// --- camera mode -----------------------------------------------------------
+// Composing a photo is its own activity: the interface steps out of the way,
+// a 4:5 window shows exactly what the frame will hold, and the last three
+// exposures stay on a stack so a good one is never a click away from lost.
+const cameraModeEl = document.getElementById("camera-mode");
+const shotStackEl = document.getElementById("shot-stack");
+const shots = []; // newest first, at most three
+let cameraMode = false;
+let railWasHidden = false;
+
+function setCameraMode(on) {
+  cameraMode = on;
+  cameraModeEl.classList.toggle("hidden", !on);
+  document.getElementById("calm-camera")?.classList.toggle("is-active", on);
+  if (on) {
+    railWasHidden = document.body.classList.contains("rail-hidden");
+    setRailHidden(true);
+    studio.resetView?.();
+  } else if (!railWasHidden) {
+    setRailHidden(false);
+  }
+}
+
+function renderShots() {
+  shotStackEl.innerHTML = "";
+  shots.forEach((url, i) => {
+    const thumb = document.createElement("button");
+    thumb.className = "shot-thumb";
+    thumb.style.backgroundImage = `url(${url})`;
+    thumb.title = t("ছবি সেভ করো");
+    thumb.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `potroneer-${Date.now()}-${i}.png`;
+      a.click();
+      flashHint("ছবি সেভ হয়ে গেছে! বন্ধুদের দেখাও।");
+    });
+    shotStackEl.appendChild(thumb);
+  });
+}
+
+function takeShot() {
+  const url = studio.capture();
+  shots.unshift(url);
+  if (shots.length > 3) shots.pop();
+  renderShots();
+  playSfx("save");
+  const flash = document.createElement("div");
+  flash.className = "cam-flash";
+  cameraModeEl.appendChild(flash);
+  setTimeout(() => flash.remove(), 380);
+  unlockGameAchievement("photographer");
+}
+
+document.getElementById("calm-camera").addEventListener("click", () => setCameraMode(!cameraMode));
+document.getElementById("cam-exit").addEventListener("click", () => setCameraMode(false));
+document.getElementById("cam-shutter").addEventListener("click", takeShot);
 document.querySelectorAll("[data-radial-action]").forEach((button) => {
   button.addEventListener("click", () => chooseRadialAction(button.dataset.radialAction));
 });

@@ -71,6 +71,8 @@ const EN = {
   "আবার": "Redo",
   "সদ্য ব্যবহৃত": "Recent",
   "সব": "All",
+  "শেষ": "Done",
+  "ছবি সেভ করো": "Save this photo",
   "প্রথম স্তর ঢালতে জারে ট্যাপ করো": "Tap the jar to pour your first layer",
   "রিসেট": "Reset",
   "গ্যালারি": "Gallery",

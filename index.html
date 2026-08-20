@@ -529,6 +529,17 @@
         <p></p>
       </aside>
 
+      <!-- camera mode: a 4:5 frame guide over a cleared screen, a shutter, and
+           the last three shots kept where you can grab them -->
+      <div class="camera-mode hidden" id="camera-mode">
+        <div class="cam-guide"><span class="cam-ratio">4 : 5</span></div>
+        <div class="cam-bar">
+          <button class="cam-exit" id="cam-exit" data-i18n="শেষ">শেষ</button>
+          <button class="cam-shutter" id="cam-shutter" aria-label="Take photo"></button>
+          <div class="shot-stack" id="shot-stack"></div>
+        </div>
+      </div>
+
       <!-- first-run invitation: sits in the jar's own space until the first
            layer is poured, then never returns -->
       <div class="empty-call hidden" id="empty-call">

@@ -2969,3 +2969,99 @@ body.reduced-motion .wordmark-rule {
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1.03); }
 }
 body.reduced-motion .empty-call { animation: none; }
+
+/* ============ camera mode ============
+   The shot you are composing, made visible: everything outside a 4:5 window
+   dims back, and the three most recent frames stay on a little stack you can
+   pull from. */
+.camera-mode {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+.camera-mode.hidden { display: none; }
+.cam-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: min(74vh, 720px);
+  aspect-ratio: 4 / 5;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 4px;
+  box-shadow: 0 0 0 100vmax rgba(10, 12, 10, 0.46);
+}
+.cam-ratio {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-game);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+}
+.cam-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: auto;
+}
+.cam-shutter {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+.cam-shutter:hover { background: rgba(255, 255, 255, 0.4); }
+.cam-shutter:active { transform: scale(0.9); }
+.cam-exit {
+  padding: 8px 14px;
+  background: var(--hud-strong);
+  color: var(--ink);
+  border: 1px solid var(--hud-border);
+  border-radius: 999px;
+  font-family: var(--font-game);
+  font-size: 12px;
+  cursor: pointer;
+}
+.shot-stack {
+  display: flex;
+  gap: 6px;
+  width: 168px;
+}
+.shot-thumb {
+  width: 44px;
+  height: 55px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 3px;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  animation: shot-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+.shot-thumb:hover { border-color: var(--accent); }
+@keyframes shot-in {
+  from { transform: translateY(10px) scale(0.8); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+/* The flash on capture. */
+.cam-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  animation: cam-flash 0.36s ease-out forwards;
+}
+@keyframes cam-flash {
+  from { opacity: 0.85; }
+  to { opacity: 0; }
+}
