@@ -393,18 +393,48 @@ function surfaceTargets() {
 // Snapshot the whole build (layers + decorations + terrain) before each
 // mutating action; undo pops one and rebuilds the scene from data.
 const history = [];
+const future = []; // undone states, waiting to be redone
+
+function currentSnapshot() {
+  return JSON.stringify({
+    jarId: currentJarId,
+    layers: state.layers,
+    decorations: state.decorations,
+    terrain: Array.from(state.terrain),
+    terrainMat: Array.from(state.terrainMat),
+    painted: state.painted,
+  });
+}
+
 function snapshot() {
-  history.push(
-    JSON.stringify({
-      jarId: currentJarId,
-      layers: state.layers,
-      decorations: state.decorations,
-      terrain: Array.from(state.terrain),
-      terrainMat: Array.from(state.terrainMat),
-      painted: state.painted,
-    }),
-  );
+  history.push(currentSnapshot());
   if (history.length > 60) history.shift();
+  future.length = 0; // a fresh action ends the redo branch
+  updateHistoryUi();
+}
+
+function restoreSnapshot(snap) {
+  const d = JSON.parse(snap);
+  if (d.jarId && d.jarId !== currentJarId) setJar(d.jarId);
+  state.layers.length = 0;
+  state.layers.push(...d.layers);
+  state.decorations.length = 0;
+  state.decorations.push(...d.decorations);
+  state.terrain.set(d.terrain);
+  if (d.terrainMat) state.terrainMat.set(d.terrainMat);
+  state.painted = d.painted ?? false;
+  rebuildAll();
+  studio.markInteraction();
+  updateHistoryUi();
+}
+
+// Undo and redo grey out when there is nothing behind or ahead of you, so the
+// buttons say what the history actually holds.
+function updateHistoryUi() {
+  const undoBtn = document.getElementById("undo");
+  const redoBtn = document.getElementById("redo");
+  undoBtn?.classList.toggle("is-disabled", history.length === 0);
+  redoBtn?.classList.toggle("is-disabled", future.length === 0);
 }
 
 function rebuildAll() {
@@ -429,17 +459,15 @@ function rebuildAll() {
 function undo() {
   const snap = history.pop();
   if (!snap) return;
-  const d = JSON.parse(snap);
-  if (d.jarId && d.jarId !== currentJarId) setJar(d.jarId);
-  state.layers.length = 0;
-  state.layers.push(...d.layers);
-  state.decorations.length = 0;
-  state.decorations.push(...d.decorations);
-  state.terrain.set(d.terrain);
-  if (d.terrainMat) state.terrainMat.set(d.terrainMat);
-  state.painted = d.painted ?? false;
-  rebuildAll();
-  studio.markInteraction();
+  future.push(currentSnapshot()); // so it can be walked forward again
+  restoreSnapshot(snap);
+}
+
+function redo() {
+  const snap = future.pop();
+  if (!snap) return;
+  history.push(currentSnapshot());
+  restoreSnapshot(snap);
 }
 
 // --- placement -------------------------------------------------------------
@@ -2584,7 +2612,18 @@ function flashHint(text) {
 
 // --- topbar: photo mode, ambience, scene moods -----------------------------
 document.getElementById("undo").addEventListener("click", undo);
+document.getElementById("redo").addEventListener("click", redo);
 window.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
+    e.preventDefault();
+    redo();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+    e.preventDefault();
+    redo();
+    return;
+  }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
     e.preventDefault();
     undo();

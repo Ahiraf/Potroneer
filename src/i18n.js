@@ -68,6 +68,7 @@ const EN = {
   "খোঁজো…": "Search…",
   // navbar text actions
   "ফেরাও": "Undo",
+  "আবার": "Redo",
   "রিসেট": "Reset",
   "গ্যালারি": "Gallery",
   "থিম": "Themes",

@@ -2906,3 +2906,14 @@ body.reduced-motion .wordmark-rule {
 .tool-row--more:hover {
   color: var(--ink);
 }
+
+/* A disabled key still looks like a key, just spent. */
+.nav-btn.is-disabled {
+  opacity: 0.38;
+  pointer-events: none;
+}
+.nav-primary--history {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
