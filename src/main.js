@@ -56,7 +56,7 @@ import {
 } from "./game.js";
 import { createSocialClient } from "./social.js";
 import { createWorldEffects } from "./effects.js";
-import { toast, floatText, burst, flyTo, centerTop } from "./juice.js";
+import { toast, floatText, burst, flyTo, centerTop, impact } from "./juice.js";
 import {
   THEMES,
   THEME_GROUPS,
@@ -603,6 +603,7 @@ function sprayMist(screen) {
   const targets = jarGlass ? [jarGlass, pickPlane] : [pickPlane];
   const hit = studio.raycast(screen, targets);
   if (!hit) return;
+  if (screen?.x != null) impact(screen.x, screen.y, { size: 54, tone: "water" });
   const local = studio.world.worldToLocal(hit.point.clone());
   const n = 10 + ((Math.random() * 8) | 0);
   for (let i = 0; i < n; i++) {
@@ -1315,6 +1316,7 @@ let lastWater = 0;
 function water(screen, isTap) {
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) return;
+  if (isTap && screen?.x != null) impact(screen.x, screen.y, { size: 64, tone: "water" });
   wetLevel = Math.min(1, wetLevel + (isTap ? 0.28 : 0.06));
   applyWetness();
   const local = studio.world.worldToLocal(hit.point.clone());
@@ -1441,6 +1443,10 @@ function tryAddLayer(id) {
   snapshot();
   addLayer(state, id);
   rebuildSubstrate(true);
+  if (lastPress) {
+    impact(lastPress.x, lastPress.y, { size: 78 });
+    burst(lastPress.x, lastPress.y, { count: 10, spread: 44, colors: def.colors ?? ["#8a6b47", "#a9895f"] });
+  }
   updateHint();
   gameAction("layer", id);
 }
@@ -1464,7 +1470,10 @@ function tryPlaceDecoration(screen, id) {
     handCarrying = null; // the tweezers are empty again once this one is let go
     hand.placeAt(hit.point, () => {
       placeDecoration(hit.point, def);
-      if (screen?.x != null) burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
+      if (screen?.x != null) {
+        impact(screen.x, screen.y, { size: 52, tone: "leaf" });
+        burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
+      }
       updateHint();
     });
   }
@@ -1478,6 +1487,13 @@ function handPreview(def) {
   obj.scale.setScalar(0.72 * jarK);
   return obj;
 }
+
+// Where the pointer last went down, so feedback can land where you pressed even
+// when the action itself only knows about the world.
+let lastPress = null;
+canvas.addEventListener("pointerdown", (e) => {
+  lastPress = { x: e.clientX, y: e.clientY };
+});
 
 // Hover is where the interface tells you what a press would do: the tweezers
 // carry the piece to the spot it would be planted, a ghost of it stands there,

@@ -96,3 +96,18 @@ export function flyTo(fromEl, toEl, imgSrc) {
 export function centerTop() {
   return { x: window.innerWidth / 2, y: Math.min(220, window.innerHeight * 0.28) };
 }
+
+// The moment of contact. Every action that touches the terrarium — a layer
+// poured, water tipped in, a stroke of the sculpting tool — gets the same
+// beat, so the whole app answers a press in one voice instead of some things
+// answering and some things not.
+export function impact(x, y, { size = 46, tone = "earth" } = {}) {
+  if (calm()) return;
+  const el = document.createElement("div");
+  el.className = `impact impact--${tone}`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.setProperty("--impact-size", `${size}px`);
+  layer().appendChild(el);
+  setTimeout(() => el.remove(), 620);
+}

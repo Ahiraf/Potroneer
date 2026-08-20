@@ -2876,3 +2876,24 @@ body.reduced-motion .wordmark-rule {
   opacity: 1;
   transform: none;
 }
+
+/* The contact ring: one quick expanding circle at the point you pressed. Same
+   shape for every action, tinted by what the action was. */
+.impact {
+  position: absolute;
+  width: var(--impact-size, 46px);
+  height: var(--impact-size, 46px);
+  margin-left: calc(var(--impact-size, 46px) / -2);
+  margin-top: calc(var(--impact-size, 46px) / -2);
+  border-radius: 50%;
+  border: 2px solid rgba(226, 214, 186, 0.85);
+  pointer-events: none;
+  animation: impact-ring 0.56s cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
+}
+.impact--water { border-color: rgba(150, 205, 235, 0.9); }
+.impact--leaf { border-color: rgba(150, 205, 150, 0.9); }
+@keyframes impact-ring {
+  0% { transform: scale(0.35); opacity: 0; }
+  22% { opacity: 0.95; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
