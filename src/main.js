@@ -1876,7 +1876,38 @@ const searchEl = document.getElementById("search");
 const stripEl = document.getElementById("item-strip");
 const catBtnEl = document.getElementById("cat-btn");
 const catFlyoutEl = document.getElementById("cat-flyout");
-let activeCat = "plants";
+
+// The shelf remembers you: the category you were in, where you had scrolled to,
+// and the handful of pieces you actually keep reaching for.
+const SHELF_KEY = "potroneer-shelf";
+const shelf = {
+  cat: "plants",
+  scroll: 0,
+  recent: [], // "group:id", most recent first
+  ...JSON.parse(localStorage.getItem(SHELF_KEY) || "{}"),
+};
+let activeCat = shelf.cat || "plants";
+function persistShelf() {
+  localStorage.setItem(SHELF_KEY, JSON.stringify(shelf));
+}
+function rememberUse(group, id) {
+  const key = `${group}:${id}`;
+  shelf.recent = [key, ...shelf.recent.filter((k) => k !== key)].slice(0, 8);
+  persistShelf();
+}
+// The recents live at the top of every category — the shortest path back to the
+// piece you used a moment ago, without leaving where you are.
+function recentItems() {
+  return shelf.recent
+    .map((key) => {
+      const [group, id] = key.split(":");
+      const src =
+        group === "jar" ? JAR_TYPES : group === "base" ? BASE_LAYERS : DECORATIONS;
+      const item = src.find((x) => x.id === id);
+      return item ? { ...item, _group: group, _recent: true } : null;
+    })
+    .filter(Boolean);
+}
 
 // favorites persist across sessions
 const FAV_KEY = "potroneer-favs";
@@ -1936,6 +1967,9 @@ function renderFlyout() {
     row.innerHTML = `<span class="c-icon">${cat.icon}</span><span>${t(cat.label)}</span>`;
     row.addEventListener("click", () => {
       activeCat = cat.id;
+      shelf.cat = cat.id;
+      shelf.scroll = 0;
+      persistShelf();
       catBtnEl.querySelector(".cat-icon").textContent = cat.icon;
       catBtnEl.querySelector(".cat-name").textContent = t(cat.label);
       catFlyoutEl.classList.add("hidden");
@@ -2078,10 +2112,28 @@ window.addEventListener("pointerup", (e) => {
 
 function renderStrip() {
   const q = searchEl.value.trim().toLowerCase();
+  const keepScroll = stripEl.scrollTop;
   stripEl.innerHTML = "";
-  stripSource()
-    .filter((item) => !q || item.label.toLowerCase().includes(q))
-    .forEach((item) => {
+
+  // Recents ride at the top of every category, unless you are searching or
+  // already looking at a list that is itself a shortcut.
+  const showRecent = !q && !buildMode && activeCat !== "tray" && activeCat !== "fav";
+  const recent = showRecent ? recentItems() : [];
+  const items = [...recent, ...stripSource().filter((item) => !q || item.label.toLowerCase().includes(q))];
+  if (recent.length) {
+    const head = document.createElement("span");
+    head.className = "strip-head";
+    head.textContent = t("সদ্য ব্যবহৃত");
+    stripEl.appendChild(head);
+  }
+
+  items.forEach((item, index) => {
+      if (recent.length && index === recent.length) {
+        const head = document.createElement("span");
+        head.className = "strip-head";
+        head.textContent = t("সব");
+        stripEl.appendChild(head);
+      }
       const group = item._group;
       const favKey = `${group}:${item.id}`;
       const locked = group === "decor" && !isKindUnlocked(game, item.kind);
@@ -2144,6 +2196,7 @@ function renderStrip() {
           }
         } else {
           selected = { group, id: item.id };
+          rememberUse(group, item.id);
           selectTool("place"); // picking a material returns to place mode
         }
         renderStrip();
@@ -2152,7 +2205,15 @@ function renderStrip() {
       });
       stripEl.appendChild(card);
     });
+
+  // Put the shelf back where the user left it rather than at the top.
+  stripEl.scrollTop = keepScroll || shelf.scroll || 0;
 }
+
+stripEl.addEventListener("scroll", () => {
+  shelf.scroll = stripEl.scrollTop;
+});
+window.addEventListener("beforeunload", persistShelf);
 
 searchEl.addEventListener("input", renderStrip);
 

@@ -2917,3 +2917,16 @@ body.reduced-motion .wordmark-rule {
   grid-template-columns: 1fr 1fr;
   gap: 5px;
 }
+
+/* Section headers inside the shelf column. */
+.strip-head {
+  padding: 6px 2px 2px;
+  color: var(--ink-dim);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.strip-head:first-child {
+  padding-top: 0;
+}

@@ -69,6 +69,8 @@ const EN = {
   // navbar text actions
   "ফেরাও": "Undo",
   "আবার": "Redo",
+  "সদ্য ব্যবহৃত": "Recent",
+  "সব": "All",
   "রিসেট": "Reset",
   "গ্যালারি": "Gallery",
   "থিম": "Themes",
