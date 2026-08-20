@@ -483,6 +483,7 @@ body.rail-hidden .hud-bottom,
 body.rail-hidden .hud-tools,
 body.rail-hidden .sliders,
 body.rail-hidden .hint,
+body.rail-hidden .empty-call,
 body.rail-hidden .game-panel {
   opacity: 0;
   pointer-events: none;
@@ -2930,3 +2931,41 @@ body.reduced-motion .wordmark-rule {
 .strip-head:first-child {
   padding-top: 0;
 }
+
+/* The empty state is an invitation, not a tooltip: it stands where the build
+   will be, in the scene's own light, and it leaves for good once you start. */
+.empty-call {
+  position: absolute;
+  left: calc(50% + 134px);
+  top: 46%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 14px 22px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 5;
+  animation: empty-breathe 3.6s ease-in-out infinite;
+}
+.empty-call.hidden { display: none; }
+.empty-call-mark {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.9;
+}
+.empty-call p {
+  margin: 0;
+  max-width: 15ch;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+}
+@keyframes empty-breathe {
+  0%, 100% { opacity: 0.82; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.03); }
+}
+body.reduced-motion .empty-call { animation: none; }

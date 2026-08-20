@@ -454,6 +454,7 @@ function rebuildAll() {
   if (wetLevel > 0) applyWetness();
   applyPlantGrowth();
   updateHint();
+  updateEmptyCall();
 }
 
 function undo() {
@@ -1471,6 +1472,7 @@ function tryAddLayer(id) {
   snapshot();
   addLayer(state, id);
   rebuildSubstrate(true);
+  updateEmptyCall();
   if (lastPress) {
     impact(lastPress.x, lastPress.y, { size: 78 });
     burst(lastPress.x, lastPress.y, { count: 10, spread: 44, colors: def.colors ?? ["#8a6b47", "#a9895f"] });
@@ -2639,6 +2641,19 @@ renderGameHud();
 
 // Walks the user through the order a real closed terrarium is built:
 // drainage → sphagnum barrier → charcoal → soil → plants.
+// The invitation shows only on a genuinely empty jar, and only until the first
+// layer lands — after that this player knows how to start, forever.
+function updateEmptyCall() {
+  // Everything is looked up on each call: this runs during start-up too, before
+  // the module's own constants further down the file have been evaluated.
+  const el = document.getElementById("empty-call");
+  if (!el) return;
+  const started = localStorage.getItem("potroneer-started") === "1";
+  const empty = !hasBase(state) && state.decorations.length === 0;
+  if (!started && !empty) localStorage.setItem("potroneer-started", "1");
+  el.classList.toggle("hidden", started || !empty);
+}
+
 function updateHint() {
   const laid = new Set(state.layers.map((l) => l.type));
   if (!hasBase(state)) {
