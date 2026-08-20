@@ -247,6 +247,10 @@ function setJar(typeId) {
   const targetBottom = fallbackBottom;
   jarGroup.position.y += targetBottom - actualBottom;
   studio.setBaseY(targetBottom);
+  // Frame the camera on *this* vessel: a bell jar and a shallow bowl should
+  // both fill the shot, rather than sharing one distance that suits neither.
+  const vesselTop = it.floorY + it.bodyHeight + (type.lid ? 0.55 : 0.3);
+  studio.frameJar((targetBottom + vesselTop) / 2, Math.max(1.6, vesselTop - targetBottom));
 
   // Fresh dust motes sized to this jar's interior.
   if (motes) studio.world.remove(motes);

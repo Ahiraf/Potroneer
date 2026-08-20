@@ -641,6 +641,8 @@ export function createStudio(canvas) {
   scene.add(world);
 
   // --- interaction: drag to rotate, idle auto-spin ----------------------
+  const DIST_MIN = 2.6; // close enough to work inside a small jar
+  const DIST_MAX = 9.5;
   const rot = { x: 0.05, y: 0.4 };
   const target = { x: 0.05, y: 0.4 };
   const X_MIN = -0.12;
@@ -670,7 +672,7 @@ export function createStudio(canvas) {
   function resetView() {
     target.x = 0.05;
     target.y = 0.4;
-    camDistT = 6.6;
+    frameJar(framed.centerY, framed.height);
     markInteraction();
   }
 
@@ -705,7 +707,7 @@ export function createStudio(canvas) {
     if (mode === "pinch" && activePointers.size >= 2) {
       const points = [...activePointers.values()];
       const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-      if (pinchDistance > 0) camDistT = clamp(camDistT - (distance - pinchDistance) * 0.008, 3.2, 9.5);
+      if (pinchDistance > 0) camDistT = clamp(camDistT - (distance - pinchDistance) * 0.008, DIST_MIN, DIST_MAX);
       pinchDistance = distance;
       markInteraction();
       return;
@@ -759,6 +761,19 @@ export function createStudio(canvas) {
 
   // --- zoom: scroll to lean right up to the glass ------------------------
   const camDir = camera.position.clone().normalize();
+  // Framing: the vessel is the subject, so the camera is placed from the jar's
+  // own height rather than a fixed guess. `frameJar` puts its centre on the
+  // camera's axis and backs off just far enough to leave a margin around it.
+  let lookAtY = 0.1;
+  let framed = { centerY: 0.1, height: 3.0 };
+  function frameJar(centerY, height, { fill = 0.76, animate = true } = {}) {
+    framed = { centerY, height };
+    lookAtY = centerY;
+    const vfov = (camera.fov * Math.PI) / 180;
+    const dist = height / (2 * fill * Math.tan(vfov / 2));
+    camDistT = clamp(dist, DIST_MIN, DIST_MAX);
+    if (!animate) camDist = camDistT;
+  }
   // Pitch is an *orbit of the camera*, not a tilt of the jar: the table is a
   // fixed horizontal plane, so leaning the world on its X axis pushed the
   // jar's base straight through the tabletop. Keep the vessel upright and
@@ -773,7 +788,7 @@ export function createStudio(canvas) {
     "wheel",
     (e) => {
       e.preventDefault();
-      camDistT = clamp(camDistT + e.deltaY * 0.005, 3.2, 9.5);
+      camDistT = clamp(camDistT + e.deltaY * 0.005, DIST_MIN, DIST_MAX);
       markInteraction();
     },
     { passive: false },
@@ -828,7 +843,7 @@ export function createStudio(canvas) {
     camera.position
       .set(camFlat.x * ce, Math.sin(elev), camFlat.z * ce)
       .multiplyScalar(camDist);
-    camera.lookAt(0, 0.1, 0);
+    camera.lookAt(0, lookAtY, 0);
 
     onFrame?.(now);
     renderer.render(scene, camera);
@@ -845,6 +860,7 @@ export function createStudio(canvas) {
     raycast,
     markInteraction,
     setBaseY,
+    frameJar,
     setAutoSpin: (on) => (autoSpin = !!on),
     isAutoSpin: () => autoSpin,
     setMood,
