@@ -32,6 +32,7 @@ import { t, tLabel, getLang, setLang } from "./i18n.js";
 import { preloadModels, getModelClone } from "./models.js";
 import { createHand } from "./hand.js";
 import { createCursorGhost } from "./ghost.js";
+import { createHandles } from "./handles.js";
 import {
   claimChallengeReward,
   PLANT_KINDS,
@@ -93,6 +94,10 @@ studio.scene.add(hand.group);
 // The cursor ghost rides in `world`, on the substrate, so it turns with the jar.
 const cursorGhost = createCursorGhost();
 studio.world.add(cursorGhost.group);
+
+// Handles ride in `world` too, so they stay pinned to their pieces as it turns.
+const handles = createHandles();
+studio.world.add(handles.group);
 let handFrame = performance.now();
 const state = createState();
 const social = createSocialClient();
@@ -297,6 +302,7 @@ studio.setOnFrame((now) => {
   const handDt = Math.min(50, now - handFrame);
   hand.update(now, handDt);
   cursorGhost.update(now, handDt);
+  handles.update(now, handDt);
   handFrame = now;
   animateMotes(now);
   worldEffects.update(now);
@@ -514,6 +520,10 @@ function applyBrush(screen) {
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) return;
   const local = studio.world.worldToLocal(hit.point.clone());
+  // the ring follows the stroke, so the affected patch stays visible while you
+  // are actually working rather than only before you press
+  cursorGhost.setItem(null);
+  cursorGhost.showAt(local, brushRadius());
 
   if (activeTool === "raise" || activeTool === "lower" || activeTool === "flatten") {
     if (activeTool === "flatten") {
@@ -806,9 +816,10 @@ function setTheme(id, reward = true) {
   // from the picture's own accent colour.
   applyThemeSkin(theme);
   // the ghost ring wears the theme accent, like the rest of the interface
-  cursorGhost.setColor(
-    getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#6d9e4f",
-  );
+  const accent =
+    getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#6d9e4f";
+  cursorGhost.setColor(accent);
+  handles.setColor(accent);
   studio.setTheme?.(theme.id);
   worldEffects.setTheme(theme);
   if (theme.weather) setWeather(theme.weather, false);
@@ -1445,6 +1456,7 @@ function tryPlaceDecoration(screen, id) {
     // the placing, not decorating a placement that already happened.
     hand.carry(handPreview(def));
     cursorGhost.hide();
+    handles.hide();
     handCarrying = null; // the tweezers are empty again once this one is let go
     hand.placeAt(hit.point, () => {
       placeDecoration(hit.point, def);
@@ -1463,18 +1475,77 @@ function handPreview(def) {
   return obj;
 }
 
-// While an ingredient is selected the tweezers hover wherever the cursor is over
-// the substrate, so you can see exactly where the next piece will go.
+// Hover is where the interface tells you what a press would do: the tweezers
+// carry the piece to the spot it would be planted, a ghost of it stands there,
+// a brush ring shows exactly the area a sculpt or paint stroke would cover, and
+// every piece already planted wears a handle saying it can be picked back up.
 let handCarrying = null;
+const BRUSH_TOOLS = new Set(["raise", "lower", "flatten", "grass", "moss", "pebble"]);
+
+function decorHandlePoints() {
+  return decorGroup.children.map((obj) => ({
+    x: obj.position.x,
+    y: obj.position.y,
+    z: obj.position.z,
+    lift: 0.12 + (obj.userData.baseScale ?? 1) * 0.12,
+  }));
+}
+
+function clearHover() {
+  hand.hide();
+  cursorGhost.hide();
+  handles.hide();
+}
+
 canvas.addEventListener("pointermove", (e) => {
-  if (e.buttons) return; // mid-drag: the user is turning the jar, not aiming
-  if (activeTool !== "place" || selected.group !== "decor" || !hasBase(state)) {
+  if (e.buttons) return; // mid-drag: the stroke itself is the feedback
+  const screen = { x: e.clientX, y: e.clientY };
+
+  // Sculpt and paint tools: ring the exact patch the stroke would touch.
+  if (BRUSH_TOOLS.has(activeTool)) {
+    handles.hide();
+    hand.hide();
+    const hit = hasBase(state) ? studio.raycast(screen, surfaceTargets()) : null;
+    if (!hit) {
+      cursorGhost.hide();
+      return;
+    }
+    cursorGhost.setItem(null);
+    cursorGhost.showAt(studio.world.worldToLocal(hit.point.clone()), brushRadius());
+    return;
+  }
+
+  if (activeTool !== "place" || !hasBase(state)) {
+    clearHover();
+    handCarrying = null;
+    return;
+  }
+
+  // Tweezers over a planted piece: offer to pick that one up rather than to
+  // plant another on top of it.
+  const onPiece = decorGroup.children.length
+    ? studio.raycast(screen, decorGroup.children)
+    : null;
+  if (decorGroup.children.length) {
+    handles.sync(decorHandlePoints());
+    handles.show();
+    handles.setHovered(onPiece ? decorGroup.children.indexOf(topDecor(onPiece.object)) : -1);
+  } else {
+    handles.hide();
+  }
+  if (onPiece) {
+    hand.hide();
+    cursorGhost.hide();
+    return;
+  }
+
+  if (selected.group !== "decor") {
     hand.hide();
     cursorGhost.hide();
     handCarrying = null;
     return;
   }
-  const hit = studio.raycast({ x: e.clientX, y: e.clientY }, surfaceTargets());
+  const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) {
     hand.hide();
     cursorGhost.hide();
@@ -1490,10 +1561,7 @@ canvas.addEventListener("pointermove", (e) => {
   const local = studio.world.worldToLocal(hit.point.clone());
   cursorGhost.showAt(local, 0.34 * Math.min(1.25, Math.max(0.55, JAR.innerRadius)));
 });
-canvas.addEventListener("pointerleave", () => {
-  hand.hide();
-  cursorGhost.hide();
-});
+canvas.addEventListener("pointerleave", clearHover);
 
 studio.setTapHandler((screen) => {
   if (focusMode && radialOpen) return;
@@ -2645,6 +2713,17 @@ volumeSlider.addEventListener("input", () => {
   }
 });
 volumeSlider.addEventListener("change", persistComfort);
+
+// Slow auto-spin: the jar turns by itself so the back of the build can be
+// worked on without wrestling the camera round to it.
+const autoSpinBtn = document.getElementById("autospin");
+autoSpinBtn.addEventListener("click", () => {
+  const on = !studio.isAutoSpin();
+  studio.setAutoSpin(on);
+  autoSpinBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  autoSpinBtn.classList.toggle("is-active", on);
+  studio.markInteraction();
+});
 
 // --- rail: fold the whole interface away, and bring it back ----------------
 const rail = document.getElementById("rail");

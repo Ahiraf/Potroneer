@@ -646,6 +646,7 @@ export function createStudio(canvas) {
   const X_MIN = -0.12;
   const X_MAX = 0.5;
   let dragging = false;
+  let autoSpin = false;
   let moved = 0;
   let last = { x: 0, y: 0 };
   let lastInteraction = performance.now();
@@ -809,9 +810,11 @@ export function createStudio(canvas) {
 
   let onFrame = null;
   function tick(now) {
-    // idle auto-rotation once the user has been still for a moment
-    if (!dragging && mode === null && now - lastInteraction > IDLE_MS) {
-      target.y += 0.0016;
+    // Auto-spin: on by default only after a pause, so the build drifts back
+    // into view; switched on explicitly it turns the whole time, which is how
+    // you paint or plant the back of a terrarium without fighting the camera.
+    if (!dragging && mode === null && (autoSpin || now - lastInteraction > IDLE_MS)) {
+      target.y += autoSpin ? 0.0022 : 0.0016;
     }
     // critically-damped-ish easing toward target
     rot.x += (target.x - rot.x) * 0.12;
@@ -842,6 +845,8 @@ export function createStudio(canvas) {
     raycast,
     markInteraction,
     setBaseY,
+    setAutoSpin: (on) => (autoSpin = !!on),
+    isAutoSpin: () => autoSpin,
     setMood,
     setTheme,
     setBackdropCalm,
