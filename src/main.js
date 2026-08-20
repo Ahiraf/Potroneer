@@ -1667,23 +1667,47 @@ function selectTool(id) {
   studio.markInteraction();
 }
 
+// Two tools are on show; the rest of the tab's tools wait behind one row. Every
+// tab has a verb you use constantly and a couple you reach for occasionally,
+// and showing all of them all of the time taxes every glance at the screen.
+const TOOLS_SHOWN = 2;
+let toolsExpanded = false;
+
 function renderTools() {
   toolItemsEl.innerHTML = "";
   const ids = TAB_TOOLS[activeTab];
-  ids.forEach((tid, i) => {
+  const showAll = toolsExpanded || ids.length <= TOOLS_SHOWN + 1;
+  const visible = showAll ? ids : ids.slice(0, TOOLS_SHOWN);
+  // a hidden tool that is currently selected still shows, or the row would lie
+  if (!visible.includes(activeTool) && ids.includes(activeTool)) visible.push(activeTool);
+
+  visible.forEach((tid) => {
     const t2 = TOOLS.find((x) => x.id === tid);
     const btn = document.createElement("button");
     btn.className = "tool-row";
     btn.dataset.id = t2.id;
-    btn.innerHTML = `<span class="t-icon">${t2.glyph}</span><span class="t-label">${t(t2.label)}</span><span class="t-key">${i + 1}</span>`;
+    btn.classList.toggle("is-active", t2.id === activeTool);
+    btn.innerHTML = `<span class="t-icon">${t2.glyph}</span><span class="t-label">${t(t2.label)}</span><span class="t-key">${ids.indexOf(tid) + 1}</span>`;
     btn.addEventListener("click", () => selectTool(t2.id));
     toolItemsEl.appendChild(btn);
   });
+
+  if (!showAll) {
+    const more = document.createElement("button");
+    more.className = "tool-row tool-row--more";
+    more.innerHTML = `<span class="t-icon">⋯</span><span class="t-label">${t("আরও টুল")}</span>`;
+    more.addEventListener("click", () => {
+      toolsExpanded = true;
+      renderTools();
+    });
+    toolItemsEl.appendChild(more);
+  }
   toolItemsEl.style.display = ids.length ? "" : "none";
 }
 
 function selectTab(tab) {
   activeTab = tab;
+  toolsExpanded = false; // each tab opens on its everyday tools
   // reflect the active tab on <body> so CSS can shift the tool list when the
   // Decorate sidebar is present
   document.body.classList.remove("tab-sculpt", "tab-paint", "tab-decor", "tab-scene");

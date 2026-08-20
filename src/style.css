@@ -2897,3 +2897,12 @@ body.reduced-motion .wordmark-rule {
   22% { opacity: 0.95; }
   100% { transform: scale(1.7); opacity: 0; }
 }
+
+/* The "more tools" row reads as a disclosure, not another tool. */
+.tool-row--more {
+  color: var(--ink-dim);
+  font-style: italic;
+}
+.tool-row--more:hover {
+  color: var(--ink);
+}
