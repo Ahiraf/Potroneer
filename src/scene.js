@@ -27,7 +27,7 @@ export function createStudio(canvas) {
   // different time of day. Each mood re-tints backdrop, lights, fog, ground.
   const MOODS = {
     // Clean product-photo studio: a seamless neutral sweep, cool soft key light
-    // and a dark riven-slate slab under the jar — the look of the reference
+    // and a pale bamboo board under the jar — the look of the reference
     // terrarium shop photos.
     studio: {
       draw: "studio",
@@ -40,7 +40,7 @@ export function createStudio(canvas) {
       exposure: 1.06,
     },
     // 3D room environments loaded from GLB scenes in /public. The terrarium
-    // sits on its slate plinth inside the real room. `room` carries the fit
+    // sits on its board inside the real room. `room` carries the fit
     // params tuned per model (scale/offset/rotation).
     cafe: {
       room: { file: "cafe-misti.glb", scale: 24, rot: 0, dx: 0, dz: 2.5, floorDrop: 0 },
@@ -255,61 +255,100 @@ export function createStudio(canvas) {
   scene.add(rim);
 
   // --- the table the jar sits on ----------------------------------------
-  // A large matte surface catching the key light's shadow grounds the jar in a
-  // real space instead of floating on a gradient.
+  // A small round side table rather than an endless floor: a floor plane that
+  // runs to the fog swallows the lower half of the screen and buries whatever
+  // theme photo is behind it. A real piece of furniture with an edge you can
+  // see reads better *and* leaves the backdrop room to breathe.
   const woodTex = makeWoodTexture();
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(40, 40),
-    new THREE.MeshStandardMaterial({
-      map: null, // studio (default) uses a plain neutral sweep; moods add wood
-      color: 0xd0d3d7,
-      roughness: 0.9,
-    }),
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -1.5;
-  ground.receiveShadow = true;
-  scene.add(ground);
+  const TABLE_R = 1.95;
+  const TABLE_H = 0.17;
+  const table = new THREE.Group();
+  const tableMats = [];
+
+  const topMat = new THREE.MeshStandardMaterial({
+    map: woodTex,
+    color: 0xd8bb92,
+    roughness: 0.72,
+    metalness: 0,
+  });
+  tableMats.push(topMat);
+  const tableTop = new THREE.Mesh(makeTableTop(TABLE_R, TABLE_H), topMat);
+  tableTop.receiveShadow = true;
+  tableTop.castShadow = true;
+  table.add(tableTop);
+
+  // Legs: slim, slightly splayed and tapered, running out of frame — enough of
+  // them shows to say "table", none of it competes with the jar.
+  const legMat = new THREE.MeshStandardMaterial({
+    map: woodTex,
+    color: 0xb08c62,
+    roughness: 0.78,
+  });
+  tableMats.push(legMat);
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i / 4) * Math.PI * 2;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.045, 4.4, 12), legMat);
+    const r = TABLE_R * 0.72;
+    leg.position.set(Math.cos(a) * r, -TABLE_H - 2.2, Math.sin(a) * r);
+    leg.rotation.z = -Math.cos(a) * 0.07;
+    leg.rotation.x = Math.sin(a) * 0.07;
+    leg.castShadow = true;
+    table.add(leg);
+  }
+  scene.add(table);
+
+  // A bamboo board under the jar — the cutting board every terrarium build is
+  // actually assembled on, and a warm frame for the glass.
+  const boardMat = new THREE.MeshStandardMaterial({
+    map: woodTex,
+    color: 0xe8cfa4,
+    roughness: 0.66,
+  });
+  tableMats.push(boardMat);
+  const BOARD_H = 0.1;
+  const board = new THREE.Mesh(makeTableTop(1.42, BOARD_H), boardMat);
+  board.castShadow = true;
+  board.receiveShadow = true;
+  scene.add(board);
 
   // Soft ambient-occlusion-style contact shadow right under the jar, layered
   // on top of the cast shadow for a believable grounded feel.
   const contact = new THREE.Mesh(
-    new THREE.PlaneGeometry(3.4, 3.4),
+    new THREE.PlaneGeometry(2.4, 2.4),
     new THREE.MeshBasicMaterial({
       map: makeRadialShadow(),
       transparent: true,
       depthWrite: false,
-      opacity: 0.55,
+      opacity: 0.5,
     }),
   );
   contact.rotation.x = -Math.PI / 2;
   contact.position.y = -1.49;
   scene.add(contact);
 
-  // A dark riven-slate display slab that sits under the jar in Studio mood —
-  // the charcoal cheese-board plinth the reference terrariums are shot on.
-  const SLAB_H = 0.16;
-  const slate = new THREE.Mesh(makeSlateSlab(), makeSlateMaterial());
-  slate.castShadow = true;
-  slate.receiveShadow = true;
-  slate.visible = true; // studio is the default mood
-  scene.add(slate);
+  // Tint every wooden part toward the light the scene is actually in, so the
+  // table never glows brighter than the picture behind it.
+  const TABLE_BASE = [0xd8bb92, 0xb08c62, 0xe8cfa4];
+  function tintTable(color, mix = 0) {
+    tableMats.forEach((m, i) => {
+      m.color.set(TABLE_BASE[i]);
+      if (mix > 0) m.color.lerp(color, mix);
+      m.needsUpdate = true;
+    });
+  }
 
-  // The jar bases differ per shape; slide the table/slab/shadow to meet the
-  // chosen jar so everything sits flush. `slabOn` toggles the slate plinth.
+  // The jar bases differ per shape; slide the table/board/shadow to meet the
+  // chosen jar so everything sits flush.
   let baseY = -1.5;
-  let slabOn = true;
   function layoutBase() {
-    if (slabOn) {
-      slate.visible = true;
-      slate.position.y = baseY - SLAB_H / 2; // top flush with the jar floor
-      ground.position.y = baseY - SLAB_H; // table tucks just under the slab
-      contact.position.y = baseY + 0.012; // AO shadow lands on the slab
-    } else {
-      slate.visible = false;
-      ground.position.y = baseY;
-      contact.position.y = baseY + 0.01;
-    }
+    board.position.y = baseY - BOARD_H / 2; // board top flush with the jar floor
+    table.position.y = baseY - BOARD_H - TABLE_H / 2;
+    contact.position.y = baseY + 0.012;
+  }
+  function showTable(on) {
+    table.visible = on;
+    board.visible = on;
+    contact.visible = on;
   }
   function setBaseY(y) {
     baseY = y;
@@ -374,9 +413,7 @@ export function createStudio(canvas) {
         // model missing/failed — fall back to the neutral studio backdrop so the
         // scene never goes blank
         if (token !== roomToken) return;
-        ground.visible = true;
-        ground.material.map = null;
-        ground.material.needsUpdate = true;
+        showTable(true);
         scene.background = makeStudioBackdrop(MOODS.studio);
       },
     );
@@ -407,7 +444,7 @@ export function createStudio(canvas) {
       // 3D room: the model provides walls + floor; hide the flat ground and
       // swap the canvas backdrop for a solid tone the room sits against.
       setRoom(m.room);
-      ground.visible = false;
+      showTable(false); // the room model brings its own furniture and floor
       scene.background = new THREE.Color(m.bg ?? 0x1a1714);
       scene.fog.color.set(m.fog ?? m.bg ?? 0x1a1714);
       scene.fog.near = m.fogNear ?? 12;
@@ -415,23 +452,19 @@ export function createStudio(canvas) {
       scene.environment && (scene.environmentIntensity = m.env ?? 1.0);
     } else {
       setRoom(null);
-      ground.visible = true;
+      showTable(true);
       scene.background = makeStudioBackdrop(m);
       scene.fog.color.set(m.fog);
       scene.fog.near = 11;
       scene.fog.far = 26;
-      ground.material.color.set(m.ground);
       moodGround.set(m.ground);
-      // Studio mood swaps the warm wood table for a plain neutral sweep + slate.
-      ground.material.map = m.slab ? null : woodTex;
-      ground.material.needsUpdate = true;
+      tintTable(moodGround, 0.35); // wood takes on the mood's light
     }
     key.color.set(m.key);
     photoLight = 1; // painted moods light the room at full strength
     key.intensity = m.keyI;
     hemi.intensity = m.hemiI;
     renderer.toneMappingExposure = m.exposure;
-    slabOn = !!m.slab;
     layoutBase();
   }
   // --- photo backdrops ---------------------------------------------------
@@ -538,10 +571,7 @@ export function createStudio(canvas) {
     scene.fog.far = 26;
     // Pull the table into the photo's light too — a moonlit room shouldn't have
     // a noon-bright tabletop under the jar.
-    if (ground.visible) {
-      ground.material.color.copy(moodGround).lerp(tone, 0.5);
-      ground.material.needsUpdate = true;
-    }
+    tintTable(new THREE.Color().copy(moodGround).lerp(tone, 0.55), 0.6);
     // Dim the room's own light to match how far back the photo was pushed: the
     // table and the jar then sit in the same light as the picture behind them,
     // instead of a bright tabletop against a dark wall.
@@ -1371,72 +1401,33 @@ function drawScenic(ctx, mood) {
   ctx.fillRect(0, 0, 1024, 512);
 }
 
-// A slightly-irregular slab footprint (riven slate is never a perfect rect):
-// a bevelled box, wider than deep, like a charcoal serving board.
-function makeSlateSlab() {
-  const geo = new THREE.BoxGeometry(3.9, 0.16, 2.6, 1, 1, 1);
-  // chamfer the top edge a touch by nudging the top rim inward
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    if (p.getY(i) > 0.07) {
-      p.setX(i, p.getX(i) * 0.97);
-      p.setZ(i, p.getZ(i) * 0.97);
-    }
+// A round tabletop / board: a turned disc with a softly rounded edge, so the
+// rim catches a highlight instead of showing a hard cylinder seam. Lathed, then
+// UV-mapped from the top so the wood grain reads across the surface.
+function makeTableTop(radius, height) {
+  const e = Math.min(height * 0.45, radius * 0.06); // edge round-over
+  const pts = [
+    [0, height / 2],
+    [radius - e, height / 2],
+    [radius - e * 0.25, height / 2 - e * 0.3],
+    [radius, 0],
+    [radius - e * 0.25, -height / 2 + e * 0.3],
+    [radius - e, -height / 2],
+    [0, -height / 2],
+  ].map((p) => new THREE.Vector2(p[0], p[1]));
+  const geo = new THREE.LatheGeometry(pts, 72);
+  // planar UVs so the grain runs across the board rather than spiralling
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    uv.setXY(
+      i,
+      (pos.getX(i) / (radius * 2) + 0.5) * 0.9,
+      (pos.getZ(i) / (radius * 2) + 0.5) * 0.9,
+    );
   }
   geo.computeVertexNormals();
   return geo;
-}
-
-function makeSlateMaterial() {
-  return new THREE.MeshStandardMaterial({
-    map: makeSlateTexture(),
-    color: 0x40454a,
-    roughness: 0.68,
-    metalness: 0.08,
-  });
-}
-
-// Dark cloven slate: near-black base with horizontal cleavage striations and a
-// scatter of cooler and warm mineral flecks, plus a faint sheen streak.
-function makeSlateTexture() {
-  const c = document.createElement("canvas");
-  c.width = c.height = 512;
-  const ctx = c.getContext("2d");
-  const base = ctx.createLinearGradient(0, 0, 512, 512);
-  base.addColorStop(0, "#31353a");
-  base.addColorStop(1, "#23262a");
-  ctx.fillStyle = base;
-  ctx.fillRect(0, 0, 512, 512);
-
-  // horizontal cleavage lines
-  for (let i = 0; i < 90; i++) {
-    const y = Math.random() * 512;
-    const x = Math.random() * 512 - 40;
-    const w = 60 + Math.random() * 260;
-    const dark = Math.random() < 0.55;
-    ctx.strokeStyle = dark
-      ? `rgba(14,16,18,${0.15 + Math.random() * 0.25})`
-      : `rgba(120,130,140,${0.05 + Math.random() * 0.12})`;
-    ctx.lineWidth = 0.6 + Math.random() * 2.2;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.bezierCurveTo(x + w * 0.3, y + jitter2(3), x + w * 0.7, y + jitter2(3), x + w, y + jitter2(2));
-    ctx.stroke();
-  }
-  // mineral flecks
-  for (let i = 0; i < 260; i++) {
-    const warm = Math.random() < 0.3;
-    ctx.fillStyle = warm
-      ? `rgba(190,150,110,${0.08 + Math.random() * 0.15})`
-      : `rgba(150,160,170,${0.06 + Math.random() * 0.14})`;
-    const r = 0.5 + Math.random() * 1.8;
-    ctx.beginPath();
-    ctx.arc(Math.random() * 512, Math.random() * 512, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
 }
 
 function makeRadialShadow() {

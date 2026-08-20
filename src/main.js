@@ -30,6 +30,7 @@ import { toggleAmbience, playSfx } from "./ambience.js";
 import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
 import { preloadModels, getModelClone } from "./models.js";
+import { createHand } from "./hand.js";
 import {
   claimChallengeReward,
   PLANT_KINDS,
@@ -80,6 +81,14 @@ preloadModels((kind) => {
 
 const canvas = document.getElementById("scene");
 const studio = createStudio(canvas);
+
+// The builder's hand: tweezers pinched over the jar, following the cursor while
+// an ingredient is selected and dipping in to release it — the real gesture the
+// reference clips are all built around. It lives in scene space, not `world`,
+// so it always reaches in over the player's shoulder however the jar is turned.
+const hand = createHand();
+studio.scene.add(hand.group);
+let handFrame = performance.now();
 const state = createState();
 const social = createSocialClient();
 const worldEffects = createWorldEffects(studio.world);
@@ -279,6 +288,8 @@ function easeOut(x) {
   return 1 - Math.pow(1 - x, 3);
 }
 studio.setOnFrame((now) => {
+  hand.update(now, Math.min(50, now - handFrame));
+  handFrame = now;
   animateMotes(now);
   worldEffects.update(now);
   if (cycleEnabled) {
@@ -1418,12 +1429,50 @@ function tryPlaceDecoration(screen, id) {
   const def = DECORATIONS.find((d) => d.id === id);
   if (def) {
     snapshot();
-    placeDecoration(hit.point, def);
-    // a soft earthy puff at the touch point so placing reads as physical
-    if (screen?.x != null) burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
-    updateHint();
+    // The tweezers dip, open, and *then* the plant appears — the hand is doing
+    // the placing, not decorating a placement that already happened.
+    hand.carry(handPreview(def));
+    handCarrying = null; // the tweezers are empty again once this one is let go
+    hand.placeAt(hit.point, () => {
+      placeDecoration(hit.point, def);
+      if (screen?.x != null) burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
+      updateHint();
+    });
   }
 }
+
+// A miniature of the item, pinched between the tweezer tips while the hand
+// carries it to the spot it will be planted.
+function handPreview(def) {
+  const obj = getModelClone(def.kind) ?? buildDecoration(def.kind, def.variant);
+  const jarK = Math.min(1.25, Math.max(0.55, JAR.innerRadius / 1.0));
+  obj.scale.setScalar(0.72 * jarK);
+  return obj;
+}
+
+// While an ingredient is selected the tweezers hover wherever the cursor is over
+// the substrate, so you can see exactly where the next piece will go.
+let handCarrying = null;
+canvas.addEventListener("pointermove", (e) => {
+  if (e.buttons) return; // mid-drag: the user is turning the jar, not aiming
+  if (activeTool !== "place" || selected.group !== "decor" || !hasBase(state)) {
+    hand.hide();
+    handCarrying = null;
+    return;
+  }
+  const hit = studio.raycast({ x: e.clientX, y: e.clientY }, surfaceTargets());
+  if (!hit) {
+    hand.hide();
+    return;
+  }
+  if (handCarrying !== selected.id) {
+    handCarrying = selected.id;
+    const def = DECORATIONS.find((d) => d.id === selected.id);
+    hand.carry(def ? handPreview(def) : null);
+  }
+  hand.hoverTo(hit.point);
+});
+canvas.addEventListener("pointerleave", () => hand.hide());
 
 studio.setTapHandler((screen) => {
   if (focusMode && radialOpen) return;
