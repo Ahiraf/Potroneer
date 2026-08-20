@@ -64,7 +64,7 @@ body {
 .tabs {
   position: absolute;
   top: 10px;
-  left: 12px;
+  left: 266px; /* clear of the tray column down the left edge */
   transform: none;
   display: flex;
   gap: 4px;
@@ -157,7 +157,7 @@ body {
 .sliders {
   position: absolute;
   top: 54px;
-  left: 156px;
+  left: 410px; /* right of the tray column and the tool list */
   display: flex;
   gap: 6px;
   z-index: 6;
@@ -1510,21 +1510,28 @@ textarea.social-input {
 }
 
 /* ============ hint ============ */
+/* The step-by-step hint no longer floats beside the jar. Standing tips over the
+   scene were the loudest thing on screen and the one thing you could not act
+   on; the tray already says what to do. Only a *flash* — "this garden is full",
+   "lay a base first" — still appears, and it appears down in the corner, out of
+   the jar's way, for the two seconds it is true. */
 .hint {
   position: absolute;
-  bottom: 24px;
-  left: calc(50% + 122px);
-  transform: translateX(-50%);
+  left: 268px;
+  bottom: 18px;
   display: flex;
   align-items: center;
   gap: 9px;
-  max-width: min(560px, 84vw);
+  max-width: min(420px, 60vw);
   padding: 6px 14px 6px 6px;
-  background: var(--hud);
-  border: 1px solid var(--hud-border);
+  background: var(--hud-strong);
+  border: 1px solid var(--danger);
   border-radius: 999px;
   z-index: 6;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .hint p {
   margin: 0;
@@ -1539,17 +1546,14 @@ textarea.social-input {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--danger);
   color: #fff;
   font-weight: 600;
   font-size: 12px;
 }
 .hint.is-flash {
-  border-color: var(--danger);
-  transform: translateX(-50%) translateY(-3px);
-}
-.hint.is-flash .hint-step {
-  background: var(--danger);
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ============ bottom HUD: category + search + item strip ============ */
@@ -1842,13 +1846,14 @@ textarea.social-input {
    breathe; whatever you point at comes back to full strength. */
 /* Menus and panels you deliberately opened stay at full strength — only the
    always-on chrome fades. */
+/* (.hint is deliberately absent: it owns its own opacity, and is invisible
+   unless it is flashing something you need to know right now.) */
 .tabs,
 .nav-primary,
 .game-panel,
 .hud-bottom,
 .hud-tools,
-.sliders,
-.hint {
+.sliders {
   opacity: var(--hud-alpha, 1);
   transition: opacity 0.2s ease;
 }
@@ -1857,8 +1862,7 @@ textarea.social-input {
 .game-panel:hover,
 .hud-bottom:hover,
 .hud-tools:hover,
-.sliders:hover,
-.hint:hover {
+.sliders:hover {
   opacity: 1;
 }
 body.soft-ui .nav-primary,
@@ -1926,54 +1930,20 @@ body.reduced-motion *::after {
   margin-top: 4px;
 }
 
+/* The tray lives down the left edge, not across the bottom: a vertical column
+   reads as a shelf you pick from, keeps the jar's whole horizon clear, and
+   stops the strip from cutting the table in half. (Its base rules, further up,
+   already describe that column — this is where the old bottom-bar override
+   used to sit.) */
 .hud-bottom {
-  top: auto;
-  right: auto;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  width: min(900px, calc(100vw - 300px));
-  height: 116px;
-  display: grid;
-  grid-template-columns: auto auto minmax(120px, 180px) 1fr;
-  align-items: start;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid rgba(213, 231, 205, 0.16);
-  border-radius: 14px;
-  background: var(--hud);
+  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.26);
 }
-.hud-items {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  gap: 7px;
-  min-width: 0;
-  min-height: 62px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 2px 1px 4px;
-  scrollbar-width: thin;
+/* Tools sit at the top of that same column instead of floating over the scene. */
+.hud-tools {
+  top: 54px;
+  left: 266px;
 }
-.hud-items .item-chip {
-  width: 156px;
-  min-width: 156px;
-  height: 58px;
-  padding: 5px 7px 5px 21px;
-}
-.hud-items .item-img { width: 38px; height: 38px; }
-.hud-items .item-label { font-size: 11px; }
-.hud-search { min-width: 0; }
-.cat-flyout {
-  top: auto;
-  bottom: 142px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-.hint {
-  bottom: 142px;
-}
+
 .game-panel {
   width: 240px;
   background: var(--hud-strong);
@@ -2088,26 +2058,30 @@ body.focus-mode #calm-camera,
 body.focus-mode #more-btn { display: none; }
 
 @media (max-width: 900px) {
-  .hud-bottom { width: min(720px, calc(100vw - 260px)); }
+  .hud-bottom { width: 208px; }
+  .hud-tools { left: 230px; }
+  .hint { left: 232px; }
+  .cat-flyout { left: 220px; }
 }
 
 @media (max-width: 700px) {
   .sliders {
     display: none;
   }
-  .hud-bottom { left: 50%; bottom: 8px; width: calc(100vw - 16px); height: 124px; grid-template-columns: auto auto minmax(90px, 1fr); }
+  /* Phones keep the column but narrow it to icons-plus-a-word. */
+  .hud-bottom { width: 150px; padding: 8px 6px; }
   /* Phones: the icon bar keeps the top-right corner and the mode tabs move to
      their own full-width row underneath, so the two never collide. */
   .tabs {
     top: 54px;
-    left: 8px;
+    left: 158px;
     right: 8px;
     justify-content: space-between;
   }
   .tab { flex: 1; text-align: center; padding: 7px 6px; font-size: 12px; }
-  .hud-tools { top: 104px; left: 8px; }
-  .cat-flyout { left: 8px; }
-  .hint { left: 50%; bottom: 140px; max-width: 92vw; }
+  .hud-tools { top: 104px; left: 160px; }
+  .cat-flyout { left: 158px; }
+  .hint { left: 158px; bottom: 12px; max-width: calc(100vw - 170px); }
   .game-panel {
     top: 104px;
     right: 8px;
