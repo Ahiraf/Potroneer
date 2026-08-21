@@ -676,8 +676,15 @@ export function createStudio(canvas) {
   let grabHandler = null;
   let objectDragHandler = null;
   let objectDropHandler = null;
+  // Touch has no hover, so the tweezers cannot follow a cursor that is only
+  // over the glass when nothing is being pressed. On a finger they are
+  // summoned by contact instead — press to reach in, drag to aim, lift to
+  // plant — and this is the hook main.js drives that with. It gets first
+  // refusal after grabHandler; refusing means the drag turns the jar as usual.
+  let aimHandler = null;
   const activePointers = new Map();
   let pinchDistance = 0;
+  let pinchMid = null;
 
   function markInteraction() {
     lastInteraction = performance.now();
@@ -701,7 +708,13 @@ export function createStudio(canvas) {
     }
     if (activePointers.size >= 2) {
       const points = [...activePointers.values()];
+      // A second finger lands mid-gesture, so whatever the first one was doing
+      // is over. An aim is abandoned rather than planted — the finger never
+      // lifted, and lifting is what plants.
+      if (mode === "aim") aimHandler?.cancel?.();
+      else if (mode === "object") objectDropHandler?.();
       pinchDistance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      pinchMid = midpoint(points);
       mode = "pinch";
       dragging = false;
       return;
@@ -711,6 +724,12 @@ export function createStudio(canvas) {
     if (grabHandler && grabHandler(p)) {
       mode = "object";
       canvas.style.cursor = "grabbing";
+      return;
+    }
+    // A finger with something picked out of the tray reaches in with the
+    // tweezers instead of turning the jar.
+    if (aimHandler?.start?.(p)) {
+      mode = "aim";
       return;
     }
     mode = "rotate";
@@ -728,10 +747,23 @@ export function createStudio(canvas) {
       const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
       if (pinchDistance > 0) camDistT = clamp(camDistT - (distance - pinchDistance) * 0.008, DIST_MIN, DIST_MAX);
       pinchDistance = distance;
+      // Two fingers turn the jar as well as zoom it, so turning it never stops
+      // being available however the one-finger drag is being spent.
+      const mid = midpoint(points);
+      if (pinchMid) {
+        target.y += (mid.x - pinchMid.x) * 0.008;
+        target.x = clamp(target.x + (mid.y - pinchMid.y) * 0.006, X_MIN, X_MAX);
+      }
+      pinchMid = mid;
       markInteraction();
       return;
     }
     const p = pointer(e);
+    if (mode === "aim") {
+      aimHandler?.move?.(p);
+      markInteraction();
+      return;
+    }
     if (mode === "object") {
       objectDragHandler?.(p);
       markInteraction();
@@ -748,13 +780,29 @@ export function createStudio(canvas) {
   }
 
   function onUp(e) {
-    canvas.releasePointerCapture?.(e.pointerId ?? 1);
+    // Releasing a capture that was never taken throws, and onDown already
+    // tolerates the capture failing — so without this the throw would take the
+    // rest of onUp with it and the press would end in nothing at all: no tap,
+    // no drop, no plant.
+    try {
+      canvas.releasePointerCapture?.(e.pointerId ?? 1);
+    } catch {
+      /* nothing was captured — the window listeners carried the gesture */
+    }
     activePointers.delete(e.pointerId ?? 1);
     if (mode === "pinch") {
       if (activePointers.size < 2) {
         mode = null;
         pinchDistance = 0;
+        pinchMid = null;
       }
+      markInteraction();
+      return;
+    }
+    // Lifting the finger is the release: the tweezers dip and let go.
+    if (mode === "aim") {
+      aimHandler?.end?.(pointer(e));
+      mode = null;
       markInteraction();
       return;
     }
@@ -773,10 +821,22 @@ export function createStudio(canvas) {
     markInteraction();
   }
 
+  // A cancelled pointer never lifted, so an aim in flight is dropped rather
+  // than planted — the browser took the gesture away, the user didn't finish it.
+  function onCancel(e) {
+    if (mode === "aim") {
+      activePointers.delete(e.pointerId ?? 1);
+      aimHandler?.cancel?.();
+      mode = null;
+      return;
+    }
+    onUp(e);
+  }
+
   canvas.addEventListener("pointerdown", onDown);
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
-  window.addEventListener("pointercancel", onUp);
+  window.addEventListener("pointercancel", onCancel);
 
   // --- zoom: scroll to lean right up to the glass ------------------------
   const camDir = camera.position.clone().normalize();
@@ -830,7 +890,12 @@ export function createStudio(canvas) {
   // comes from parallax, so the picture no longer has to be blurred into a
   // mush to keep the jar readable.
   const SHELL_R = 24;
-  const SHELL_H = 44;
+  // Taller than any shot needs. The picture is mapped onto a band in the
+  // middle of it and the edge pixels stretch away above and below, so leaning
+  // the camera runs out of *photo* long before it runs out of *wall* — and
+  // stretched edge is a far better thing to find at the bottom of the screen
+  // than the rim of the geometry.
+  const SHELL_H = 56;
   const SHELL_ARC = 2.9; // radians — far wider than the lens ever sees
   const shellMat = new THREE.MeshBasicMaterial({
     side: THREE.BackSide,
@@ -852,7 +917,12 @@ export function createStudio(canvas) {
   // it there. Re-fitting every frame would glue the picture back to the lens
   // and undo the parallax; this only runs when the frame itself changes (a new
   // backdrop, a resize, a different vessel to frame).
-  const SHELL_OVERSCAN = 1.18; // margin of real picture for the drift to reveal
+  // Generous margin of real picture around the frame. It has to cover the eye
+  // being raised or lowered and drifting after the fit was taken, or the wall
+  // runs out mid-shot and the bottom of the screen fills with the flat colour
+  // behind it. Overscanning also means the photo is enlarged less, which the
+  // low-resolution ones need.
+  const SHELL_OVERSCAN = 1.5;
   function fitBackdrop() {
     const tex = shellMat.map;
     if (!tex) return;
@@ -864,7 +934,9 @@ export function createStudio(canvas) {
     const visW = visH * camera.aspect;
     // Where the middle of the shot lands on the wall: the eye is above the
     // table looking slightly down, so it is well below the horizon.
-    const elev = clamp(camBaseElev, ELEV_MIN, ELEV_MAX);
+    // Where the eye is heading, not where it started: the pitch the user has
+    // dragged to decides how far down the wall the middle of the shot lands.
+    const elev = clamp(camBaseElev + target.x, ELEV_MIN, ELEV_MAX);
     const camY = Math.sin(elev) * camDistT;
     const centreY = camY + ((lookAtY - camY) / Math.max(camDistT, 0.001)) * d;
 
@@ -903,6 +975,9 @@ export function createStudio(canvas) {
   let paraTX = 0;
   let paraTY = 0;
   function trackParallax(e) {
+    // Mouse only: a finger is never hovering, so on touch this would just drag
+    // the camera around underneath whatever the finger is actually doing.
+    if (e.pointerType && e.pointerType !== "mouse") return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     paraTX = clamp(((e.clientX - rect.left) / rect.width) * 2 - 1, -1, 1);
@@ -1006,6 +1081,7 @@ export function createStudio(canvas) {
     setTapHandler: (fn) => (tapHandler = fn),
     setOnFrame: (fn) => (onFrame = fn),
     setGrabHandler: (fn) => (grabHandler = fn),
+    setAimHandler: (fns) => (aimHandler = fns),
     setObjectDrag: (fn) => (objectDragHandler = fn),
     setObjectDrop: (fn) => (objectDropHandler = fn),
   };
@@ -1014,7 +1090,19 @@ export function createStudio(canvas) {
 // --- helpers -------------------------------------------------------------
 
 function pointer(e) {
-  return { x: e.clientX, y: e.clientY };
+  // `touch` is what tells the handlers there is no hover to fall back on.
+  return {
+    x: e.clientX,
+    y: e.clientY,
+    touch: e.pointerType === "touch" || e.pointerType === "pen",
+  };
+}
+
+function midpoint(points) {
+  return {
+    x: (points[0].x + points[1].x) / 2,
+    y: (points[0].y + points[1].y) / 2,
+  };
 }
 
 function clamp(v, lo, hi) {

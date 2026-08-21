@@ -1616,17 +1616,26 @@ canvas.addEventListener("pointermove", (e) => {
     return;
   }
 
+  aimTweezers(screen);
+});
+canvas.addEventListener("pointerleave", clearHover);
+
+// Reach the tweezers toward `screen` carrying whatever is selected, and report
+// the spot they would plant it in (or null if that is nowhere). The mouse
+// calls this from its hover; touch, which has no hover, calls it from the
+// finger — see the aim handler below.
+function aimTweezers(screen) {
   if (selected.group !== "decor") {
     hand.hide();
     cursorGhost.hide();
     handCarrying = null;
-    return;
+    return null;
   }
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) {
     hand.hide();
     cursorGhost.hide();
-    return;
+    return null;
   }
   const def = DECORATIONS.find((d) => d.id === selected.id);
   if (handCarrying !== selected.id) {
@@ -1637,8 +1646,68 @@ canvas.addEventListener("pointermove", (e) => {
   hand.hoverTo(hit.point);
   const local = studio.world.worldToLocal(hit.point.clone());
   cursorGhost.showAt(local, 0.34 * Math.min(1.25, Math.max(0.55, JAR.innerRadius)));
+  return hit;
+}
+
+// --- planting with a finger ------------------------------------------------
+// The tweezers are the whole gesture of this app — reach, hover, dip, release
+// — and on a phone none of it was reachable: the hand rides the mouse's hover,
+// and a finger has none, so a tap planted instantly at a point hidden under
+// the fingertip. Contact stands in for hover here. Press with something picked
+// from the tray and the hand reaches in carrying it; drag and it follows; lift
+// and it dips and lets go. Turning the jar stays on one finger with nothing
+// selected, and on two fingers always.
+//
+// The aim also rides above the fingertip, or you would be planting into the
+// one spot on the glass you cannot see. It eases up rather than jumping, so a
+// straight tap still lands where it was tapped and only a drag lifts clear.
+const TOUCH_LIFT = 64;
+let aimAt = null; // the lifted screen point the tweezers are held over
+let aimLift = 0;
+
+// Where the finger is actually pointing. The full lift is only taken if there
+// is still substrate up there — near the back of a small jar it would carry
+// the aim off the far rim — so it walks back down toward the fingertip until
+// it finds ground, and reports nothing if there is none.
+function aimScreen(p) {
+  for (const part of [1, 0.66, 0.33, 0]) {
+    const screen = { x: p.x, y: p.y - aimLift * part };
+    if (studio.raycast(screen, surfaceTargets())) return screen;
+  }
+  return null;
+}
+
+studio.setAimHandler({
+  start(p) {
+    if (!p.touch) return false; // the mouse has a hover already
+    if (focusMode && !focusToolArmed) return false; // that press opens the radial
+    if (activeTool !== "place" || selected.group !== "decor") return false;
+    if (!hasBase(state)) return false; // let the tap through to flash the hint
+    aimLift = 0;
+    aimAt = aimScreen(p);
+    if (!aimAt) return false; // pressed off the jar → turn it instead
+    handles.hide();
+    aimTweezers(aimAt);
+    return true;
+  },
+  move(p) {
+    aimLift += (TOUCH_LIFT - aimLift) * 0.25;
+    aimAt = aimScreen(p);
+    // Dragged off the substrate: the tweezers withdraw, so lifting there
+    // plants nothing rather than guessing.
+    aimTweezers(aimAt ?? { x: p.x, y: p.y });
+  },
+  end() {
+    const screen = aimAt;
+    aimAt = null;
+    if (screen) tryPlaceDecoration(screen, selected.id);
+    else clearHover();
+  },
+  cancel() {
+    aimAt = null;
+    clearHover();
+  },
 });
-canvas.addEventListener("pointerleave", clearHover);
 
 studio.setTapHandler((screen) => {
   if (focusMode && radialOpen) return;
@@ -3179,3 +3248,4 @@ document.getElementById("intro-replay")?.addEventListener("click", () => {
   moreMenu.classList.add("hidden");
   replayIntro();
 });
+
