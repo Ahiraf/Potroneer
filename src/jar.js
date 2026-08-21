@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { JAR } from "./state.js";
+import { JAR, footprintK } from "./state.js";
 import { getJarModelClone } from "./models.js";
 
 // ---------------------------------------------------------------------------
@@ -442,18 +442,26 @@ export function buildJar(typeId, envMap, itOverride) {
     ghost.visible = false;
     group.add(ghost);
     const model = getJarModelClone(type.id);
+    // The model is normalised to stand on y = 0, so its own base goes to the
+    // base the interior was measured against — that is what keeps the soil
+    // inside the glass instead of under it.
+    const bottomY = it.modelBottomY ?? it.floorY - it.wallThickness;
     if (model) {
-      model.position.y = it.floorY - it.wallThickness;
+      model.position.y = bottomY;
       group.add(model);
     } else {
       const plinth = new THREE.Mesh(
         new THREE.CylinderGeometry(0.9, 1.0, 0.12, 24),
         regFrame(new THREE.MeshStandardMaterial({ color: "#7a5a3a", roughness: 0.85 })),
       );
-      plinth.position.y = it.floorY - 0.06;
+      plinth.position.y = bottomY + 0.06;
       group.add(plinth);
     }
-    return { group, glass: ghost, glassMats, frameMats };
+    // `glass` is what taps and the mist spray are cast against. For a model
+    // terrarium the model *is* the glass: handing back the stand-in ghost
+    // leaves nothing to tap but the small placement disc, so pouring a layer
+    // only worked if you happened to hit it.
+    return { group, glass: model ?? ghost, glassMats, frameMats };
   }
 
   // No jar at all: an invisible stand-in mesh keeps the raycast plumbing happy.
@@ -937,7 +945,23 @@ function buildCondensation(it, envMap) {
 // Invisible interior disc used purely as a raycast target for taps.
 export function buildPickPlane() {
   const geo = new THREE.CircleGeometry(JAR.innerRadius - 0.05, 48);
-  geo.scale(JAR.stretchX, 1, 1);
+  if (JAR.footprint) {
+    // Same footprint the substrate takes, so a tap anywhere over a long glass
+    // case counts, not just over the disc in the middle of it. The circle is
+    // built in XY and laid down by the rotation below, which turns its +Y into
+    // world −Z — hence the flipped angle.
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      if (x === 0 && y === 0) continue;
+      const k = footprintK(Math.atan2(-y, x));
+      pos.setX(i, x * k);
+      pos.setY(i, y * k);
+    }
+  } else {
+    geo.scale(JAR.stretchX, 1, 1);
+  }
   const plane = new THREE.Mesh(
     geo,
     new THREE.MeshBasicMaterial({ visible: false }),

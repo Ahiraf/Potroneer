@@ -212,7 +212,9 @@ export function createStudio(canvas) {
     },
   };
 
-  scene.background = makeStudioBackdrop(MOODS.studio);
+  // The real backdrop is a surface in the room (see "the backdrop, as a thing
+  // in the room" below); this colour only fills what lies past the ends of it.
+  scene.background = new THREE.Color(0xeef1f4);
 
   // Gentle fog fades the far edge of the table into the backdrop so there's no
   // hard horizon seam — the jar sits in one continuous, hazy studio space.
@@ -414,7 +416,8 @@ export function createStudio(canvas) {
         // scene never goes blank
         if (token !== roomToken) return;
         showTable(true);
-        scene.background = makeStudioBackdrop(MOODS.studio);
+        shell.visible = true;
+        setBackdropTexture(makeStudioBackdrop(MOODS.studio), new THREE.Color(MOODS.studio.fog));
       },
     );
   }
@@ -445,6 +448,7 @@ export function createStudio(canvas) {
       // swap the canvas backdrop for a solid tone the room sits against.
       setRoom(m.room);
       showTable(false); // the room model brings its own furniture and floor
+      shell.visible = false; // the room *is* the backdrop
       scene.background = new THREE.Color(m.bg ?? 0x1a1714);
       scene.fog.color.set(m.fog ?? m.bg ?? 0x1a1714);
       scene.fog.near = m.fogNear ?? 12;
@@ -453,7 +457,8 @@ export function createStudio(canvas) {
     } else {
       setRoom(null);
       showTable(true);
-      scene.background = makeStudioBackdrop(m);
+      shell.visible = true;
+      setBackdropTexture(makeStudioBackdrop(m), new THREE.Color(m.fog));
       scene.fog.color.set(m.fog);
       scene.fog.near = 11;
       scene.fog.far = 26;
@@ -469,10 +474,16 @@ export function createStudio(canvas) {
   }
   // --- photo backdrops ---------------------------------------------------
   // A theme photo never goes on screen raw. It is redrawn into a canvas that is
-  // blurred (so the sharp jar reads as the subject), pushed toward a common
-  // brightness (so a white balcony and a midnight cave both sit behind the
-  // glass equally well), darkened toward the bottom where the table meets it,
-  // and vignetted. Everything here exists to keep the terrarium legible.
+  // pushed toward a common brightness (so a white balcony and a midnight cave
+  // both sit behind the glass equally well), darkened toward the bottom where
+  // the table meets it, and vignetted. Everything here exists to keep the
+  // terrarium legible.
+  //
+  // It is no longer blurred. Blur was standing in for depth, and it flattened
+  // every room into the same soft wash; the picture now sits on the backdrop
+  // wall 24 units back and gets its depth from parallax instead. The calm
+  // slider still lifts haze and drains colour, and only at the very top of its
+  // range does it reach for a touch of defocus.
   const photoCache = new Map();
   const moodGround = new THREE.Color(0xd0d3d7); // the active mood's table colour
   let photoToken = 0;
@@ -496,12 +507,16 @@ export function createStudio(canvas) {
     const w = Math.max(960, Math.round(canvas.clientWidth || window.innerWidth));
     const h = Math.max(600, Math.round(canvas.clientHeight || window.innerHeight));
     const c = document.createElement("canvas");
-    c.width = Math.min(1920, w);
+    // The picture is sharp now, so give it every pixel the source has rather
+    // than the viewport's — it hangs on a wall the camera can lean toward.
+    c.width = Math.min(1920, Math.max(w, img.width));
     c.height = Math.round(c.width * (h / w));
     const ctx = c.getContext("2d");
 
     const bright = backdropBrightness(theme);
-    const blur = Math.max(2, Math.round((c.width / 260) * (0.6 + photoCalm))); // depth of field
+    // Sharp up to three quarters of the calm slider; past that a hint of
+    // defocus, for people who want the room to fall away completely.
+    const blur = Math.round((c.width / 900) * Math.max(0, photoCalm - 0.75) * 12);
     const sat = (1.05 - photoCalm * 0.35).toFixed(2);
     ctx.filter = `blur(${blur}px) saturate(${sat}) brightness(${bright.toFixed(2)})`;
     // Overscan so the blur never smears in a transparent edge.
@@ -518,8 +533,11 @@ export function createStudio(canvas) {
       c.width * 0.5, c.height * 0.62, c.width * 0.04,
       c.width * 0.5, c.height * 0.62, c.width * 0.52,
     );
-    haze.addColorStop(0, `rgba(8, 10, 9, ${(0.14 + photoCalm * 0.34).toFixed(2)})`);
-    haze.addColorStop(0.55, `rgba(8, 10, 9, ${(0.07 + photoCalm * 0.2).toFixed(2)})`);
+    // Lighter than it was: a sharp picture only needs enough of a knock-back
+    // to keep the glass readable, and a heavy wash on a sharp photo reads as a
+    // smudge on the lens rather than as distance.
+    haze.addColorStop(0, `rgba(8, 10, 9, ${(0.08 + photoCalm * 0.24).toFixed(2)})`);
+    haze.addColorStop(0.55, `rgba(8, 10, 9, ${(0.04 + photoCalm * 0.14).toFixed(2)})`);
     haze.addColorStop(1, "rgba(8, 10, 9, 0)");
     ctx.fillStyle = haze;
     ctx.fillRect(0, 0, c.width, c.height);
@@ -560,9 +578,9 @@ export function createStudio(canvas) {
 
   function applyPhoto(img, theme) {
     activePhoto = { img, theme };
-    scene.background?.dispose?.();
     const { tex, horizon } = drawPhotoBackdrop(img, theme);
-    scene.background = tex;
+    shell.visible = true;
+    setBackdropTexture(tex, horizon.clone());
     // Fog takes the colour the backdrop actually has at the horizon, so the far
     // edge of the table melts into the picture.
     const tone = new THREE.Color(theme.tone || "#20241f");
@@ -626,10 +644,6 @@ export function createStudio(canvas) {
     rim.intensity = 0.5 + (1 - daylight) * 0.85;
     renderer.toneMappingExposure = (0.82 + daylight * 0.3) * clamp(0.8 + photoLight * 0.24, 0.8, 1.06);
   }
-  // Initialise the whole scene through the studio mood so the first paint
-  // matches the active mood button (background, lights, slab all consistent).
-  setMood("studio");
-
   // Snapshot the current frame as a PNG data-URL (photo mode).
   function capture() {
     renderer.render(scene, camera);
@@ -778,6 +792,9 @@ export function createStudio(canvas) {
     const dist = height / (2 * fill * Math.tan(vfov / 2));
     camDistT = clamp(dist, DIST_MIN, DIST_MAX);
     if (!animate) camDist = camDistT;
+    // A shallow bowl and a tall bell jar are shot from different distances, so
+    // re-seat the backdrop on the frame this vessel is going to be seen in.
+    fitBackdrop();
   }
   // Pitch is an *orbit of the camera*, not a tilt of the jar: the table is a
   // fixed horizontal plane, so leaning the world on its X axis pushed the
@@ -798,6 +815,104 @@ export function createStudio(canvas) {
     },
     { passive: false },
   );
+
+  // --- the backdrop, as a thing in the room ------------------------------
+  // The backdrop used to hang on `scene.background`: a flat image pasted
+  // behind everything, glued to the lens. It cannot move, so however far you
+  // lean in or however much you turn the jar, the world behind the glass never
+  // shifts — which is exactly why swapping themes felt like changing wallpaper
+  // rather than carrying the terrarium into a different room.
+  //
+  // Here the backdrop is a surface standing in the scene instead: a wide,
+  // gently curved wall 24 units back. Because it has a position, the camera's
+  // drift and every dolly slide it against the table, and the glass refracts
+  // it like anything else in the room. It is also drawn sharp — the depth now
+  // comes from parallax, so the picture no longer has to be blurred into a
+  // mush to keep the jar readable.
+  const SHELL_R = 24;
+  const SHELL_H = 44;
+  const SHELL_ARC = 2.9; // radians — far wider than the lens ever sees
+  const shellMat = new THREE.MeshBasicMaterial({
+    side: THREE.BackSide,
+    fog: false, // fog belongs to the table's far edge, not to the room itself
+    toneMapped: true,
+  });
+  const shell = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      SHELL_R, SHELL_R, SHELL_H, 96, 1, true,
+      Math.PI - SHELL_ARC / 2, SHELL_ARC,
+    ),
+    shellMat,
+  );
+  shell.renderOrder = -10;
+  shell.frustumCulled = false;
+  scene.add(shell);
+
+  // Fit the backdrop image to the frame the camera has *right now*, then leave
+  // it there. Re-fitting every frame would glue the picture back to the lens
+  // and undo the parallax; this only runs when the frame itself changes (a new
+  // backdrop, a resize, a different vessel to frame).
+  const SHELL_OVERSCAN = 1.18; // margin of real picture for the drift to reveal
+  function fitBackdrop() {
+    const tex = shellMat.map;
+    if (!tex) return;
+    // Distance to the wall along the middle of the shot, and how much of the
+    // wall that covers.
+    const d = SHELL_R + camDistT;
+    const vfov = (camera.fov * Math.PI) / 180;
+    const visH = 2 * Math.tan(vfov / 2) * d;
+    const visW = visH * camera.aspect;
+    // Where the middle of the shot lands on the wall: the eye is above the
+    // table looking slightly down, so it is well below the horizon.
+    const elev = clamp(camBaseElev, ELEV_MIN, ELEV_MAX);
+    const camY = Math.sin(elev) * camDistT;
+    const centreY = camY + ((lookAtY - camY) / Math.max(camDistT, 0.001)) * d;
+
+    const fx = clamp((visW * SHELL_OVERSCAN) / (SHELL_R * SHELL_ARC), 0.02, 1);
+    const fy = clamp((visH * SHELL_OVERSCAN) / SHELL_H, 0.02, 1);
+    const vc = clamp((centreY + SHELL_H / 2) / SHELL_H, fy / 2, 1 - fy / 2);
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    // u runs from screen-right to screen-left around the arc, so the picture
+    // goes on backwards unless the horizontal repeat is negative.
+    tex.repeat.set(-1 / fx, 1 / fy);
+    tex.offset.set(0.5 / fx + 0.5, 0.5 - vc / fy);
+    tex.needsUpdate = true;
+  }
+
+  // Hand the shell a new picture, and a tone for whatever lies past the ends
+  // of the wall.
+  function setBackdropTexture(tex, tint) {
+    const old = shellMat.map;
+    shellMat.map = tex;
+    shellMat.needsUpdate = true;
+    if (old && old !== tex) old.dispose();
+    if (tint) scene.background = tint;
+    fitBackdrop();
+  }
+
+  // --- parallax ----------------------------------------------------------
+  // A few centimetres of head movement is what actually tells you a room is a
+  // room. The eye drifts with the cursor — far too little to fight the user
+  // for control of the camera, but enough that the backdrop slides behind the
+  // jar and the two stop looking like one flat picture.
+  const PARA_AZ = 0.09; // radians of sway, left to right
+  const PARA_EL = 0.05;
+  let paraX = 0;
+  let paraY = 0;
+  let paraTX = 0;
+  let paraTY = 0;
+  function trackParallax(e) {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    paraTX = clamp(((e.clientX - rect.left) / rect.width) * 2 - 1, -1, 1);
+    paraTY = clamp(((e.clientY - rect.top) / rect.height) * 2 - 1, -1, 1);
+  }
+  window.addEventListener("pointermove", trackParallax);
+
+  // Initialise the whole scene through the studio mood so the first paint
+  // matches the active mood button (backdrop, lights, slab all consistent).
+  setMood("studio");
 
   // --- raycasting --------------------------------------------------------
   const raycaster = new THREE.Raycaster();
@@ -824,6 +939,7 @@ export function createStudio(canvas) {
     // Backdrop photos are drawn cover-fit for the current viewport, so a resize
     // has to redraw them or the picture stretches.
     if (activePhoto) applyPhoto(activePhoto.img, activePhoto.theme);
+    else fitBackdrop();
   }
   window.addEventListener("resize", resize);
   resize();
@@ -843,10 +959,23 @@ export function createStudio(canvas) {
 
     // smooth dolly zoom
     camDist += (camDistT - camDist) * 0.1;
-    const elev = clamp(camBaseElev + rot.x, ELEV_MIN, ELEV_MAX);
+    // Ease the eye toward the cursor. Reduced motion gets a dead-still camera.
+    const still = document.body.classList.contains("reduced-motion");
+    paraX += ((still ? 0 : paraTX) - paraX) * 0.045;
+    paraY += ((still ? 0 : paraTY) - paraY) * 0.045;
+    const elev = clamp(camBaseElev + rot.x - paraY * PARA_EL, ELEV_MIN, ELEV_MAX);
     const ce = Math.cos(elev);
+    // Swing the eye around the subject rather than turning it: the jar stays
+    // centred and the backdrop is what moves, which is the whole point.
+    const az = paraX * PARA_AZ;
+    const ca = Math.cos(az);
+    const sa = Math.sin(az);
     camera.position
-      .set(camFlat.x * ce, Math.sin(elev), camFlat.z * ce)
+      .set(
+        (camFlat.x * ca + camFlat.z * sa) * ce,
+        Math.sin(elev),
+        (camFlat.z * ca - camFlat.x * sa) * ce,
+      )
       .multiplyScalar(camDist);
     camera.lookAt(0, lookAtY, 0);
 

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { BASE_BY_ID, BASE_LAYERS, DECOR_BY_ID } from "./catalog.js";
-import { JAR, heightAt, jarGridR, jarRadiusAt, TERRAIN_N } from "./state.js";
+import { JAR, footprintK, heightAt, jarGridR, jarPolar, jarRadiusAt, TERRAIN_N } from "./state.js";
 
 // ---------------------------------------------------------------------------
 // Small shared helpers
@@ -152,7 +152,7 @@ export function buildLayer(layer, baseY, isTop) {
       pos.setY(i, y + x * sx + z * sz + jitter(layer.height * 0.25));
     }
   }
-  geo.scale(JAR.stretchX, 1, 1); // elliptical footprint for lying bottles
+  shapeToJar(geo);
   geo.computeVertexNormals();
   speckleColors(geo, def.colors);
 
@@ -172,6 +172,27 @@ export function buildLayer(layer, baseY, isTop) {
     group.add(scatterGrains(def, baseY + layer.height / 2));
   }
   return group;
+}
+
+// Push a round cross-section out to the vessel's own footprint. A cylinder is
+// the right starting point either way — a jar is round, and a glass case is a
+// round cross-section stretched unevenly — so every layer is built as one and
+// then pressed into shape here.
+function shapeToJar(geo) {
+  if (!JAR.footprint) {
+    geo.scale(JAR.stretchX, 1, 1); // elliptical footprint for lying bottles
+    return;
+  }
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    if (x === 0 && z === 0) continue; // the centre of a cap stays put
+    const k = footprintK(Math.atan2(z, x));
+    pos.setX(i, x * k);
+    pos.setZ(i, z * k);
+  }
+  pos.needsUpdate = true;
 }
 
 // Scatter little instanced stones/grains across a layer surface.
@@ -198,8 +219,7 @@ function scatterGrains(def, topY) {
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
     const rad = Math.sqrt(Math.random()) * rMax;
-    const x = Math.cos(a) * rad * JAR.stretchX;
-    const z = Math.sin(a) * rad;
+    const [x, z] = jarPolar(a, rad);
     e.set(jitter(Math.PI), jitter(Math.PI), jitter(Math.PI));
     q.setFromEuler(e);
     const sc = 0.6 + Math.random() * 0.9;
@@ -234,7 +254,8 @@ export function buildTerrainCap(def, surfaceY = JAR.floorY) {
     const rad = (r / rings) * R;
     for (let s = 0; s < sectors; s++) {
       const a = (s / sectors) * Math.PI * 2;
-      positions.push(Math.cos(a) * rad * JAR.stretchX, 0, Math.sin(a) * rad);
+      const [px, pz] = jarPolar(a, rad);
+      positions.push(px, 0, pz);
       jitters.push(jitter(0.012));
       ringT.push(r / rings);
     }
@@ -245,7 +266,8 @@ export function buildTerrainCap(def, surfaceY = JAR.floorY) {
   const skirtStart = 1 + rings * sectors;
   for (let s = 0; s < sectors; s++) {
     const a = (s / sectors) * Math.PI * 2;
-    positions.push(Math.cos(a) * R * JAR.stretchX, 0, Math.sin(a) * R);
+    const [px, pz] = jarPolar(a, R);
+    positions.push(px, 0, pz);
     jitters.push(0);
     ringT.push(2);
   }

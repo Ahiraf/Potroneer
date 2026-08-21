@@ -24,12 +24,13 @@ import {
   flatten,
   paintMaterial,
   jarRadiusAt,
+  clampInside,
   JAR,
 } from "./state.js";
 import { toggleAmbience, playSfx, setVolume, isPlaying } from "./ambience.js";
 import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
-import { preloadModels, getModelClone } from "./models.js";
+import { preloadModels, getModelClone, getJarModelInterior } from "./models.js";
 import { createHand } from "./hand.js";
 import { createCursorGhost } from "./ghost.js";
 import { createHandles } from "./handles.js";
@@ -207,17 +208,43 @@ function animateMotes(now) {
   pos.needsUpdate = true;
 }
 
-function setJar(typeId) {
-  const type = JAR_BY_ID[typeId];
-  if (!type) return;
-  currentJarId = typeId;
-  // apply the customiser's shape sliders to this jar's interior
-  const it = {
+// The interior the builders fill for this vessel, in world units.
+//
+// Procedural jars are described by the numbers that also build them, so the
+// customiser's width/height sliders scale those numbers directly. A GLB
+// terrarium is a fixed object: its interior is *measured* off the mesh (see
+// models.js) rather than declared, the sliders don't apply, and the vessel is
+// centred on the origin so any size of model frames the same way.
+function jarInterior(type) {
+  if (type.modelJar) {
+    const m = getJarModelInterior(type.id);
+    if (m) {
+      const bottomY = -m.modelHeight / 2;
+      return {
+        innerRadius: m.innerRadius,
+        bodyHeight: m.bodyHeight,
+        floorY: bottomY + m.floorY,
+        wallThickness: m.wallThickness,
+        stretchX: m.stretchX,
+        footprint: m.footprint,
+        modelBottomY: bottomY,
+        vesselTop: bottomY + m.modelHeight,
+      };
+    }
+  }
+  return {
     ...type.interior,
     innerRadius: type.interior.innerRadius * jarCustom.w,
     bodyHeight: type.interior.bodyHeight * jarCustom.h,
     floorY: type.interior.floorY * jarCustom.h,
   };
+}
+
+function setJar(typeId) {
+  const type = JAR_BY_ID[typeId];
+  if (!type) return;
+  currentJarId = typeId;
+  const it = jarInterior(type);
   setJarInterior(it, jarInnerSilhouette(typeId, it));
 
   if (jarGroup) studio.world.remove(jarGroup);
@@ -244,30 +271,30 @@ function setJar(typeId) {
   const fallbackBottom = it.floorY - it.wallThickness;
   const hasVisibleVessel = !type.none && jarGroup.children.some((child) => child.visible);
   const actualBottom = hasVisibleVessel && Number.isFinite(jarBounds.min.y) ? jarBounds.min.y : fallbackBottom;
-  const targetBottom = fallbackBottom;
+  // A model terrarium already sits on its own measured base, so the board goes
+  // there; everything else meets the board at its interior floor.
+  const targetBottom = it.modelBottomY ?? fallbackBottom;
   jarGroup.position.y += targetBottom - actualBottom;
   studio.setBaseY(targetBottom);
   // Frame the camera on *this* vessel: a bell jar and a shallow bowl should
   // both fill the shot, rather than sharing one distance that suits neither.
-  const vesselTop = it.floorY + it.bodyHeight + (type.lid ? 0.55 : 0.3);
+  const vesselTop = it.vesselTop ?? it.floorY + it.bodyHeight + (type.lid ? 0.55 : 0.3);
   studio.frameJar((targetBottom + vesselTop) / 2, Math.max(1.6, vesselTop - targetBottom));
 
   // Fresh dust motes sized to this jar's interior.
   if (motes) studio.world.remove(motes);
-  motes = buildMotes(type.interior);
+  motes = buildMotes(it);
   studio.world.add(motes);
 
   // The build survives jar changes — you can decorate in the open and slip a
   // jar over it later, like the reference. Just nudge anything that would
   // poke through the new glass back inside the footprint.
   const rDec = jarRadiusAt(substrateTop(state)) * 0.9;
-  const rx = rDec * JAR.stretchX;
-  const rz = rDec;
   state.decorations.forEach((rec) => {
-    const n = Math.hypot(rec.x / rx, rec.z / rz);
-    if (n > 1) {
-      rec.x /= n;
-      rec.z /= n;
+    const inside = clampInside(rec.x, rec.z, rDec);
+    if (inside) {
+      rec.x = inside.x;
+      rec.z = inside.z;
       rec.y = substrateTop(state) + heightAt(state, rec.x, rec.z);
     }
   });
@@ -1915,11 +1942,10 @@ window.addEventListener("keydown", (e) => {
     rec.x += step[0] * amount;
     rec.z += step[1] * amount;
     // stay inside the glass at the height the piece actually sits at
-    const limit = jarRadiusAt(rec.y) * 0.92;
-    const n = Math.hypot(rec.x / (limit * JAR.stretchX), rec.z / limit);
-    if (n > 1) {
-      rec.x /= n;
-      rec.z /= n;
+    const inside = clampInside(rec.x, rec.z, jarRadiusAt(rec.y) * 0.92);
+    if (inside) {
+      rec.x = inside.x;
+      rec.z = inside.z;
     }
     rec.y = surfaceY(rec.x, rec.z);
     adjTarget.position.set(rec.x, rec.y, rec.z);

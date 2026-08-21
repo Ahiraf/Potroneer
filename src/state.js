@@ -14,6 +14,13 @@ export const JAR = {
   floorY: -1.15, // world Y of the inside floor
   wallThickness: 0.06,
   stretchX: 1, // >1 for lying-down bottles: footprint becomes an ellipse
+  // Shape of the vessel seen from above, as a multiplier on the radius at each
+  // angle: 1 all the way round for a round jar, reaching out toward the ends
+  // of a long rectangular case. Substrate poured into a rectangular terrarium
+  // has to *be* rectangular — a disc sitting in the middle of a glass trough
+  // is the giveaway that nothing is really being filled. Sampled at even
+  // angles from +X counter-clockwise; null means "round" (use stretchX).
+  footprint: null,
   // Sampled interior silhouette: [{ y, r }, …] bottom -> top. `innerRadius` is
   // only the *widest* half-extent, so round vessels (globe, bowl, egg, gem)
   // narrow well below it near the floor. Anything that fills the jar has to
@@ -22,8 +29,31 @@ export const JAR = {
 };
 
 export function setJarInterior(interior, silhouette = null) {
-  Object.assign(JAR, { stretchX: 1 }, interior);
+  Object.assign(JAR, { stretchX: 1, footprint: null }, interior);
   JAR.silhouette = silhouette && silhouette.length >= 2 ? silhouette : null;
+}
+
+// The footprint multiplier at angle `a` (radians, +X = 0), interpolated
+// between samples. 1 when the vessel is round.
+export function footprintK(a) {
+  const f = JAR.footprint;
+  if (!f || !f.length) return 1;
+  const n = f.length;
+  const t = ((((a / (Math.PI * 2)) % 1) + 1) % 1) * n;
+  const i = Math.floor(t) % n;
+  const j = (i + 1) % n;
+  return f[i] + (f[j] - f[i]) * (t - Math.floor(t));
+}
+
+// Turn a polar coordinate into the point on the vessel's own footprint. Every
+// builder that lays something out in a ring goes through here, so they all
+// take the vessel's shape from one place.
+export function jarPolar(a, radius) {
+  if (JAR.footprint) {
+    const k = footprintK(a) * radius;
+    return [Math.cos(a) * k, Math.sin(a) * k];
+  }
+  return [Math.cos(a) * radius * JAR.stretchX, Math.sin(a) * radius];
 }
 
 // Largest radius the substrate/terrain/decorations may occupy at height `y`.
@@ -49,8 +79,30 @@ export function jarRadiusAt(y) {
   return Math.max(0.05, Math.min(r, JAR.innerRadius));
 }
 
+// How far from the centre the vessel reaches at heading `a`, for a footprint
+// scaled to `limit`. A round or elliptical jar works this out from stretchX; a
+// measured one reads it straight off its outline.
+export function reachAt(a, limit) {
+  if (JAR.footprint) return limit * footprintK(a);
+  const sx = JAR.stretchX || 1;
+  return 1 / Math.hypot(Math.cos(a) / (limit * sx), Math.sin(a) / limit);
+}
+
+// Pull a point back inside that reach, or null if it was already inside.
+export function clampInside(x, z, limit) {
+  const r = Math.hypot(x, z);
+  if (!r) return null;
+  const max = reachAt(Math.atan2(z, x), limit);
+  return r > max ? { x: (x / r) * max, z: (z / r) * max } : null;
+}
+
 // Widest half-extent of the footprint — the terrain grid spans this.
 export function jarGridR() {
+  if (JAR.footprint) {
+    let max = 1;
+    for (const k of JAR.footprint) max = Math.max(max, k);
+    return JAR.innerRadius * max;
+  }
   return JAR.innerRadius * JAR.stretchX;
 }
 
