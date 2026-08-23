@@ -508,8 +508,12 @@ export function createStudio(canvas) {
     const h = Math.max(600, Math.round(canvas.clientHeight || window.innerHeight));
     const c = document.createElement("canvas");
     // The picture is sharp now, so give it every pixel the source has rather
-    // than the viewport's — it hangs on a wall the camera can lean toward.
-    c.width = Math.min(1920, Math.max(w, img.width));
+    // than the viewport's — it hangs on a wall the camera can lean toward, and
+    // a Retina panel asks for two device pixels per CSS pixel before it even
+    // gets there. Capped at 3072: past that the canvas costs more memory than
+    // the extra detail is worth, and no source here exceeds it after cropping.
+    const want = Math.max(w * Math.min(window.devicePixelRatio || 1, 2), img.width);
+    c.width = Math.round(Math.min(3072, want));
     c.height = Math.round(c.width * (h / w));
     const ctx = c.getContext("2d");
 

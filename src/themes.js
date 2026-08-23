@@ -73,6 +73,14 @@ const PHOTO = [
   { id: "spirit-stag-cave", label: "Spirit Stag Cave", bn: "আলোর হরিণ গুহা", group: "magic", photo: true, mood: "night", weather: "glow", critters: "fireflies", pack: "wizarding", accent: "#2994e0", tone: "#02070b", lum: 0.023 },
   { id: "starlit-hall", label: "Starlit Hall", bn: "তারাভরা হল", group: "magic", photo: true, mood: "space", weather: "stars", critters: "satellites", pack: "cosmic", accent: "#517db8", tone: "#2a3848", lum: 0.214 },
   { id: "winter-castle-window", label: "Winter Castle", bn: "শীতের দুর্গ", group: "magic", photo: true, mood: "mountain", weather: "snow", critters: "owls", pack: "alpine", accent: "#5178b8", tone: "#313743", lum: 0.215 },
+  // The first backdrops sourced at 4000–6000px. Every theme above came from a
+  // photo under 1200px wide, which is why they soften as the camera leans in:
+  // no amount of runtime work puts back detail the source never had.
+  { id: "misty-autumn-road", label: "Misty Autumn Road", bn: "কুয়াশার শরৎ পথ", group: "nature", photo: true, mood: "dusk", weather: "mist", critters: "birds", pack: "village", accent: "#b8b451", tone: "#3b402a", lum: 0.24 },
+  { id: "foggy-forest-road", label: "Foggy Forest Road", bn: "কুয়াশার বনপথ", group: "nature", photo: true, mood: "night", weather: "mist", critters: "fireflies", pack: "jungle", accent: "#9ab851", tone: "#222013", lum: 0.124 },
+  { id: "autumn-avenue", label: "Autumn Avenue", bn: "শরতের সড়ক", group: "nature", photo: true, mood: "dusk", weather: "breeze", critters: "birds", pack: "village", accent: "#b88e51", tone: "#5f4f3c", lum: 0.318 },
+  { id: "golden-facade", label: "Golden Facade", bn: "সোনালি অট্টালিকা", group: "window", photo: true, mood: "town", weather: "clear", critters: "birds", pack: "urban", accent: "#89b6d1", tone: "#b1aba0", lum: 0.671 },
+  { id: "day-sky", label: "Day Sky", bn: "দিনের আকাশ", group: "window", photo: true, mood: "day", weather: "clear", critters: "birds", pack: "starter", accent: "#5189b8", tone: "#7a8c9c", lum: 0.539 },
 ];
 
 export const THEMES = [...PAINTED, ...PHOTO];

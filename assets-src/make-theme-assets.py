@@ -1,9 +1,11 @@
 # Turn the raw wallpaper dump in public/ into named theme assets:
-#   public/themes/<slug>.jpg        1600x900 backdrop (cover-cropped)
-#   public/themes/<slug>-thumb.jpg   480x300 picker preview
+#   public/themes/<slug>.jpg        up to 2560x1440 backdrop (cover-cropped)
+#   public/themes/<slug>-thumb.jpg  480x300 picker preview
 # and print a JSON palette (accent / average / luminance) per theme.
+#
+# Pass slugs to rebuild only those:  python3 assets-src/make-theme-assets.py day-sky
 from PIL import Image, ImageFilter
-import colorsys, json, os
+import colorsys, json, os, sys
 
 SRC = "assets-src/themes"
 OUT = "public/themes"
@@ -48,12 +50,30 @@ T = [
  ("library-city-window.jpg","library-city-window","City Library Window","শহরের লাইব্রেরি","cozy","library","sparkle","owls","wizarding"),
  ("rose-sunlit-wall.jpg","rose-sunlit-wall","Sunlit Roses","রোদে গোলাপ","bloom","blossom","petals","butterflies","blossom"),
  ("yellow-blossom-brick.jpg","yellow-blossom-brick","Golden Blossom","সোনালি ফুল","bloom","day","petals","butterflies","blossom"),
+ # High-resolution sources (4000–6000px). These are the first theme photos with
+ # enough pixels for the backdrop wall to hold up when the camera leans in.
+ ("misty-autumn-road.jpg","misty-autumn-road","Misty Autumn Road","কুয়াশার শরৎ পথ","nature","dusk","mist","birds","village"),
+ ("foggy-forest-road.jpg","foggy-forest-road","Foggy Forest Road","কুয়াশার বনপথ","nature","night","mist","fireflies","jungle"),
+ ("autumn-avenue.jpg","autumn-avenue","Autumn Avenue","শরতের সড়ক","nature","dusk","breeze","birds","village"),
+ ("golden-facade.jpg","golden-facade","Golden Facade","সোনালি অট্টালিকা","window","town","clear","birds","urban"),
+ ("day-sky.jpg","day-sky","Day Sky","দিনের আকাশ","window","day","clear","birds","starter"),
 ]
 
 FOCUS = {'willow-swan-lake': 0.6, 'spirit-stag-cave': 0.7, 'golden-swan-forest': 0.58, 'patronus-forest': 0.5, 'mossy-portal': 0.52, 'lantern-terrace': 0.5, 'daisy-meadow-swing': 0.55, 'snowy-pine-window': 0.4, 'rose-sunlit-wall': 0.5, 'moonlit-bedroom': 0.55, 'cave-lookout-pines': 0.5}
 
-BW, BH = 1600, 900
+# The backdrop hangs on a wall the camera can lean toward, so it wants real
+# pixels. 2560 is the ceiling; the floor is whatever the source actually has —
+# see backdrop_size(). Upscaling here is what made every early theme soft: a
+# 1200px photo blown up to 1600 carries no more detail, only more bytes, and
+# then the runtime canvas stretched it again.
+BW, BH = 2560, 1440
 TW, TH = 480, 300
+
+
+def backdrop_size(im):
+    """Largest 16:9 box this source can fill without being upscaled."""
+    w = min(BW, im.width, round(im.height * BW / BH))
+    return max(640, w), max(360, round(w * BH / BW))
 
 
 def cover(im, w, h, focus=0.45):
@@ -102,11 +122,15 @@ def palette(im):
     return hexc(accent), hexc(avg), round(lum, 3)
 
 
+only = set(sys.argv[1:])
 out = []
 for f, slug, en, bn, group, mood, weather, critters, pack in T:
+    if only and slug not in only:
+        continue
     src = Image.open(os.path.join(SRC, f)).convert("RGB")
     fz = FOCUS.get(slug, 0.45)
-    big = cover(src, BW, BH, fz)
+    bw, bh = backdrop_size(src)
+    big = cover(src, bw, bh, fz)
     big.save(f"{OUT}/{slug}.jpg", quality=84, optimize=True, progressive=True)
     cover(src, TW, TH, fz).save(f"{OUT}/{slug}-thumb.jpg", quality=80, optimize=True)
     accent, avg, lum = palette(big)
