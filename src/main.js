@@ -470,7 +470,7 @@ function rebuildAll() {
   decorGroup.clear();
   state.decorations.forEach((rec) => {
     const def = DECORATIONS.find((d) => d.id === rec.id);
-    const obj = getModelClone(rec.kind) ?? buildDecoration(rec.kind, def?.variant);
+    const obj = getModelClone(rec.kind, rec.id) ?? buildDecoration(rec.kind, def?.variant);
     obj.rotation.y = rec.rotation;
     obj.position.set(rec.x, rec.y, rec.z);
     obj.scale.setScalar(rec.scale);
@@ -506,7 +506,7 @@ function placeDecoration(worldPoint, def) {
     return;
   }
   const local = studio.world.worldToLocal(worldPoint.clone());
-  const obj = getModelClone(def.kind) ?? buildDecoration(def.kind, def.variant);
+  const obj = getModelClone(def.kind, def.id) ?? buildDecoration(def.kind, def.variant);
 
   // items scale with the vessel: a small jar gets proportionally small plants
   const jarK = Math.min(1.25, Math.max(0.55, JAR.innerRadius / 1.0));
@@ -1540,7 +1540,7 @@ function tryPlaceDecoration(screen, id) {
 // A miniature of the item, pinched between the tweezer tips while the hand
 // carries it to the spot it will be planted.
 function handPreview(def) {
-  const obj = getModelClone(def.kind) ?? buildDecoration(def.kind, def.variant);
+  const obj = getModelClone(def.kind, def.id) ?? buildDecoration(def.kind, def.variant);
   const jarK = Math.min(1.25, Math.max(0.55, JAR.innerRadius / 1.0));
   obj.scale.setScalar(0.72 * jarK);
   return obj;
@@ -2189,7 +2189,7 @@ function iconFor(group, item) {
     if (group === "jar" && item.id === "none") url = noJarIcon();
     else if (group === "jar") url = jarIcon(item.id);
     else if (group === "base") url = baseIcon(item.id, item.layerHeight);
-    else url = decorationIcon(item.kind, item.variant);
+    else url = decorationIcon(item.kind, item.variant, item.id);
     iconCache.set(key, url);
   }
   return iconCache.get(key);

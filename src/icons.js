@@ -60,9 +60,10 @@ function snapshot(object) {
   return url;
 }
 
-// One thumbnail per decoration variant.
-export function decorationIcon(kind, variant) {
-  return snapshot(getModelClone(kind) ?? buildDecoration(kind, variant));
+// One thumbnail per decoration variant. The id lets a variant with its own
+// model show that model rather than its kind's.
+export function decorationIcon(kind, variant, id) {
+  return snapshot(getModelClone(kind, id) ?? buildDecoration(kind, variant));
 }
 
 // Base materials: render a little layer disc with its speckle + grains.

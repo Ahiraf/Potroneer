@@ -6,9 +6,16 @@
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DECORATIONS } from "./catalog.js";
 
 // kind → { file, size } where size is the target world height/footprint the
 // model is normalised to (matching the procedural builders' scale).
+//
+// Listing a kind here also opts its *variants* in: for every variant of that
+// kind the loader additionally looks for a file named after the variant's id
+// ("leafy-1.glb"), and that beats the kind-level file when present. Nothing
+// else needs registering — a kind with one entry can grow per-variant models
+// later just by dropping the files in.
 const MODEL_FILES = {
   deer: { file: "deer.glb", size: 0.45 },
   butterfly: { file: "butterfly.glb", size: 0.14 },
@@ -34,45 +41,72 @@ const cache = new Map();
 // id → measured interior of a whole-terrarium model (see measureInterior)
 const jarInteriors = new Map();
 
+// Expand the opted-in kinds into their per-variant slots. A variant whose id
+// equals its kind ("leafy") is already covered by the kind-level entry.
+function variantSlots() {
+  const slots = {};
+  DECORATIONS.forEach((d) => {
+    const base = MODEL_FILES[d.kind];
+    if (!base || d.id === d.kind) return;
+    slots[d.id] = { file: `${d.id}.glb`, size: base.size };
+  });
+  return slots;
+}
+
+// Is this response actually a binary glTF? A dev server answers a missing file
+// with index.html and a cheerful 200, so "did the request succeed" is not the
+// question — "do the first four bytes say glTF" is. Checking the magic keeps
+// the loader from parsing HTML, which is what every empty variant slot would
+// otherwise hand it.
+function asGlb(buffer) {
+  if (!buffer || buffer.byteLength < 4) return null;
+  const magic = new Uint8Array(buffer, 0, 4);
+  return magic[0] === 0x67 && magic[1] === 0x6c && magic[2] === 0x54 && magic[3] === 0x46
+    ? buffer
+    : null;
+}
+
 export function preloadModels(onLoaded) {
   const loader = new GLTFLoader();
-  const all = { ...MODEL_FILES, ...JAR_MODEL_FILES };
+  const all = { ...MODEL_FILES, ...variantSlots(), ...JAR_MODEL_FILES };
   Object.entries(all).forEach(([kind, { file, size }]) => {
-    loader.load(
-      `/models/${file}`,
-      (gltf) => {
-        const scene = gltf.scene;
-        // normalise: sit on y=0, scale to the target size
-        const box = new THREE.Box3().setFromObject(scene);
-        const dims = new THREE.Vector3();
-        box.getSize(dims);
-        const s = size / Math.max(dims.x, dims.y, dims.z);
-        scene.scale.setScalar(s);
-        box.setFromObject(scene);
-        scene.position.y -= box.min.y;
-        if (JAR_MODEL_FILES[kind]) {
-          // A vessel has to stand on the spot the build is centred on. Exported
-          // terrariums rarely sit on their own origin — this one starts in the
-          // positive corner of its own space — so a jar model that is only
-          // dropped to y = 0 ends up standing beside the table with the soil
-          // poured where it should have been.
-          const centre = box.getCenter(new THREE.Vector3());
-          scene.position.x -= centre.x;
-          scene.position.z -= centre.z;
+    const accept = (gltf) => {
+      const scene = gltf.scene;
+      // normalise: sit on y=0, scale to the target size
+      const box = new THREE.Box3().setFromObject(scene);
+      const dims = new THREE.Vector3();
+      box.getSize(dims);
+      const s = size / Math.max(dims.x, dims.y, dims.z);
+      scene.scale.setScalar(s);
+      box.setFromObject(scene);
+      scene.position.y -= box.min.y;
+      if (JAR_MODEL_FILES[kind]) {
+        // A vessel has to stand on the spot the build is centred on. Exported
+        // terrariums rarely sit on their own origin — this one starts in the
+        // positive corner of its own space — so a jar model that is only
+        // dropped to y = 0 ends up standing beside the table with the soil
+        // poured where it should have been.
+        const centre = box.getCenter(new THREE.Vector3());
+        scene.position.x -= centre.x;
+        scene.position.z -= centre.z;
+      }
+      scene.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = true;
+          o.receiveShadow = true;
         }
-        scene.traverse((o) => {
-          if (o.isMesh) {
-            o.castShadow = true;
-            o.receiveShadow = true;
-          }
-        });
-        cache.set(kind, scene);
-        if (JAR_MODEL_FILES[kind]) jarInteriors.set(kind, measureInterior(scene));
-        onLoaded?.(kind);
-      },
-      undefined,
-      () => {}, // missing file → procedural fallback, no error spam
-    );
+      });
+      cache.set(kind, scene);
+      if (JAR_MODEL_FILES[kind]) jarInteriors.set(kind, measureInterior(scene));
+      onLoaded?.(kind);
+    };
+    fetch(`/models/${file}`)
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .then((buf) => {
+        const glb = asGlb(buf);
+        if (glb) loader.parse(glb, "", accept, () => {});
+      })
+      .catch(() => {}); // missing file → procedural fallback, no error spam
   });
 }
 
@@ -250,10 +284,15 @@ export function getJarModelInterior(id) {
   return jarInteriors.get(id) ?? null;
 }
 
-// A fresh instance of the loaded model for this kind, or null to use the
-// procedural builder.
-export function getModelClone(kind) {
-  const m = cache.get(kind);
+// A fresh instance of the loaded model, or null to use the procedural builder.
+//
+// Resolution goes variant-first: a file registered for the decoration's own id
+// ("leafy-1") beats one registered for its kind ("leafy"). Without that, a
+// single kind-level model silently flattens every variant of that kind into
+// one look — five Rotalas rendering as the same plant — which defeats the
+// point of having variants at all.
+export function getModelClone(kind, id) {
+  const m = (id && cache.get(id)) || cache.get(kind);
   if (!m) return null;
   const wrap = new THREE.Group();
   wrap.add(m.clone(true));

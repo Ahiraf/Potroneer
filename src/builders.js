@@ -3287,12 +3287,19 @@ function buildRingLight(v = {}) {
 // (which is what a person searches for) and the variant carries that species'
 // colour, leaf form and proportions.
 
+// Painters author in a 128×128 box; the canvas is bigger and scaled to match,
+// so vein work and leaf margins stay crisp when a leaf fills the frame without
+// every outline needing its coordinates rewritten.
+const TEX_DESIGN = 128;
+const TEX_SIZE = 256;
 const speciesTex = new Map();
 function speciesTexture(key, paint) {
   if (speciesTex.has(key)) return speciesTex.get(key);
   const c = document.createElement("canvas");
-  c.width = c.height = 128;
-  paint(c.getContext("2d"));
+  c.width = c.height = TEX_SIZE;
+  const ctx = c.getContext("2d");
+  ctx.scale(TEX_SIZE / TEX_DESIGN, TEX_SIZE / TEX_DESIGN);
+  paint(ctx);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   speciesTex.set(key, tex);
