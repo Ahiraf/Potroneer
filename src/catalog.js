@@ -296,11 +296,196 @@ add("ringlight", "রিং লাইট", [
   ["উষ্ণ", { glow: 0xffcf8a }],
 ]);
 
+// ---------------------------------------------------------------------------
+// Species pack
+// ---------------------------------------------------------------------------
+// Real species from the reference photos, named. Where a genus grows the same
+// way for every species (all the aquarium stem plants, all the velvet aroids)
+// the kind is the genus and the variants are the species — so searching
+// "রোটালা" finds all five Rotalas, and the builder is written once.
+
+// Named terrestrial mosses. Habit separates these far more than colour does,
+// so each carries the `form` its builder switches on.
+add("cushionmoss", "কুশন মস", [
+  ["", { form: "cushion", colors: ["#7faa4a", "#8fba58", "#9ac264", "#6f9a3a"] }],
+]);
+add("starmoss", "স্টার মস", [
+  ["", { form: "star", colors: ["#7fa83c", "#8fb84c", "#6f983a"] }],
+]);
+add("smoothcapmoss", "ক্যাথরিন মস", [
+  ["", { form: "star", colors: ["#4f7a2c", "#5f8a36", "#456e26"] }],
+]);
+add("fissidens", "ফিসিডেন্স মস", [
+  ["", { form: "frond", colors: ["#4a7a2e", "#5a8c3a", "#3f6b26"] }],
+]);
+add("fernmoss", "ফার্ন মস", [
+  ["", { form: "frond", colors: ["#6f9a3a", "#7faa4a", "#5f8a30"] }],
+]);
+add("broomforkmoss", "ব্রুম ফর্ক মস", [
+  ["", { form: "fork", colors: ["#5f9a34", "#6faa40", "#4f8a2c"] }],
+]);
+add("javamoss", "জাভা মস", [
+  ["", { form: "frond", colors: ["#3f6b2c", "#4a7a34", "#356024"], spread: 0.2 }],
+]);
+add("trachycystis", "ট্র্যাকিসিস্টিস মস", [
+  ["", { form: "frond", colors: ["#557f30", "#659040", "#4a7028"] }],
+]);
+
+// Aquarium stem plants. `form` is what the eye actually reads at this size:
+// paired oval leaves, a feathery whorl, or fine needles.
+add("rotala", "রোটালা", [
+  ["বাংলাদেশ", { form: "opposite", colors: ["#5f9c4a", "#6fac56"], stem: "#6b8a3e" }],
+  ["ভিয়েতনাম", { form: "whorl", colors: ["#8a9c3a", "#9aac4a"], stem: "#7a8a3a" }],
+  ["বাটারফ্লাই", { form: "opposite", colors: ["#8fb84a", "#9fc85a"], stem: "#a8863a", leafScale: 1.15 }],
+  ["অরেঞ্জ জুস", { form: "opposite", colors: ["#d98a4a", "#e09c5c", "#c97a3a"], stem: "#b06a3a" }],
+  ["রোটান্ডিফোলিয়া", { form: "opposite", colors: ["#c8cf6a", "#9fc85a"], stem: "#8a9c3a" }],
+]);
+add("ludwigia", "লুডউইজিয়া", [
+  ["পেরুয়েনসিস", { form: "opposite", colors: ["#b0364a", "#c04658"], stem: "#8a2f3a", leafScale: 1.1 }],
+  ["পালুস্ট্রিস", { form: "opposite", colors: ["#8a3f3a", "#9c4f46"], stem: "#6e332e" }],
+  ["ডায়মন্ড", { form: "opposite", colors: ["#7a3a4e", "#8c4a5e", "#5f2c3c"], stem: "#5f2c3c" }],
+  ["মেটা", { form: "whorl", colors: ["#d0304a", "#e0405a"], stem: "#a02a3a" }],
+  ["সুপার রেড", { form: "opposite", colors: ["#c2365c", "#d2466c"], stem: "#96284a" }],
+]);
+add("bacopa", "বাকোপা", [
+  ["মনিয়েরি", { form: "opposite", colors: ["#5faa4a", "#6fba5a"], stem: "#6f9a42", leafScale: 0.75 }],
+  ["ক্যারোলিনিয়ানা", { form: "opposite", colors: ["#6f9a46", "#8a9a4a"], stem: "#7a8a3e", leafScale: 1.05 }],
+  ["অ্যামপ্লেক্সিকলিস", { form: "opposite", colors: ["#7faa50", "#8fba60"], stem: "#6f9a42", leafScale: 1.25 }],
+]);
+add("hygrophila", "হাইগ্রোফিলা", [
+  ["করিম্বোসা", { form: "opposite", colors: ["#4a8c3e", "#5a9c4a"], stem: "#5d7f3a", leafScale: 1.3 }],
+  ["অ্যাঙ্গুস্টিফোলিয়া", { form: "opposite", colors: ["#3f8c3a", "#4f9c46"], stem: "#4e7a34", leafScale: 1.5, height: 0.5 }],
+  ["গ্রিন অলিভ", { form: "opposite", colors: ["#7a8a46", "#8a7a4a", "#6b7a3a"], stem: "#7a6a3a", leafScale: 1.15 }],
+]);
+add("persicaria", "পার্সিকেরিয়া", [
+  ["সাও পাওলো", { form: "opposite", colors: ["#8a4a9c", "#9c5aac", "#7a3a8c"], stem: "#6e3a7a", leafScale: 1.2, height: 0.46 }],
+]);
+add("lindernia", "লিন্ডারনিয়া", [
+  ["ভ্যারিগেটেড", { form: "opposite", colors: ["#c8d060", "#a8c04a"], stem: "#8a9c3a", leafScale: 0.85 }],
+]);
+add("alternanthera", "অল্টারনানথেরা", [
+  ["রেইনেকি", { form: "opposite", colors: ["#b04a56", "#8a5a4a", "#c05a66"], stem: "#7a4a42", leafScale: 1.1 }],
+]);
+add("cabomba", "ক্যাবোম্বা", [
+  ["", { form: "whorl", colors: ["#6faa3a", "#7fba4a", "#5f9a30"], stem: "#6b8a3a" }],
+]);
+add("myriophyllum", "মিরিওফাইলাম", [
+  ["অ্যাকোয়াটিকাম", { form: "whorl", colors: ["#7fba5a", "#8fca6a", "#6faa4a"], stem: "#7a9a4a" }],
+]);
+add("ambulia", "অ্যাম্বুলিয়া", [
+  ["", { form: "whorl", colors: ["#9fc84a", "#afd85a", "#8fb83a"], stem: "#8a9c3a" }],
+]);
+add("anacharis", "অ্যানাকারিস", [
+  ["ডেনসা", { form: "needle", colors: ["#3f7a34", "#4f8a40"], stem: "#4a6b30", height: 0.5 }],
+]);
+add("pogostemon", "পোগোস্টেমন", [
+  ["স্টেলাটাস", { form: "needle", colors: ["#8faa5a", "#9fba6a"], stem: "#7a9a4a" }],
+  ["অ্যারোমেটিক মিনি", { form: "needle", colors: ["#a8c85a", "#b8d86a"], stem: "#8a9c3a", height: 0.3 }],
+]);
+
+// Aquatics that grow from a crown instead of a stem.
+add("echinodorus", "সোর্ড লিলি", [
+  ["", { colors: ["#4a8c3e", "#5aa04a"], len: 0.34, leaves: 9 }],
+]);
+add("cryptocoryne", "ক্রিপ্টোকোরিন", [
+  ["সবুজ", { colors: ["#3f7a3a", "#4f8a46"], len: 0.28 }],
+  ["বাদামি", { colors: ["#7a5a3a", "#8a6a46", "#6b4a30"], len: 0.28 }],
+]);
+add("sagittaria", "ডোয়ার্ফ স্যাজিটেরিয়া", [
+  ["", { colors: ["#5faa4a", "#6fba5a"], strap: true, len: 0.26, leaves: 14, lean: 0.2 }],
+]);
+add("waterwisteria", "ওয়াটার উইস্টেরিয়া", [
+  ["মার্বেল কুইন", { colors: ["#c8d060", "#9fc84a", "#a8c85a"], len: 0.24, arch: 0.2 }],
+]);
+
+// Creeping and floating round leaves.
+add("hydrocotyle", "হাইড্রোকোটাইল", [
+  ["ট্রাইপার্টিটা", { leaf: "#6fba4a", stem: "#7a9a46", r: 0.038, pads: 20 }],
+]);
+add("waterpoppy", "ওয়াটার পপি", [
+  ["", { leaf: "#5faa48", stem: "#6f8f46", r: 0.06, pads: 10, bloom: "#f0e08a" }],
+]);
+
+// The variegated aroids from the nursery bench.
+add("aglaonema", "অ্যাগ্লোনিমা", [
+  ["গোলাপি", { leaf: "#3f7a3c", mark: "#d8e0a0", midrib: "#e0798f" }],
+  ["লাল", { leaf: "#4a6b34", mark: "#c96a6a", midrib: "#d0404a", speckle: 1.3 }],
+  ["সাদা ছোপ", { leaf: "#3f7a3c", mark: "#eef0dc", midrib: "#cfe0b0", speckle: 1.6 }],
+  ["রুপালি", { leaf: "#4a7a4a", mark: "#c0d0c4", midrib: "#dce6dc", speckle: 0.8 }],
+  ["সবুজ", { leaf: "#376b34", mark: "#7faa4a", midrib: "#a8c86a", speckle: 0.5 }],
+]);
+add("anthurium", "অ্যান্থুরিয়াম", [
+  ["ক্লারিনার্ভিয়াম", { shape: "heart", leaf: "#2f5c33", vein: "#dce8cc", veinWidth: 3.2 }],
+  ["ক্রিস্টালিনাম", { shape: "heart", leaf: "#25482c", vein: "#c8d8c0", veinWidth: 2.6, veinPairs: 6 }],
+]);
+add("alocasia", "অ্যালোকেসিয়া", [
+  ["পলি", { shape: "arrow", leaf: "#28502c", vein: "#d8e4cc", veinWidth: 3.4, edge: "#d8e4cc" }],
+  ["সিলভার ড্রাগন", { shape: "arrow", leaf: "#8faa96", vein: "#3f5c3f", veinWidth: 3.6 }],
+  ["ব্ল্যাক ভেলভেট", { shape: "heart", leaf: "#1e2a22", vein: "#cfd8c4", veinWidth: 3.0 }],
+]);
+add("philodendron", "ফিলোডেনড্রন", [
+  ["জ্যানাডু", { shape: "lobed", leaf: "#3a7038", vein: "#8fb070", veinWidth: 2.0, leaves: 8 }],
+  ["গোলাপি", { shape: "heart", leaf: "#5f6b3a", vein: "#d09a9c", veinWidth: 2.2 }],
+  ["সবুজ", { shape: "heart", leaf: "#356b38", vein: "#8fb878", veinWidth: 2.0 }],
+]);
+add("haworthia", "হাওরথিয়া", [
+  ["সবুজ", { leaf: "#4a6b3c", band: "#cfd8b4" }],
+  ["ভ্যারিগেটেড", { leaf: "#4a6b3c", band: "#cfd8b4", variegated: "#dcc850" }],
+]);
+add("ivy", "আইভি", [
+  ["ভ্যারিগেটেড", { leaf: "#3f7a3e", edge: "#e6e6c8" }],
+  ["সবুজ", { leaf: "#35682f", edge: "#7faa5a" }],
+]);
+
+// The clean-up crew.
+add("nerite", "নেরাইট শামুক", [
+  ["টাইগার", { shell: "#6b5433", band: "#22190f" }],
+  ["জেব্রা", { shell: "#c8a45c", band: "#2e2418" }],
+]);
+add("shrimp", "চেরি চিংড়ি", [
+  ["লাল", { body: "#c2402f" }],
+  ["হলুদ", { body: "#d9b03a", legs: "#e8cf7a" }],
+]);
+
 // Category assignment for the flyout panel (like the reference game's
 // Favorites / Mushrooms / Rocks / Structures / Pine / Wood / Plant list).
 const CAT_BY_KIND = {
-  moss: "plants",
-  mossball: "plants",
+  moss: "moss",
+  mossball: "moss",
+  cushionmoss: "moss",
+  starmoss: "moss",
+  smoothcapmoss: "moss",
+  fissidens: "moss",
+  fernmoss: "moss",
+  broomforkmoss: "moss",
+  javamoss: "moss",
+  trachycystis: "moss",
+  rotala: "aquatic",
+  ludwigia: "aquatic",
+  bacopa: "aquatic",
+  hygrophila: "aquatic",
+  persicaria: "aquatic",
+  lindernia: "aquatic",
+  alternanthera: "aquatic",
+  cabomba: "aquatic",
+  myriophyllum: "aquatic",
+  ambulia: "aquatic",
+  anacharis: "aquatic",
+  pogostemon: "aquatic",
+  echinodorus: "aquatic",
+  cryptocoryne: "aquatic",
+  sagittaria: "aquatic",
+  waterwisteria: "aquatic",
+  hydrocotyle: "aquatic",
+  waterpoppy: "aquatic",
+  aglaonema: "plants",
+  anthurium: "plants",
+  alocasia: "plants",
+  philodendron: "plants",
+  haworthia: "plants",
+  ivy: "plants",
+  nerite: "animals",
+  shrimp: "animals",
   bonsai: "plants",
   snakeplant: "plants",
   leafy: "plants",
@@ -356,6 +541,8 @@ export const CATEGORIES = [
   { id: "jar", label: "জার", icon: "🫙" },
   { id: "base", label: "বেস স্তর", icon: "🟤" },
   { id: "plants", label: "গাছপালা", icon: "🌿" },
+  { id: "moss", label: "মস", icon: "🌱" },
+  { id: "aquatic", label: "জলজ গাছ", icon: "🌊" },
   { id: "mushroom", label: "মাশরুম", icon: "🍄" },
   { id: "rocks", label: "পাথর ও ক্রিস্টাল", icon: "💎" },
   { id: "animals", label: "প্রাণী", icon: "🦌" },

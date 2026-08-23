@@ -23,6 +23,19 @@
   /* legacy aliases — existing rules keep working and now follow the theme */
   --green: var(--accent);
   --green-soft: var(--accent-soft);
+  /* The tray column down the left edge. Everything that has to stay clear of
+     it measures from these, so folding the column away (body.tray-hidden) lets
+     the rest of the HUD reclaim the space instead of leaving a gutter. */
+  --tray-w: 244px;
+  --tray-x: 266px; /* left edge of anything docked beside the tray */
+  --tray-fx: 256px; /* the category flyout sits a little tighter */
+}
+
+/* Folded: the column keeps its width (so it can slide out intact) but nothing
+   else measures around it any more. */
+body.tray-hidden {
+  --tray-x: 12px;
+  --tray-fx: 12px;
 }
 
 * {
@@ -64,7 +77,7 @@ body {
 .tabs {
   position: absolute;
   top: 10px;
-  left: 266px; /* clear of the tray column down the left edge */
+  left: var(--tray-x); /* clear of the tray column down the left edge */
   transform: none;
   display: flex;
   gap: 4px;
@@ -1518,7 +1531,7 @@ textarea.social-input {
    the jar's way, for the two seconds it is true. */
 .hint {
   position: absolute;
-  left: 268px;
+  left: var(--tray-x);
   bottom: 18px;
   display: flex;
   align-items: center;
@@ -1564,7 +1577,7 @@ textarea.social-input {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 244px;
+  width: var(--tray-w);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1573,6 +1586,80 @@ textarea.social-input {
   background: var(--hud);
   border-right: 1px solid var(--hud-border);
   z-index: 6;
+  transition: transform 0.22s ease, opacity 0.18s ease;
+}
+
+/* Fold the tray column against the left edge; the button that brings it back
+   takes its place so the way out is always the way in. */
+body.tray-hidden .hud-bottom {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+body.tray-hidden .cat-flyout {
+  display: none;
+}
+.tray-hide,
+.tray-show {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--hud-strong);
+  color: var(--ink-dim);
+  border: 1px solid var(--hud-border);
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tray-hide:hover,
+.tray-show:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+}
+.tray-hide:focus-visible,
+.tray-show:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Docked in the column's own top-right corner, out of the cards' way. */
+.tray-hide {
+  position: absolute;
+  top: 8px;
+  right: -13px;
+  width: 26px;
+  height: 26px;
+  z-index: 7;
+}
+/* A drawer pull on the left margin: halfway down, where neither the mode tabs
+   at the top nor the hint at the bottom can ever reach it. */
+.tray-show {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 74px;
+  z-index: 7;
+  font-size: 13px;
+  border-left: none;
+  border-radius: 0 9px 9px 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease 0.08s;
+}
+body.tray-hidden .tray-show {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Folding the whole interface away (or stepping into focus/camera) already
+   hides everything — the reopen button must not survive it. */
+body.rail-hidden .tray-show,
+body.focus-mode .tray-show {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .cat-btn {
@@ -1602,7 +1689,7 @@ textarea.social-input {
 /* category flyout panel, like the reference game */
 .cat-flyout {
   position: absolute;
-  left: 256px;
+  left: var(--tray-fx);
   top: 12px;
   display: flex;
   flex-direction: column;
@@ -1942,7 +2029,7 @@ body.reduced-motion *::after {
 /* Tools sit at the top of that same column instead of floating over the scene. */
 .hud-tools {
   top: 54px;
-  left: 266px;
+  left: var(--tray-x);
 }
 
 .game-panel {
@@ -2059,10 +2146,8 @@ body.focus-mode #calm-camera,
 body.focus-mode #more-btn { display: none; }
 
 @media (max-width: 900px) {
-  .hud-bottom { width: 208px; }
-  .hud-tools { left: 230px; }
-  .hint { left: 232px; }
-  .cat-flyout { left: 220px; }
+  :root { --tray-w: 208px; --tray-x: 230px; --tray-fx: 220px; }
+  .hud-bottom { width: var(--tray-w); }
 }
 
 @media (max-width: 700px) {
@@ -2070,19 +2155,18 @@ body.focus-mode #more-btn { display: none; }
     display: none;
   }
   /* Phones keep the column but narrow it to icons-plus-a-word. */
-  .hud-bottom { width: 150px; padding: 8px 6px; }
+  :root { --tray-w: 150px; --tray-x: 158px; --tray-fx: 158px; }
+  .hud-bottom { width: var(--tray-w); padding: 8px 6px; }
   /* Phones: the icon bar keeps the top-right corner and the mode tabs move to
      their own full-width row underneath, so the two never collide. */
   .tabs {
     top: 54px;
-    left: 158px;
     right: 8px;
     justify-content: space-between;
   }
   .tab { flex: 1; text-align: center; padding: 7px 6px; font-size: 12px; }
-  .hud-tools { top: 104px; left: 160px; }
-  .cat-flyout { left: 158px; }
-  .hint { left: 158px; bottom: 12px; max-width: calc(100vw - 170px); }
+  .hud-tools { top: 104px; }
+  .hint { bottom: 12px; max-width: calc(100vw - var(--tray-x) - 12px); }
   .game-panel {
     top: 104px;
     right: 8px;

@@ -550,8 +550,12 @@
       <!-- category flyout (opens above the bottom bar) -->
       <div class="cat-flyout hidden" id="cat-flyout"></div>
 
+      <!-- brings the folded tray column back; sits where the column was -->
+      <button class="tray-show" id="tray-show" type="button" aria-controls="hud-bottom" aria-expanded="false" aria-label="সাইডবার দেখাও" title="সাইডবার দেখাও (T)">›</button>
+
       <!-- bottom bar: build-from-tray toggle + category button + search + cards -->
       <footer class="hud-bottom" id="hud-bottom">
+        <button class="tray-hide" id="tray-hide" type="button" aria-controls="hud-bottom" aria-expanded="true" aria-label="সাইডবার লুকাও" title="সাইডবার লুকাও (T)">‹</button>
         <button class="build-toggle" id="build-toggle" data-i18n="ট্রে থেকে বানাও">ট্রে থেকে বানাও</button>
         <button class="cat-btn" id="cat-btn">
           <span class="cat-icon">🌿</span>

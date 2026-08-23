@@ -37,6 +37,7 @@ import { createHandles } from "./handles.js";
 import {
   claimChallengeReward,
   PLANT_KINDS,
+  MOSS_KINDS,
   UNLOCKS,
   getChallenge,
   getTutorial,
@@ -697,7 +698,7 @@ let lastWaterGameAction = 0;
 
 function gameMetrics() {
   const plantCount = state.decorations.filter((rec) => PLANT_KINDS.has(rec.kind)).length;
-  const mossCount = state.decorations.filter((rec) => rec.kind === "moss" || rec.kind === "mossball").length;
+  const mossCount = state.decorations.filter((rec) => MOSS_KINDS.has(rec.kind)).length;
   return {
     plantCount,
     mossCount,
@@ -1987,6 +1988,11 @@ window.addEventListener("keydown", (e) => {
     setRailHidden(!document.body.classList.contains("rail-hidden"));
     return;
   }
+  if (key === "t") {
+    e.preventDefault();
+    setTrayHidden(!document.body.classList.contains("tray-hidden"));
+    return;
+  }
   if (key === "z") {
     e.preventDefault();
     e.shiftKey ? redo() : undo();
@@ -2270,7 +2276,12 @@ function renderStrip() {
   // already looking at a list that is itself a shortcut.
   const showRecent = !q && !buildMode && activeCat !== "tray" && activeCat !== "fav";
   const recent = showRecent ? recentItems() : [];
-  const items = [...recent, ...stripSource().filter((item) => !q || item.label.toLowerCase().includes(q))];
+  // Match the name in either language. Labels are authored in Bangla, so an
+  // English reader typing "rotala" or "nerite" would otherwise find nothing.
+  const hit = (item) =>
+    item.label.toLowerCase().includes(q) ||
+    tLabel(item.label).toLowerCase().includes(q);
+  const items = [...recent, ...stripSource().filter((item) => !q || hit(item))];
   if (recent.length) {
     const head = document.createElement("span");
     head.className = "strip-head";
@@ -2752,6 +2763,16 @@ function applyLang() {
     if (el.hasAttribute("title")) el.title = label;
   });
   searchEl.placeholder = t("খোঁজো…");
+  // The fold buttons are glyph-only, so they carry their words in the tooltip.
+  for (const [id, key] of [
+    ["tray-hide", "সাইডবার লুকাও"],
+    ["tray-show", "সাইডবার দেখাও"],
+  ]) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    btn.title = `${t(key)} (T)`;
+    btn.setAttribute("aria-label", t(key));
+  }
   const cat = CATEGORIES.find((c) => c.id === activeCat);
   if (cat) catBtnEl.querySelector(".cat-name").textContent = t(cat.label);
   renderTools();
@@ -3043,6 +3064,21 @@ function setRailHidden(hidden) {
 document.getElementById("rail-hide").addEventListener("click", () => setRailHidden(true));
 document.getElementById("rail-show").addEventListener("click", () => setRailHidden(false));
 void rail;
+
+// --- left tray column: fold it away by hand, and remember the choice --------
+// The rail hides the *whole* interface; this is the smaller, everyday gesture —
+// push the item column out of the way to see the jar, keep every other control.
+const TRAY_OPEN_KEY = "potroneer-tray-open";
+function setTrayHidden(hidden, remember = true) {
+  document.body.classList.toggle("tray-hidden", hidden);
+  document.getElementById("tray-hide")?.setAttribute("aria-expanded", hidden ? "false" : "true");
+  document.getElementById("tray-show")?.setAttribute("aria-expanded", hidden ? "false" : "true");
+  if (hidden) catFlyoutEl?.classList.add("hidden");
+  if (remember) localStorage.setItem(TRAY_OPEN_KEY, hidden ? "0" : "1");
+}
+document.getElementById("tray-hide")?.addEventListener("click", () => setTrayHidden(true));
+document.getElementById("tray-show")?.addEventListener("click", () => setTrayHidden(false));
+setTrayHidden(localStorage.getItem(TRAY_OPEN_KEY) === "0", false);
 
 const moreBtn = document.getElementById("more-btn");
 const moreMenu = document.getElementById("more-menu");

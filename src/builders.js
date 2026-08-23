@@ -472,6 +472,52 @@ export function buildDecoration(kind, v = {}) {
       return buildFrameLight(v);
     case "ringlight":
       return buildRingLight(v);
+    // Species pack. Genera that grow the same way share a builder — the kind
+    // is the name a person searches for, the variant is the species.
+    case "rotala":
+    case "ludwigia":
+    case "bacopa":
+    case "hygrophila":
+    case "persicaria":
+    case "lindernia":
+    case "alternanthera":
+    case "cabomba":
+    case "myriophyllum":
+    case "ambulia":
+    case "anacharis":
+    case "pogostemon":
+      return buildStemPlant(v);
+    case "echinodorus":
+    case "cryptocoryne":
+    case "sagittaria":
+    case "waterwisteria":
+      return buildAquaticRosette(v);
+    case "hydrocotyle":
+    case "waterpoppy":
+      return buildFloatLeaf(v);
+    case "cushionmoss":
+    case "starmoss":
+    case "smoothcapmoss":
+    case "fissidens":
+    case "fernmoss":
+    case "broomforkmoss":
+    case "javamoss":
+    case "trachycystis":
+      return buildSpeciesMoss(v);
+    case "aglaonema":
+      return buildBroadLeaf(v);
+    case "anthurium":
+    case "alocasia":
+    case "philodendron":
+      return buildVeinedAroid(v);
+    case "haworthia":
+      return buildHaworthia(v);
+    case "ivy":
+      return buildIvy(v);
+    case "nerite":
+      return buildNerite(v);
+    case "shrimp":
+      return buildShrimp(v);
     default:
       return new THREE.Group();
   }
@@ -3229,5 +3275,765 @@ function buildRingLight(v = {}) {
   const light = new THREE.PointLight(glow, 0.6, 1.6, 2);
   light.position.set(0, standH + ringR, 0.1);
   g.add(light);
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Species pack
+// ---------------------------------------------------------------------------
+// The plants, mosses and clean-up crew from the reference photos. Several
+// species share one builder on purpose: an aquatic stem is an aquatic stem
+// whether the label reads Rotala or Ludwigia. So the *kind* carries the genus
+// (which is what a person searches for) and the variant carries that species'
+// colour, leaf form and proportions.
+
+const speciesTex = new Map();
+function speciesTexture(key, paint) {
+  if (speciesTex.has(key)) return speciesTex.get(key);
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  paint(c.getContext("2d"));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  speciesTex.set(key, tex);
+  return tex;
+}
+
+// A blade cut out of its own painted silhouette. This is how an arrow-shaped
+// Alocasia leaf or a lobed ivy leaf gets a real outline without paying for the
+// geometry — the same trick the Fittonia leaves already use.
+function paintedLeafMaterial(key, paint) {
+  return new THREE.MeshStandardMaterial({
+    map: speciesTexture(key, paint),
+    transparent: true,
+    alphaTest: 0.5,
+    roughness: 0.62,
+    side: THREE.DoubleSide,
+  });
+}
+
+// Outlines are drawn in a 128×128 box with the tip at the top and the petiole
+// joint at the bottom centre, matching a plane whose bottom edge meets a stem.
+function lanceOutline(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(64, 4);
+  ctx.bezierCurveTo(104, 44, 100, 100, 64, 124);
+  ctx.bezierCurveTo(28, 100, 24, 44, 64, 4);
+  ctx.closePath();
+}
+// A broad heart with two rounded basal lobes flanking a notch, which is where
+// the petiole meets it — the Anthurium silhouette.
+function heartOutline(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(64, 6);
+  ctx.bezierCurveTo(104, 22, 126, 64, 108, 98);
+  ctx.bezierCurveTo(98, 116, 78, 122, 68, 106);
+  ctx.lineTo(64, 96); // the notch
+  ctx.lineTo(60, 106);
+  ctx.bezierCurveTo(50, 122, 30, 116, 20, 98);
+  ctx.bezierCurveTo(2, 64, 24, 22, 64, 6);
+  ctx.closePath();
+}
+// Narrower, with the basal lobes drawn out into backward points.
+function arrowOutline(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(64, 4);
+  ctx.bezierCurveTo(88, 32, 102, 70, 98, 102);
+  ctx.bezierCurveTo(96, 118, 88, 126, 82, 122);
+  ctx.bezierCurveTo(74, 114, 68, 102, 66, 90);
+  ctx.lineTo(64, 86);
+  ctx.lineTo(62, 90);
+  ctx.bezierCurveTo(60, 102, 54, 114, 46, 122);
+  ctx.bezierCurveTo(40, 126, 32, 118, 30, 102);
+  ctx.bezierCurveTo(26, 70, 40, 32, 64, 4);
+  ctx.closePath();
+}
+// Ivy / Xanadu: five lobes — a long central one, a pair thrown up and out, a
+// pair at the base — all tapering back to the petiole at the bottom point.
+function lobedOutline(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(64, 6); // tip of the central lobe
+  ctx.quadraticCurveTo(70, 34, 74, 44); // down into the first sinus
+  ctx.quadraticCurveTo(88, 30, 104, 34); // out to the upper lobe
+  ctx.quadraticCurveTo(96, 56, 88, 66); // back into the second sinus
+  ctx.quadraticCurveTo(106, 74, 112, 92); // out to the basal lobe
+  ctx.quadraticCurveTo(88, 106, 64, 124); // in to the petiole
+  ctx.quadraticCurveTo(40, 106, 16, 92);
+  ctx.quadraticCurveTo(22, 74, 40, 66);
+  ctx.quadraticCurveTo(32, 56, 24, 34);
+  ctx.quadraticCurveTo(40, 30, 54, 44);
+  ctx.quadraticCurveTo(58, 34, 64, 6);
+  ctx.closePath();
+}
+
+// Pale veins radiating out of the base of the blade. Palmate rather than a
+// herringbone ladder: parallel rungs read as a fern frond at icon size, which
+// is exactly the wrong plant.
+function paintVeins(ctx, color, width = 2.4, pairs = 4) {
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = color;
+  ctx.lineCap = "round";
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(64, 100);
+  ctx.lineTo(64, 14);
+  ctx.stroke();
+  ctx.lineWidth = width * 0.75;
+  for (let i = 1; i <= pairs; i++) {
+    const t = i / (pairs + 1); // how far up the blade this vein reaches
+    const endY = 100 - t * 82;
+    const endX = 30 + (1 - t) * 20;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(64, 100);
+      ctx.quadraticCurveTo(64 + s * endX * 0.75, endY + 24, 64 + s * endX, endY);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// Aquatic stem plants: Rotala, Ludwigia, Bacopa, Hygrophila, Cabomba and the
+// rest of the stem rack. `form` is what actually separates them at this scale —
+// paired oval leaves, feathery whorls, or fine needles.
+function buildStemPlant(v = {}) {
+  const g = new THREE.Group();
+  const form = v.form ?? "opposite";
+  const stemMat = craftMaterial(v.stem ?? "#5d7f3a", { rough: 0.82 });
+  const cols = v.colors ?? ["#4f8c3e", "#5f9c4a"];
+  const mats = cols.map((c) => {
+    const m = craftMaterial(c, { rough: 0.68 });
+    m.side = THREE.DoubleSide;
+    return m;
+  });
+  const count = v.stems ?? 4 + ((Math.random() * 3) | 0);
+  const scale = v.leafScale ?? 1;
+
+  const leafShape = new THREE.Shape();
+  leafShape.moveTo(0, 0);
+  leafShape.bezierCurveTo(0.055, 0.02, 0.062, 0.1, 0, 0.145);
+  leafShape.bezierCurveTo(-0.062, 0.1, -0.055, 0.02, 0, 0);
+  const leafGeo = new THREE.ShapeGeometry(leafShape, 8);
+  const lp = leafGeo.attributes.position;
+  for (let i = 0; i < lp.count; i++)
+    lp.setZ(i, lp.getZ(i) + Math.sin(lp.getY(i) * 9) * 0.013);
+  leafGeo.computeVertexNormals();
+  const needleGeo = new THREE.ConeGeometry(0.007, 0.1, 4);
+  const up = new THREE.Vector3(0, 1, 0);
+
+  for (let s = 0; s < count; s++) {
+    const stalk = new THREE.Group();
+    const h = (v.height ?? 0.4) * (0.72 + Math.random() * 0.55);
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.007, 0.011, h, 6),
+      stemMat,
+    );
+    stem.position.y = h / 2;
+    stem.castShadow = true;
+    stalk.add(stem);
+
+    const nodes = Math.max(3, Math.round(h / 0.055));
+    for (let n = 1; n <= nodes; n++) {
+      const y = (n / (nodes + 0.5)) * h;
+      const grow = (0.5 + (n / nodes) * 0.5) * scale; // small at the base
+      if (form === "opposite") {
+        const twist = n * (Math.PI / 2) + jitter(0.2);
+        for (const side of [0, Math.PI]) {
+          const leaf = new THREE.Mesh(leafGeo, mats[n % mats.length]);
+          leaf.position.y = y;
+          leaf.rotation.set(-1.1 + jitter(0.25), twist + side, 0);
+          leaf.scale.setScalar(grow);
+          leaf.castShadow = true;
+          stalk.add(leaf);
+        }
+      } else {
+        // A whorl of fine leaves ringing the node — Cabomba, Myriophyllum,
+        // Ambulia and Rotala Vietnam all read this way underwater.
+        const arms = form === "needle" ? 9 : 7;
+        const droop = form === "needle" ? 0.3 : 0.85;
+        for (let i = 0; i < arms; i++) {
+          const a = (i / arms) * Math.PI * 2 + n * 0.55;
+          const dir = new THREE.Vector3(
+            Math.cos(a),
+            droop,
+            Math.sin(a),
+          ).normalize();
+          const needle = new THREE.Mesh(needleGeo, mats[i % mats.length]);
+          needle.quaternion.setFromUnitVectors(up, dir);
+          needle.position.copy(dir).multiplyScalar(0.055 * grow);
+          needle.position.y += y;
+          needle.scale.setScalar(grow);
+          stalk.add(needle);
+        }
+      }
+    }
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.random() * 0.1;
+    stalk.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+    stalk.rotation.z = jitter(0.16);
+    stalk.rotation.x = jitter(0.16);
+    g.add(stalk);
+  }
+  return g;
+}
+
+// Rosette aquatics that grow from a crown rather than a stem: sword plants,
+// Cryptocoryne, dwarf sagittaria, water wisteria.
+function buildAquaticRosette(v = {}) {
+  const g = new THREE.Group();
+  const cols = v.colors ?? ["#4a8c3e", "#5aa04a"];
+  const mats = cols.map((c) => {
+    const m = craftMaterial(c, { rough: 0.66 });
+    m.side = THREE.DoubleSide;
+    return m;
+  });
+  const leaves = v.leaves ?? 8 + ((Math.random() * 4) | 0);
+  const len = v.len ?? 0.32;
+  const wide = v.strap ? 0.3 : 1;
+
+  // A spoon blade, widest past the middle, on a short petiole.
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.bezierCurveTo(0.018 * wide, 0.1, 0.062 * wide, 0.5, 0.03 * wide, 0.9);
+  shape.bezierCurveTo(0.014 * wide, 1.0, -0.014 * wide, 1.0, -0.03 * wide, 0.9);
+  shape.bezierCurveTo(-0.062 * wide, 0.5, -0.018 * wide, 0.1, 0, 0);
+  const geo = new THREE.ShapeGeometry(shape, 12);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    // arch the blade over so the rosette flares instead of standing rigid
+    p.setY(i, y * len);
+    p.setZ(i, p.getZ(i) + y * y * (v.arch ?? 0.12));
+    p.setX(i, p.getX(i) * len * 2.2);
+  }
+  geo.computeVertexNormals();
+
+  for (let i = 0; i < leaves; i++) {
+    const leaf = new THREE.Mesh(geo, mats[i % mats.length]);
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.28);
+    const lean = (v.lean ?? 0.42) + Math.random() * 0.3;
+    leaf.rotation.set(-lean, a, 0);
+    leaf.scale.setScalar(0.75 + Math.random() * 0.45);
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+  return g;
+}
+
+// Creeping / floating round leaves on runners: Hydrocotyle and water poppy.
+function buildFloatLeaf(v = {}) {
+  const g = new THREE.Group();
+  const leafMat = craftMaterial(v.leaf ?? "#5aa348", { rough: 0.62 });
+  leafMat.side = THREE.DoubleSide;
+  const stemMat = craftMaterial(v.stem ?? "#6f8f46", { rough: 0.82 });
+  const discGeo = new THREE.CircleGeometry(v.r ?? 0.055, 14);
+  const pads = v.pads ?? 12 + ((Math.random() * 6) | 0);
+
+  for (let i = 0; i < pads; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.pow(Math.random(), 0.6) * 0.2;
+    const x = Math.cos(a) * rr;
+    const z = Math.sin(a) * rr;
+    const h = 0.035 + Math.random() * 0.07;
+    const stalk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.005, 0.006, h, 5),
+      stemMat,
+    );
+    stalk.position.set(x, h / 2, z);
+    stalk.rotation.z = jitter(0.25);
+    g.add(stalk);
+
+    const pad = new THREE.Mesh(discGeo, leafMat);
+    pad.position.set(x, h, z);
+    pad.rotation.set(-Math.PI / 2 + jitter(0.3), 0, jitter(0.4));
+    pad.scale.setScalar(0.7 + Math.random() * 0.6);
+    pad.castShadow = true;
+    g.add(pad);
+  }
+
+  // Water poppy earns its name from the three-petal yellow cup.
+  if (v.bloom) {
+    const petalMat = craftMaterial(v.bloom, { rough: 0.6 });
+    petalMat.side = THREE.DoubleSide;
+    for (let b = 0; b < 2; b++) {
+      const bx = jitter(0.1);
+      const bz = jitter(0.1);
+      const by = 0.13 + Math.random() * 0.04;
+      const stalk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.005, 0.005, by, 5),
+        stemMat,
+      );
+      stalk.position.set(bx, by / 2, bz);
+      g.add(stalk);
+      for (let i = 0; i < 3; i++) {
+        const petal = new THREE.Mesh(new THREE.CircleGeometry(0.032, 8), petalMat);
+        const a = (i / 3) * Math.PI * 2;
+        petal.position.set(bx + Math.cos(a) * 0.018, by, bz + Math.sin(a) * 0.018);
+        petal.rotation.set(-Math.PI / 2 + 0.4, 0, 0);
+        petal.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), a);
+        g.add(petal);
+      }
+      const eye = new THREE.Mesh(
+        new THREE.SphereGeometry(0.012, 8, 6),
+        craftMaterial("#8a6a22", { rough: 0.7 }),
+      );
+      eye.position.set(bx, by + 0.008, bz);
+      g.add(eye);
+    }
+  }
+  return g;
+}
+
+// The named terrestrial mosses. They differ by growth habit far more than by
+// colour, so `form` does the real work: a tight cushion, star rosettes,
+// feathery fronds, or tufts all combed one way.
+function buildSpeciesMoss(v = {}) {
+  const g = new THREE.Group();
+  const cols = v.colors ?? ["#5f8330", "#6f9a3a", "#7faa4a", "#557a2c"];
+  const mats = cols.map((c) => craftMaterial(c, { rough: 1.0 }));
+  const pick = () => mats[(Math.random() * mats.length) | 0];
+  const form = v.form ?? "cushion";
+  const spread = v.spread ?? 0.18;
+
+  if (form === "cushion") {
+    // Leucobryum: a tight pale dome, no visible shoots at this scale.
+    const blobs = 34 + ((Math.random() * 12) | 0);
+    for (let i = 0; i < blobs; i++) {
+      const rad = 0.026 + Math.random() * 0.03;
+      const geo = new THREE.IcosahedronGeometry(rad, 1);
+      const p = geo.attributes.position;
+      for (let k = 0; k < p.count; k++)
+        p.setXYZ(k, p.getX(k) + jitter(0.012), p.getY(k) + jitter(0.012), p.getZ(k) + jitter(0.012));
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, pick());
+      const a = Math.random() * Math.PI * 2;
+      const rr = Math.pow(Math.random(), 0.55) * spread;
+      m.position.set(Math.cos(a) * rr, rad * 0.5 + (1 - rr / spread) * 0.075, Math.sin(a) * rr);
+      m.castShadow = true;
+      g.add(m);
+    }
+    return g;
+  }
+
+  if (form === "star") {
+    // Tortula / Atrichum: open rosettes of pointed leaves, like tiny stars.
+    const geo = new THREE.ConeGeometry(0.007, 0.038, 4);
+    const up = new THREE.Vector3(0, 1, 0);
+    const rosettes = 16 + ((Math.random() * 8) | 0);
+    for (let r = 0; r < rosettes; r++) {
+      const a0 = Math.random() * Math.PI * 2;
+      const rr = Math.pow(Math.random(), 0.6) * spread;
+      const cx = Math.cos(a0) * rr;
+      const cz = Math.sin(a0) * rr;
+      const cy = 0.02 + Math.random() * 0.02;
+      const mat = pick();
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + a0;
+        const dir = new THREE.Vector3(Math.cos(a), 0.85, Math.sin(a)).normalize();
+        const leaf = new THREE.Mesh(geo, mat);
+        leaf.quaternion.setFromUnitVectors(up, dir);
+        leaf.position.set(cx, cy, cz).addScaledVector(dir, 0.016);
+        g.add(leaf);
+      }
+    }
+    return g;
+  }
+
+  // "frond" and "fork" are both shoots, one feathery and one combed flat.
+  const combed = form === "fork";
+  const shoots = 26 + ((Math.random() * 12) | 0);
+  const lean = Math.random() * Math.PI * 2; // fork moss all leans one way
+  const leafletGeo = new THREE.PlaneGeometry(0.026, 0.008);
+  for (let s = 0; s < shoots; s++) {
+    const shoot = new THREE.Group();
+    const len = 0.09 + Math.random() * 0.07;
+    const mat = pick();
+    mat.side = THREE.DoubleSide;
+    const axis = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0035, 0.0045, len, 4),
+      mat,
+    );
+    axis.position.y = len / 2;
+    shoot.add(axis);
+    const steps = 7;
+    for (let i = 1; i <= steps; i++) {
+      const y = (i / steps) * len;
+      const size = combed ? 1 : (1 - i / steps) * 0.7 + 0.5;
+      for (const side of [-1, 1]) {
+        const lf = new THREE.Mesh(leafletGeo, mat);
+        lf.position.set(side * 0.012 * size, y, 0);
+        lf.rotation.set(combed ? -0.9 : -0.35, 0, side * (combed ? 0.9 : 0.4));
+        lf.scale.setScalar(size);
+        shoot.add(lf);
+      }
+    }
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.pow(Math.random(), 0.6) * spread;
+    shoot.position.set(Math.cos(a) * rr, 0.01, Math.sin(a) * rr);
+    shoot.rotation.y = combed ? lean + jitter(0.3) : Math.random() * Math.PI * 2;
+    shoot.rotation.x = combed ? 0.5 + jitter(0.2) : jitter(0.35);
+    g.add(shoot);
+  }
+  return g;
+}
+
+// Aglaonema: an upright clump of lance leaves, and the whole point of the
+// genus is the paint job — speckles, blush, and a coloured midrib.
+function buildBroadLeaf(v = {}) {
+  const g = new THREE.Group();
+  const base = v.leaf ?? "#3f7a3c";
+  const mark = v.mark ?? "#c8dba0";
+  const midrib = v.midrib ?? "#e0798f";
+  const key = `broad:${base}:${mark}:${midrib}:${v.speckle ?? 1}`;
+  const mat = paintedLeafMaterial(key, (ctx) => {
+    lanceOutline(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 128, 128);
+    // Splashes of the variegation colour, densest along the veins.
+    const blotches = 90 * (v.speckle ?? 1);
+    ctx.fillStyle = mark;
+    for (let i = 0; i < blotches; i++) {
+      const x = 64 + (Math.random() - 0.5) * 108;
+      const y = Math.random() * 128;
+      const r = 2 + Math.random() * 7;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * (0.5 + Math.random()), Math.random(), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // The midrib is the loud part of an Aglaonema; the laterals only hint.
+    ctx.strokeStyle = midrib;
+    ctx.lineCap = "round";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(64, 124);
+    ctx.lineTo(64, 8);
+    ctx.stroke();
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 6; i++) {
+      const y = 20 + i * 17;
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(64, y + 8);
+        ctx.quadraticCurveTo(64 + s * 24, y, 64 + s * 40, y - 8);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  });
+
+  const stemMat = craftMaterial(v.stem ?? "#587a3f", { rough: 0.82 });
+  const blade = new THREE.PlaneGeometry(0.17, 0.24);
+  const leaves = v.leaves ?? 7 + ((Math.random() * 4) | 0);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.3);
+    const h = 0.1 + Math.random() * 0.12;
+    const out = 0.03 + Math.random() * 0.05;
+    const petiole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.008, h, 5),
+      stemMat,
+    );
+    petiole.position.set(Math.cos(a) * out * 0.5, h / 2, Math.sin(a) * out * 0.5);
+    petiole.rotation.z = -Math.cos(a) * 0.3;
+    petiole.rotation.x = Math.sin(a) * 0.3;
+    g.add(petiole);
+
+    const leaf = new THREE.Mesh(blade, mat);
+    const sc = 0.8 + Math.random() * 0.45;
+    leaf.scale.setScalar(sc);
+    leaf.position.set(Math.cos(a) * out, h + 0.1 * sc, Math.sin(a) * out);
+    leaf.rotation.set(-0.5 - Math.random() * 0.35, -a + Math.PI / 2, 0);
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+  return g;
+}
+
+// The velvet-leaved aroids — Anthurium, Alocasia, Philodendron. Same skeleton
+// of petioles from a crown; the blade outline and the vein colour tell them
+// apart, which is exactly how you tell them apart on a nursery bench.
+function buildVeinedAroid(v = {}) {
+  const g = new THREE.Group();
+  const shape = v.shape ?? "heart";
+  const base = v.leaf ?? "#2f5c33";
+  const vein = v.vein ?? "#cfe0c2";
+  const outline =
+    shape === "arrow" ? arrowOutline : shape === "lobed" ? lobedOutline : heartOutline;
+  const mat = paintedLeafMaterial(`aroid:${shape}:${base}:${vein}:${v.edge ?? ""}`, (ctx) => {
+    outline(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 128, 128);
+    // A darker wash toward the margin gives the blade some depth.
+    const grad = ctx.createRadialGradient(64, 64, 10, 64, 64, 72);
+    grad.addColorStop(0, "rgba(255,255,255,0.10)");
+    grad.addColorStop(1, "rgba(0,0,0,0.22)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+    paintVeins(ctx, vein, v.veinWidth ?? 2.6, v.veinPairs ?? 5);
+    ctx.restore();
+    if (v.edge) {
+      ctx.strokeStyle = v.edge;
+      ctx.lineWidth = 3;
+      outline(ctx);
+      ctx.stroke();
+    }
+  });
+
+  const stemMat = craftMaterial(v.stem ?? "#4e6b39", { rough: 0.8 });
+  const blade = new THREE.PlaneGeometry(0.2, 0.22);
+  const leaves = v.leaves ?? 5 + ((Math.random() * 3) | 0);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.35);
+    const h = (v.stalk ?? 0.16) * (0.7 + Math.random() * 0.6);
+    const out = 0.05 + Math.random() * 0.06;
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(Math.cos(a) * out * 0.3, h * 0.7, Math.sin(a) * out * 0.3),
+      new THREE.Vector3(Math.cos(a) * out, h, Math.sin(a) * out),
+    );
+    const petiole = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 8, 0.007, 5),
+      stemMat,
+    );
+    petiole.castShadow = true;
+    g.add(petiole);
+
+    const leaf = new THREE.Mesh(blade, mat);
+    const sc = 0.85 + Math.random() * 0.4;
+    leaf.scale.setScalar(sc);
+    leaf.position.set(Math.cos(a) * (out + 0.02), h + 0.09 * sc, Math.sin(a) * (out + 0.02));
+    leaf.rotation.set(-0.75 - Math.random() * 0.4, -a + Math.PI / 2, 0);
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+  return g;
+}
+
+// Haworthia: a tight rosette of stiff triangular leaves with pale banding,
+// and a yellow sector when the plant is variegated.
+function buildHaworthia(v = {}) {
+  const g = new THREE.Group();
+  const leafMat = craftMaterial(v.leaf ?? "#4a6b3c", { rough: 0.55 });
+  const bandMat = craftMaterial(v.band ?? "#cfd8b4", { rough: 0.6 });
+  const varieMat = v.variegated
+    ? craftMaterial(v.variegated, { rough: 0.55 })
+    : null;
+  const up = new THREE.Vector3(0, 1, 0);
+  const rings = [
+    { n: 5, r: 0.02, up: 2.2, len: 0.2, w: 0.028 },
+    { n: 7, r: 0.05, up: 1.1, len: 0.19, w: 0.032 },
+    { n: 9, r: 0.09, up: 0.45, len: 0.16, w: 0.032 },
+  ];
+  // One continuous wedge of the rosette goes yellow, the way variegation runs.
+  const varieFrom = Math.random() * Math.PI * 2;
+  rings.forEach((ring, ri) => {
+    for (let i = 0; i < ring.n; i++) {
+      const a = (i / ring.n) * Math.PI * 2 + ri * 0.4;
+      const inWedge =
+        varieMat && Math.abs(((a - varieFrom + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > 2.2;
+      const dir = new THREE.Vector3(Math.cos(a), ring.up, Math.sin(a)).normalize();
+      const leaf = new THREE.Mesh(
+        new THREE.ConeGeometry(ring.w, ring.len, 3),
+        inWedge ? varieMat : leafMat,
+      );
+      leaf.quaternion.setFromUnitVectors(up, dir);
+      leaf.position.copy(dir).multiplyScalar(ring.r + ring.len * 0.42);
+      leaf.position.y += 0.02;
+      leaf.castShadow = true;
+      g.add(leaf);
+
+      // pale cross-bands up the back of each leaf
+      if (!inWedge) {
+        for (let b = 1; b <= 3; b++) {
+          const dot = new THREE.Mesh(
+            new THREE.SphereGeometry(ring.w * 0.2, 6, 4),
+            bandMat,
+          );
+          dot.position
+            .copy(dir)
+            .multiplyScalar(ring.r + ring.len * (0.2 + b * 0.22));
+          dot.position.y += 0.02;
+          dot.scale.set(1.8, 0.5, 1);
+          g.add(dot);
+        }
+      }
+    }
+  });
+  return g;
+}
+
+// Variegated English ivy: trailing stems that spill sideways rather than
+// standing up, with cream-edged lobed leaves.
+function buildIvy(v = {}) {
+  const g = new THREE.Group();
+  const mat = paintedLeafMaterial(`ivy:${v.leaf ?? "#3f7a3e"}:${v.edge ?? "#e6e6c8"}`, (ctx) => {
+    lobedOutline(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = v.leaf ?? "#3f7a3e";
+    ctx.fillRect(0, 0, 128, 128);
+    // Cream marbling crowding the margin — kept to a thin band and small
+    // blotches, or it swallows the lobes that make the leaf an ivy leaf.
+    ctx.fillStyle = v.edge ?? "#e6e6c8";
+    for (let i = 0; i < 44; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = 42 + Math.random() * 16;
+      ctx.beginPath();
+      ctx.ellipse(64 + Math.cos(a) * rr, 64 + Math.sin(a) * rr, 3 + Math.random() * 4, 3 + Math.random() * 4, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    paintVeins(ctx, "rgba(255,255,255,0.5)", 2, 3);
+    ctx.restore();
+  });
+  const stemMat = craftMaterial(v.stem ?? "#6b5a3a", { rough: 0.85 });
+  const blade = new THREE.PlaneGeometry(0.13, 0.13);
+
+  const runners = 4 + ((Math.random() * 3) | 0);
+  for (let r = 0; r < runners; r++) {
+    const a0 = (r / runners) * Math.PI * 2 + jitter(0.4);
+    const len = 0.2 + Math.random() * 0.14;
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0.06, 0),
+      new THREE.Vector3(Math.cos(a0) * len * 0.5, 0.12, Math.sin(a0) * len * 0.5),
+      new THREE.Vector3(Math.cos(a0) * len, 0.015, Math.sin(a0) * len),
+    );
+    const runner = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, 12, 0.005, 5),
+      stemMat,
+    );
+    g.add(runner);
+    const n = 4;
+    for (let i = 1; i <= n; i++) {
+      const pos = curve.getPoint(i / (n + 0.4));
+      const leaf = new THREE.Mesh(blade, mat);
+      leaf.position.copy(pos);
+      leaf.position.y += 0.025;
+      leaf.rotation.set(-1.2 + jitter(0.4), a0 + jitter(0.5), jitter(0.3));
+      leaf.scale.setScalar(0.75 + Math.random() * 0.45);
+      leaf.castShadow = true;
+      g.add(leaf);
+    }
+  }
+  return g;
+}
+
+// Nerite snail — the algae crew. A domed spiral with painted bands, a soft
+// foot underneath and two eye stalks out front.
+function buildNerite(v = {}) {
+  const g = new THREE.Group();
+  const shellMat = craftMaterial(v.shell ?? "#6b5433", { rough: 0.5 });
+  const bandMat = craftMaterial(v.band ?? "#22190f", { rough: 0.55 });
+  const bodyMat = craftMaterial(v.body ?? "#b8a389", { rough: 0.8 });
+  const R = v.size ?? 0.055;
+
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(R, 16, 12), shellMat);
+  shell.scale.set(1.15, 0.78, 1);
+  shell.position.y = R * 0.72;
+  shell.castShadow = true;
+  g.add(shell);
+
+  // The tiger's stripes: thin arcs wrapped around the whorl.
+  for (let i = 0; i < 7; i++) {
+    const t = i / 7;
+    const band = new THREE.Mesh(
+      new THREE.TorusGeometry(R * (0.35 + t * 0.72), R * 0.045, 5, 14, Math.PI * 1.5),
+      bandMat,
+    );
+    band.rotation.x = Math.PI / 2;
+    band.rotation.z = t * 5.2;
+    band.position.y = R * (1.02 - t * 0.42);
+    band.scale.set(1.15, 1, 1);
+    g.add(band);
+  }
+  // the apex of the spiral, tucked to one side
+  const apex = new THREE.Mesh(new THREE.SphereGeometry(R * 0.34, 10, 8), shellMat);
+  apex.position.set(-R * 0.42, R * 1.02, R * 0.1);
+  g.add(apex);
+
+  const foot = new THREE.Mesh(new THREE.SphereGeometry(R * 0.9, 12, 8), bodyMat);
+  foot.scale.set(1.25, 0.3, 0.85);
+  foot.position.set(R * 0.12, R * 0.14, 0);
+  g.add(foot);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(R * 0.34, 10, 8), bodyMat);
+  head.scale.set(1.3, 0.7, 0.9);
+  head.position.set(R * 1.05, R * 0.16, 0);
+  g.add(head);
+  for (const s of [-1, 1]) {
+    const horn = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.003, 0.004, R * 0.7, 4),
+      bodyMat,
+    );
+    horn.position.set(R * 1.2, R * 0.42, s * R * 0.2);
+    horn.rotation.z = -0.7;
+    horn.rotation.x = s * 0.25;
+    g.add(horn);
+  }
+  return g;
+}
+
+// Cherry shrimp — a comma of a body with a tail fan and long antennae.
+function buildShrimp(v = {}) {
+  const g = new THREE.Group();
+  const bodyMat = craftMaterial(v.body ?? "#c2402f", { rough: 0.62 });
+  const legMat = craftMaterial(v.legs ?? "#d98a76", { rough: 0.8 });
+  const L = v.size ?? 0.11;
+
+  // Segments walked along an arc, thickest at the shoulder.
+  const curve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(-L * 0.5, L * 0.16, 0),
+    new THREE.Vector3(0, L * 0.34, 0),
+    new THREE.Vector3(L * 0.5, L * 0.1, 0),
+  );
+  const segs = 7;
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const r = L * (0.16 - Math.abs(t - 0.32) * 0.13);
+    const seg = new THREE.Mesh(new THREE.SphereGeometry(Math.max(r, L * 0.035), 10, 8), bodyMat);
+    seg.position.copy(curve.getPoint(t));
+    seg.scale.set(1, 0.95, 1.15);
+    seg.castShadow = true;
+    g.add(seg);
+  }
+  // tail fan
+  const fanMat = craftMaterial(v.body ?? "#c2402f", { rough: 0.6 });
+  fanMat.side = THREE.DoubleSide;
+  for (let i = -1; i <= 1; i++) {
+    const fan = new THREE.Mesh(new THREE.CircleGeometry(L * 0.16, 6), fanMat);
+    fan.position.copy(curve.getPoint(1));
+    fan.position.x += L * 0.12;
+    fan.rotation.set(Math.PI / 2, 0, 0);
+    fan.rotation.y = i * 0.5;
+    g.add(fan);
+  }
+  // legs and antennae
+  for (let i = 0; i < 5; i++) {
+    const t = 0.18 + i * 0.12;
+    const p = curve.getPoint(t);
+    for (const s of [-1, 1]) {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.002, 0.002, L * 0.22, 4),
+        legMat,
+      );
+      leg.position.set(p.x, p.y - L * 0.1, p.z + s * L * 0.06);
+      leg.rotation.x = s * 0.6;
+      g.add(leg);
+    }
+  }
+  for (const s of [-1, 1]) {
+    const ant = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0018, 0.0018, L * 0.7, 4),
+      legMat,
+    );
+    ant.position.set(-L * 0.8, L * 0.3, s * L * 0.05);
+    ant.rotation.z = 1.25;
+    ant.rotation.y = s * 0.3;
+    g.add(ant);
+  }
   return g;
 }

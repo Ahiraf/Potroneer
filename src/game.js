@@ -5,9 +5,48 @@
 export const GAME_KEY = "potroneer-game";
 export const AUTOSAVE_KEY = "potroneer-autosave";
 
-export const PLANT_KINDS = new Set([
+// Every moss in the library, so "grow a moss garden" counts the named species
+// too and not just the generic clump.
+export const MOSS_KINDS = new Set([
   "moss",
   "mossball",
+  "cushionmoss",
+  "starmoss",
+  "smoothcapmoss",
+  "fissidens",
+  "fernmoss",
+  "broomforkmoss",
+  "javamoss",
+  "trachycystis",
+]);
+
+export const PLANT_KINDS = new Set([
+  ...MOSS_KINDS,
+  // the species pack: aquarium stems, rosettes, creepers and the aroids
+  "rotala",
+  "ludwigia",
+  "bacopa",
+  "hygrophila",
+  "persicaria",
+  "lindernia",
+  "alternanthera",
+  "cabomba",
+  "myriophyllum",
+  "ambulia",
+  "anacharis",
+  "pogostemon",
+  "echinodorus",
+  "cryptocoryne",
+  "sagittaria",
+  "waterwisteria",
+  "hydrocotyle",
+  "waterpoppy",
+  "aglaonema",
+  "anthurium",
+  "alocasia",
+  "philodendron",
+  "haworthia",
+  "ivy",
   "bonsai",
   "snakeplant",
   "leafy",
