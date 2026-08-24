@@ -1974,9 +1974,15 @@ body.reduced-motion *::after {
   transition-duration: 0.01ms !important;
 }
 
+/* Focus Build is the headline of the Building card, not one keycap among four:
+   it takes the full width so it reads as a mode you enter rather than a setting
+   you toggle. */
 .nav-btn--focus {
   background: var(--accent-dim);
   border-color: var(--accent-line);
+}
+.rail .nav-primary .nav-btn--focus {
+  grid-column: 1 / -1;
 }
 .nav-btn--focus.is-active {
   background: var(--accent);
@@ -2063,35 +2069,129 @@ body.reduced-motion *::after {
   font-weight: 400;
 }
 
+/* ============ Focus Build ============ */
+/* The focused workspace keeps one strip of furniture, pinned to the bottom edge
+   so the jar owns the middle of the screen. Everything in it is a 44px target:
+   this is the mode you use when you are working close in, often on a phone,
+   often one-handed. */
 .focus-hud {
   position: absolute;
   left: 50%;
-  bottom: 22px;
+  bottom: 18px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px;
-  background: var(--hud);
+  flex-wrap: nowrap;
+  gap: 4px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  background: var(--hud-strong);
   border: 1px solid rgba(213, 231, 205, 0.18);
   border-radius: 999px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.42);
   z-index: 16;
   backdrop-filter: blur(12px);
 }
 .focus-hud.hidden { display: none; }
-.focus-hud-label { padding: 0 6px; color: var(--green); font-size: 11px; font-weight: 600; }
-.focus-quick,
-.focus-exit {
-  padding: 5px 10px;
+/* The one thing the folded-away tray used to tell you: what you are holding. */
+.focus-current {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 190px;
+  padding: 0 10px;
+  overflow: hidden;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 44px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.focus-sep {
+  flex: none;
+  width: 1px;
+  height: 22px;
+  background: var(--hud-border);
+}
+.focus-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* 44px is the floor, not the look: the pill reads smaller than it is. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
   color: var(--ink);
-  background: rgba(255,255,255,.07);
+  background: rgba(255, 255, 255, 0.07);
   border: 1px solid var(--hud-border);
   border-radius: 999px;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
 }
-.focus-quick { background: var(--green); color: #fff; }
+.focus-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.focus-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.focus-btn.is-active { background: var(--accent); color: var(--accent-ink); }
+.focus-btn.is-disabled { opacity: 0.4; pointer-events: none; }
+.focus-btn--wide { padding: 0 14px; }
+.focus-ico { font-size: 15px; line-height: 1; }
+.focus-quick { background: var(--green); color: #fff; border-color: transparent; }
+.focus-quick:hover { background: var(--green); filter: brightness(1.12); }
+.focus-exit { color: var(--ink); }
+
+/* The drawer pull. Lives on the left margin in Focus Build only, and slides out
+   to the drawer's own edge when the drawer is open, so the way in is the way
+   back out. */
+.focus-tray-edge {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 76px;
+  padding: 0;
+  color: var(--ink-dim);
+  background: var(--hud-strong);
+  border: 1px solid var(--hud-border);
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+  font-size: 17px;
+  cursor: pointer;
+  z-index: 19;
+  transition: left 0.22s ease, background 0.12s ease;
+}
+body.focus-mode .focus-tray-edge { display: flex; }
+.focus-tray-edge:hover { color: var(--ink); background: rgba(255, 255, 255, 0.1); }
+.focus-tray-edge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.focus-mode.focus-tray-open .focus-tray-edge { left: var(--tray-w); }
+
+/* The temporary tray: the *same* column, the same cards, the same selection
+   code — just brought back over the focused workspace for as long as it takes
+   to pick one thing. `!important` is doing real work here: it has to beat both
+   the focus-mode hide below and the inline display selectTab() writes. */
+body.focus-mode.focus-tray-open .hud-bottom {
+  display: flex !important;
+  transform: none !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  z-index: 18;
+  box-shadow: 10px 0 48px rgba(0, 0, 0, 0.5);
+}
+/* Its own fold button would write the *persistent* tray preference, which this
+   drawer must never touch. The edge pull is the way out instead. */
+body.focus-mode .tray-hide { display: none; }
+/* Give the HUD the middle of what is left rather than the middle of the screen,
+   so the drawer never lands on top of it. */
+body.focus-mode.focus-tray-open .focus-hud {
+  left: calc(50% + var(--tray-w) / 2);
+  max-width: calc(100vw - var(--tray-w) - 36px);
+}
 
 .radial-menu {
   position: fixed;
@@ -2099,27 +2199,46 @@ body.reduced-motion *::after {
   left: 50%;
   display: grid;
   grid-template-columns: repeat(3, 68px);
-  grid-template-areas: ". plant ." "water decor mist" ". photo .";
+  /* Six actions and, in the middle where the thumb is already looking, the name
+     of whatever is currently in hand. */
+  grid-template-areas: ". plant ." "water current mist" "decor tray photo";
   gap: 7px;
-  padding: 10px;
+  padding: 12px;
   transform: translate(-50%, -50%);
   background: var(--hud-strong);
   border: 1px solid rgba(213, 231, 205, 0.2);
-  border-radius: 50%;
+  border-radius: 32px;
   box-shadow: 0 18px 70px rgba(31, 53, 35, 0.32);
   z-index: 25;
   backdrop-filter: blur(16px);
 }
 .radial-menu.hidden { display: none; }
-.radial-action { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 68px; height: 58px; color: var(--ink); background: rgba(255,255,255,.06); border: 1px solid var(--hud-border); border-radius: 14px; font: inherit; cursor: pointer; }
+.radial-action { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 68px; min-height: 58px; color: var(--ink); background: rgba(255,255,255,.06); border: 1px solid var(--hud-border); border-radius: 14px; font: inherit; cursor: pointer; }
 .radial-action:hover { background: var(--green); color: #fff; transform: scale(1.05); }
+.radial-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .radial-action span { font-size: 21px; line-height: 1; }
 .radial-action small { margin-top: 3px; font-size: 10px; }
 .radial-action--plant { grid-area: plant; }
 .radial-action--water { grid-area: water; }
 .radial-action--decor { grid-area: decor; }
 .radial-action--mist { grid-area: mist; }
+.radial-action--tray { grid-area: tray; }
 .radial-action--photo { grid-area: photo; }
+/* Only Focus Build folds the tray away, so only Focus Build needs telling. */
+.radial-current { display: none; }
+body.focus-mode .radial-current {
+  grid-area: current;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  overflow: hidden;
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
 
 .comfort-modal { position: absolute; inset: 0; display: grid; place-items: center; z-index: 31; background: rgba(20, 31, 23, 0.34); backdrop-filter: blur(5px); }
 .comfort-modal.hidden { display: none; }
@@ -2134,16 +2253,35 @@ body.focus-mode .tabs,
 body.focus-mode .hud-bottom,
 body.focus-mode .hud-tools,
 body.focus-mode .sliders,
-body.focus-mode .hint,
 body.focus-mode .game-panel,
 body.focus-mode .scene-panel,
 body.focus-mode .theme-panel,
 body.focus-mode #jar-panel,
 body.focus-mode #item-panel,
+/* The empty-jar call-to-action lands square in the middle of the glass. Folding
+   the interface away already drops it (body.rail-hidden, above) and stepping
+   into focus is the same promise: nothing paints over the jar. */
+body.focus-mode .empty-call,
 body.focus-mode .more-menu { display: none !important; }
 body.focus-mode .rail { display: none; }
 body.focus-mode #calm-camera,
 body.focus-mode #more-btn { display: none; }
+/* The hint stays. It only ever appears for the two seconds something is true
+   ("lay a base first"), and that is exactly the feedback a stripped-down
+   workspace cannot afford to lose. It centres over the focus HUD instead of
+   measuring off a tray column that is not there — one horizontal line, never a
+   stack, at every width. */
+body.focus-mode .hint {
+  left: 0;
+  right: 0;
+  /* Clears the HUD's own 18px + 58px, with a gap: they must never touch. */
+  bottom: 90px;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 28px));
+  margin-inline: auto;
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
 
 @media (max-width: 900px) {
   :root { --tray-w: 208px; --tray-x: 230px; --tray-fx: 220px; }
@@ -2191,8 +2329,74 @@ body.focus-mode #more-btn { display: none; }
     font-size: 11px;
   }
   .scene-panel, .cfg-panel, .theme-panel, .photo-panel { top: 104px; right: 6px; left: 6px; width: auto; }
-  .focus-hud { bottom: 16px; max-width: 94vw; }
-  .focus-hud-label { display: none; }
+  /* Phones: the seven controls drop to glyphs and fill the row, and the name of
+     what you are holding takes a line of its own above them. Squeezed onto the
+     same row it shrank to nothing but its emoji — and that name is the one
+     thing the folded-away tray can no longer tell you. */
+  .focus-hud {
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    /* An explicit width, not just a cap: a shrink-to-fit flex box that is
+       allowed to wrap collapses into a narrow column instead of a bar. */
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    padding: 4px 5px 5px;
+    gap: 3px;
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 24px;
+  }
+  .focus-current {
+    flex: 1 0 100%;
+    max-width: none;
+    padding: 0 6px;
+    font-size: 11.5px;
+    line-height: 20px;
+    text-align: center;
+  }
+  .focus-hud .focus-sep[data-sep="lead"] { display: none; }
+  .focus-btn--wide { padding: 0 10px; }
+  .focus-text { display: none; }
+  body.focus-mode .hint { bottom: calc(104px + env(safe-area-inset-bottom)); }
+
+  /* The temporary tray becomes a bottom sheet. A drawer down the left would eat
+     the jar's width on a 390px screen, and the whole point of the mode is that
+     the jar keeps the screen. */
+  body.focus-mode.focus-tray-open .hud-bottom {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: min(46vh, 340px);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-right: none;
+    border-top: 1px solid var(--hud-border);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.5);
+  }
+  /* The pull turns into a grab handle sitting on the sheet's top edge. */
+  body.focus-mode .focus-tray-edge {
+    top: auto;
+    bottom: 50%;
+    left: 0;
+    width: 44px;
+    min-height: 76px;
+    transform: translateY(50%);
+  }
+  body.focus-mode.focus-tray-open .focus-tray-edge {
+    left: 50%;
+    bottom: min(46vh, 340px);
+    width: 96px;
+    min-height: 44px;
+    border: 1px solid var(--hud-border);
+    border-bottom: none;
+    border-radius: 14px 14px 0 0;
+    transform: translateX(-50%);
+  }
+  /* Sheet and HUD never share the bottom of the screen. The sheet is a place
+     you have gone *to*, and picking anything sends you straight back. */
+  body.focus-mode.focus-tray-open .focus-hud,
+  body.focus-mode.focus-tray-open .hint { display: none; }
   #achievements-grid { grid-template-columns: 1fr; }
   .social-shell {
     width: 96vw;

@@ -199,6 +199,11 @@
             <button id="theme-btn" class="nav-btn" data-i18n="থিম" title="থিম">
               <span class="nav-ico">🖼</span><span class="nav-text">থিম</span>
             </button>
+            <!-- Focus Build is the workspace, not a preference — it sits with the
+                 everyday verbs rather than two taps down inside More. -->
+            <button id="focus-btn" class="nav-btn nav-btn--focus" data-i18n="ফোকাস বিল্ড" title="ফোকাস বিল্ড" aria-pressed="false">
+              <span class="nav-ico">🎯</span><span class="nav-text">ফোকাস বিল্ড</span>
+            </button>
             <button id="calm-camera" class="nav-btn nav-btn--quiet" data-i18n="ক্যামেরা" title="ক্যামেরা">
               <span class="nav-ico">🎥</span><span class="nav-text">ক্যামেরা</span>
             </button>
@@ -238,7 +243,6 @@
           <div class="more-row">
             <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
             <button id="bg-btn" class="nav-btn" data-i18n="পরিবেশ">পরিবেশ</button>
-            <button id="focus-btn" class="nav-btn nav-btn--focus" data-i18n="ফোকাস">ফোকাস</button>
           </div>
           <span class="more-menu-title" data-i18n="সংগ্রহ">সংগ্রহ</span>
           <div class="more-row">
@@ -347,18 +351,36 @@
         </details>
       </div>
 
-      <div class="focus-hud hidden" id="focus-hud">
-        <span class="focus-hud-label" data-i18n="ফোকাস মোড">ফোকাস মোড</span>
-        <button id="focus-quick" class="focus-quick" data-i18n="দ্রুত কাজ">দ্রুত কাজ</button>
-        <button id="focus-exit" class="focus-exit" data-i18n="বের হও">বের হও</button>
+      <!-- Focus Build's only furniture: what you are holding, the two history
+           verbs, the camera controls, a way back to the shelf, and the exit.
+           It rides the bottom edge so the jar keeps the middle of the screen. -->
+      <div class="focus-hud hidden" id="focus-hud" role="toolbar" aria-label="Focus Build">
+        <span class="focus-current" id="focus-current" aria-live="polite">—</span>
+        <span class="focus-sep" data-sep="lead" aria-hidden="true"></span>
+        <button id="focus-undo" class="focus-btn" type="button" data-i18n-title="ফেরাও" title="ফেরাও" aria-label="ফেরাও"><span class="focus-ico">↶</span></button>
+        <button id="focus-redo" class="focus-btn" type="button" data-i18n-title="আবার" title="আবার" aria-label="আবার"><span class="focus-ico">↷</span></button>
+        <span class="focus-sep" aria-hidden="true"></span>
+        <button id="focus-center" class="focus-btn" type="button" data-i18n-title="মাঝে আনো" title="মাঝে আনো" aria-label="মাঝে আনো"><span class="focus-ico">⊙</span></button>
+        <button id="focus-lock" class="focus-btn" type="button" data-i18n-title="ক্যামেরা লক" title="ক্যামেরা লক" aria-label="ক্যামেরা লক" aria-pressed="false"><span class="focus-ico">🔓</span></button>
+        <span class="focus-sep" aria-hidden="true"></span>
+        <button id="focus-tray" class="focus-btn focus-btn--wide" type="button" data-i18n="ট্রে খোলো" title="ট্রে খোলো" aria-expanded="false" aria-controls="hud-bottom"><span class="focus-ico">🧺</span><span class="focus-text">ট্রে খোলো</span></button>
+        <button id="focus-quick" class="focus-btn focus-btn--wide focus-quick" type="button" data-i18n="দ্রুত কাজ" title="দ্রুত কাজ"><span class="focus-ico">✳</span><span class="focus-text">দ্রুত কাজ</span></button>
+        <button id="focus-exit" class="focus-btn focus-btn--wide focus-exit" type="button" data-i18n="বের হও" title="বের হও"><span class="focus-ico">✕</span><span class="focus-text">বের হও</span></button>
       </div>
+
+      <!-- A drawer pull on the left edge, for reaching the shelf without
+           leaving Focus Build. -->
+      <button class="focus-tray-edge" id="focus-tray-edge" type="button" data-i18n-title="ট্রে খোলো" aria-label="ট্রে খোলো" title="ট্রে খোলো" aria-controls="hud-bottom" aria-expanded="false">🧺</button>
 
       <div class="radial-menu hidden" id="radial-menu" aria-label="Quick actions">
         <button class="radial-action radial-action--plant" data-radial-action="plant"><span>🌱</span><small data-i18n="গাছ">গাছ</small></button>
         <button class="radial-action radial-action--water" data-radial-action="water"><span>💧</span><small data-i18n="পানি">পানি</small></button>
         <button class="radial-action radial-action--mist" data-radial-action="mist"><span>🌫️</span><small data-i18n="স্প্রে">স্প্রে</small></button>
         <button class="radial-action radial-action--decor" data-radial-action="decor"><span>🎨</span><small data-i18n="সাজাও">সাজাও</small></button>
+        <button class="radial-action radial-action--tray" data-radial-action="tray"><span>🧺</span><small data-i18n="ট্রে">ট্রে</small></button>
         <button class="radial-action radial-action--photo" data-radial-action="photo"><span>📷</span><small data-i18n="ছবি">ছবি</small></button>
+        <!-- What you are holding, said where the thumb is already looking. -->
+        <span class="radial-current" id="radial-current"></span>
       </div>
 
       <!-- jar customiser: frame colour, glass tint, shape sliders -->

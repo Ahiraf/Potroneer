@@ -667,6 +667,12 @@ export function createStudio(canvas) {
   const X_MAX = 0.5;
   let dragging = false;
   let autoSpin = false;
+  // Camera lock: detailed work inside a small jar means a lot of short presses
+  // near the glass, and every one of them can nudge the turntable a few degrees.
+  // Locked, the angle simply stops moving — but the press still reads as a tap,
+  // and zoom (wheel and pinch) is untouched, because neither of those is what
+  // loses your place.
+  let camLocked = false;
   let moved = 0;
   let last = { x: 0, y: 0 };
   let lastInteraction = performance.now();
@@ -754,7 +760,7 @@ export function createStudio(canvas) {
       // Two fingers turn the jar as well as zoom it, so turning it never stops
       // being available however the one-finger drag is being spent.
       const mid = midpoint(points);
-      if (pinchMid) {
+      if (pinchMid && !camLocked) {
         target.y += (mid.x - pinchMid.x) * 0.008;
         target.x = clamp(target.x + (mid.y - pinchMid.y) * 0.006, X_MIN, X_MAX);
       }
@@ -776,9 +782,14 @@ export function createStudio(canvas) {
     if (!dragging) return;
     const dx = p.x - last.x;
     const dy = p.y - last.y;
+    // `moved` still accumulates while locked: a drag is a drag either way, and
+    // a press that travelled should not end as a tap just because the camera
+    // refused to follow it.
     moved += Math.abs(dx) + Math.abs(dy);
-    target.y += dx * 0.008;
-    target.x = clamp(target.x + dy * 0.006, X_MIN, X_MAX);
+    if (!camLocked) {
+      target.y += dx * 0.008;
+      target.x = clamp(target.x + dy * 0.006, X_MIN, X_MAX);
+    }
     last = p;
     markInteraction();
   }
@@ -1028,7 +1039,13 @@ export function createStudio(canvas) {
     // Auto-spin: on by default only after a pause, so the build drifts back
     // into view; switched on explicitly it turns the whole time, which is how
     // you paint or plant the back of a terrarium without fighting the camera.
-    if (!dragging && mode === null && (autoSpin || now - lastInteraction > IDLE_MS)) {
+    const still = document.body.classList.contains("reduced-motion");
+    // Idle drift is the jar showing itself off while you are not touching it —
+    // pleasant normally, and exactly the kind of unasked-for movement reduced
+    // motion is turned on to stop. The explicit ⟳ toggle is a different thing:
+    // the user asked for that one, so it keeps turning.
+    const idleDrift = !still && !camLocked && now - lastInteraction > IDLE_MS;
+    if (!dragging && mode === null && (autoSpin || idleDrift)) {
       target.y += autoSpin ? 0.0022 : 0.0016;
     }
     // critically-damped-ish easing toward target
@@ -1039,7 +1056,6 @@ export function createStudio(canvas) {
     // smooth dolly zoom
     camDist += (camDistT - camDist) * 0.1;
     // Ease the eye toward the cursor. Reduced motion gets a dead-still camera.
-    const still = document.body.classList.contains("reduced-motion");
     paraX += ((still ? 0 : paraTX) - paraX) * 0.045;
     paraY += ((still ? 0 : paraTY) - paraY) * 0.045;
     const elev = clamp(camBaseElev + rot.x - paraY * PARA_EL, ELEV_MIN, ELEV_MAX);
@@ -1076,6 +1092,8 @@ export function createStudio(canvas) {
     frameJar,
     setAutoSpin: (on) => (autoSpin = !!on),
     isAutoSpin: () => autoSpin,
+    setCameraLock: (on) => (camLocked = !!on),
+    isCameraLocked: () => camLocked,
     setMood,
     setTheme,
     setBackdropCalm,

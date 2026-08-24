@@ -336,8 +336,16 @@ studio.setOnFrame((now) => {
   cursorGhost.update(now, handDt);
   handles.update(now, handDt);
   handFrame = now;
-  animateMotes(now);
-  worldEffects.update(now);
+  // Ambient drift — dust in the jar, weather and critters around it — is
+  // scenery, not feedback, so reduced motion stops it at the source rather than
+  // just hiding it and leaving the maths running. Checked per frame because a
+  // new jar rebuilds the motes with their visibility fresh.
+  const calm = calmMotion();
+  if (motes) motes.visible = !calm;
+  if (!calm) {
+    animateMotes(now);
+    worldEffects.update(now);
+  }
   if (cycleEnabled) {
     timeOfDay = (timeOfDay + 0.0000025) % 1;
     studio.setTimeOfDay?.(timeOfDay);
@@ -417,6 +425,12 @@ function surfaceTargets() {
   return terrainCap ? [terrainCap, pickPlane] : [pickPlane];
 }
 
+// The comfort "reduced motion" setting, asked of the DOM so the 3D side and
+// juice.js are reading the same switch rather than two copies of it.
+function calmMotion() {
+  return document.body.classList.contains("reduced-motion");
+}
+
 // --- undo history ----------------------------------------------------------
 // Snapshot the whole build (layers + decorations + terrain) before each
 // mutating action; undo pops one and rebuilds the scene from data.
@@ -459,10 +473,14 @@ function restoreSnapshot(snap) {
 // Undo and redo grey out when there is nothing behind or ahead of you, so the
 // buttons say what the history actually holds.
 function updateHistoryUi() {
-  const undoBtn = document.getElementById("undo");
-  const redoBtn = document.getElementById("redo");
-  undoBtn?.classList.toggle("is-disabled", history.length === 0);
-  redoBtn?.classList.toggle("is-disabled", future.length === 0);
+  // The rail's pair and the focus HUD's pair are the same two verbs, so they
+  // grey out together.
+  for (const id of ["undo", "focus-undo"]) {
+    document.getElementById(id)?.classList.toggle("is-disabled", history.length === 0);
+  }
+  for (const id of ["redo", "focus-redo"]) {
+    document.getElementById(id)?.classList.toggle("is-disabled", future.length === 0);
+  }
 }
 
 function rebuildAll() {
@@ -534,7 +552,11 @@ function placeDecoration(worldPoint, def) {
   obj.userData.record = record;
   obj.userData.baseScale = targetScale;
 
-  tween(420, (p) => obj.scale.setScalar(0.001 + p * targetScale));
+  // Reduced motion gets the plant at full size straight away. The feedback that
+  // matters — it appeared, here, where the tweezers were — survives; the
+  // overshooting scale-in is the part that does not.
+  if (calmMotion()) obj.scale.setScalar(targetScale);
+  else tween(420, (p) => obj.scale.setScalar(0.001 + p * targetScale));
   gameAction("plant", def.kind);
 }
 
@@ -1791,6 +1813,7 @@ function selectTool(id) {
     .querySelectorAll(".tool-row")
     .forEach((c) => c.classList.toggle("is-active", c.dataset.id === id));
   updateSliderState();
+  updateFocusHud();
   studio.markInteraction();
 }
 
@@ -1882,8 +1905,35 @@ function applyComfortSettings() {
   }
 }
 
+// What the user is currently holding, in one line: a brush tool says which
+// brush, and "place" says which item is on the tweezers, because in Focus Build
+// the tray that would otherwise have told you is folded away.
+function currentSelectionLabel() {
+  if (activeTool !== "place") {
+    const tool = TOOLS.find((entry) => entry.id === activeTool);
+    if (tool) return `${tool.glyph} ${t(tool.label)}`;
+  }
+  const source =
+    selected.group === "jar" ? JAR_TYPES : selected.group === "base" ? BASE_LAYERS : DECORATIONS;
+  const item = source.find((entry) => entry.id === selected.id);
+  return item ? `🥢 ${tLabel(item.label)}` : t("বসাও");
+}
+
+// Keeps both readouts of the current selection — the focus HUD and the radial's
+// caption — saying the same thing, and greys the history verbs that would do
+// nothing. Cheap enough to call from every selection change.
+function updateFocusHud() {
+  const label = currentSelectionLabel();
+  const current = document.getElementById("focus-current");
+  if (current) current.textContent = label;
+  const radialCurrent = document.getElementById("radial-current");
+  if (radialCurrent) radialCurrent.textContent = label;
+  updateHistoryUi();
+}
+
 function openRadial() {
   radialOpen = true;
+  updateFocusHud();
   document.getElementById("radial-menu")?.classList.remove("hidden");
 }
 
@@ -1904,6 +1954,12 @@ function focusPlantTool() {
 
 function chooseRadialAction(action) {
   closeRadial();
+  if (action === "tray") {
+    // The shelf is a place to go, not a tool to hold — arming a tool here would
+    // make the next tap on the glass plant whatever was already selected.
+    setFocusTrayOpen(true);
+    return;
+  }
   focusToolArmed = action !== "photo";
   if (action === "plant") focusPlantTool();
   else if (action === "water" || action === "mist") {
@@ -1918,18 +1974,88 @@ function chooseRadialAction(action) {
     document.getElementById("photo-panel")?.classList.remove("hidden");
     renderPhotoFilters();
   }
+  updateFocusHud();
+}
+
+// --- Focus Build ------------------------------------------------------------
+// The tray comes back as a *drawer*: the same column, the same cards, the same
+// selection code — just temporarily on top of the focused workspace. The
+// underlying tray-hidden preference is never touched, so whatever the user had
+// folded or unfolded before is still that way when they step back out.
+let focusTrayOpen = false;
+
+function setFocusTrayOpen(open) {
+  focusTrayOpen = focusMode && open;
+  document.body.classList.toggle("focus-tray-open", focusTrayOpen);
+  const key = focusTrayOpen ? "ট্রে বন্ধ করো" : "ট্রে খোলো";
+  for (const id of ["focus-tray", "focus-tray-edge"]) {
+    const button = document.getElementById(id);
+    if (!button) continue;
+    button.setAttribute("aria-expanded", focusTrayOpen ? "true" : "false");
+    button.classList.toggle("is-active", focusTrayOpen);
+    // Both pulls say what the press will do next, in whichever language is on.
+    if (button.dataset.i18n) button.dataset.i18n = key;
+    if (button.dataset.i18nTitle) button.dataset.i18nTitle = key;
+    const label = t(key);
+    button.title = label;
+    button.setAttribute("aria-label", label);
+    const text = button.querySelector(".focus-text");
+    if (text) text.textContent = label;
+  }
+  if (focusTrayOpen) {
+    closeRadial();
+    renderStrip(); // the drawer may have been away for a whole build
+  } else {
+    catFlyoutEl?.classList.add("hidden");
+  }
+}
+
+let cameraLocked = false;
+
+function setCameraLock(on) {
+  cameraLocked = !!on;
+  studio.setCameraLock?.(cameraLocked);
+  const button = document.getElementById("focus-lock");
+  if (!button) return;
+  button.classList.toggle("is-active", cameraLocked);
+  button.setAttribute("aria-pressed", cameraLocked ? "true" : "false");
+  // The tooltip says what the press will *do*, so it flips with the state.
+  button.dataset.i18nTitle = cameraLocked ? "ক্যামেরা খোলো" : "ক্যামেরা লক";
+  const label = t(button.dataset.i18nTitle);
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  const ico = button.querySelector(".focus-ico");
+  if (ico) ico.textContent = cameraLocked ? "🔒" : "🔓";
 }
 
 function setFocusMode(on = !focusMode) {
   focusMode = on;
   document.body.classList.toggle("focus-mode", focusMode);
   document.getElementById("focus-hud")?.classList.toggle("hidden", !focusMode);
-  document.getElementById("focus-btn")?.classList.toggle("is-active", focusMode);
   const button = document.getElementById("focus-btn");
-  if (button) button.textContent = t(focusMode ? "ফোকাস থেকে বের হও" : "ফোকাস");
+  if (button) {
+    button.classList.toggle("is-active", focusMode);
+    button.setAttribute("aria-pressed", focusMode ? "true" : "false");
+    // The key moves with the label: otherwise the next language flip would put
+    // the "enter" wording back on a button that now leaves.
+    button.dataset.i18n = focusMode ? "ফোকাস বিল্ড ছাড়ো" : "ফোকাস বিল্ড";
+    const label = t(button.dataset.i18n);
+    const text = button.querySelector(".nav-text");
+    if (text) text.textContent = label;
+    button.title = label;
+  }
   document.getElementById("more-menu")?.classList.add("hidden");
-  if (focusMode) studio.resetView?.();
+  // Entering focus deliberately does NOT re-frame the jar. You step into focus
+  // because you have already found the angle you want to work at, and having it
+  // snatched back to the default was the single most jarring thing about the
+  // old mode. Re-centring is one press away in the HUD instead.
+  if (!focusMode) {
+    setFocusTrayOpen(false);
+    setCameraLock(false); // the only way to unlock lives in the focus HUD
+  }
+  focusToolArmed = false;
   closeRadial();
+  updateFocusHud();
 }
 
 function runTutorialStep() {
@@ -1990,7 +2116,10 @@ window.addEventListener("keydown", (e) => {
   }
   if (key === "t") {
     e.preventDefault();
-    setTrayHidden(!document.body.classList.contains("tray-hidden"));
+    // Same key, same idea — reach the shelf. In Focus Build that means the
+    // temporary drawer, never the persistent preference underneath it.
+    if (focusMode) setFocusTrayOpen(!focusTrayOpen);
+    else setTrayHidden(!document.body.classList.contains("tray-hidden"));
     return;
   }
   if (key === "z") {
@@ -2000,6 +2129,14 @@ window.addEventListener("keydown", (e) => {
   }
   if (key === "escape" && cameraMode) {
     setCameraMode(false);
+    return;
+  }
+  // Escape peels one layer at a time: the drawer, then the radial, then the
+  // mode itself — so it never drops you out of Focus Build by surprise.
+  if (key === "escape" && focusMode) {
+    if (focusTrayOpen) setFocusTrayOpen(false);
+    else if (radialOpen) closeRadial();
+    else setFocusMode(false);
     return;
   }
   if (key === "escape" && adjTarget) {
@@ -2363,6 +2500,14 @@ function renderStrip() {
         }
         renderStrip();
         updateHint();
+        // In Focus Build the shelf is a drawer you visited to fetch one thing:
+        // having fetched it, it gets out of the way and the next tap on the
+        // glass places rather than reopening the radial.
+        if (focusTrayOpen) {
+          setFocusTrayOpen(false);
+          focusToolArmed = true;
+        }
+        updateFocusHud();
         studio.markInteraction();
       });
       stripEl.appendChild(card);
@@ -2757,10 +2902,17 @@ function applyLang() {
     // Icon buttons keep their glyph: only the label span gets rewritten, and
     // the tooltip follows so the icon-only layout stays readable.
     const label = t(el.dataset.i18n);
-    const target = el.querySelector(".nav-text");
+    const target = el.querySelector(".nav-text, .focus-text");
     if (target) target.textContent = label;
     else el.textContent = label;
     if (el.hasAttribute("title")) el.title = label;
+  });
+  // Glyph-only buttons carry their whole word in the tooltip, so rewriting
+  // their text would throw the glyph away. These get the label without it.
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const label = t(el.dataset.i18nTitle);
+    el.title = label;
+    el.setAttribute("aria-label", label);
   });
   searchEl.placeholder = t("খোঁজো…");
   // The fold buttons are glyph-only, so they carry their words in the tooltip.
@@ -2778,6 +2930,7 @@ function applyLang() {
   renderTools();
   renderStrip();
   updateHint();
+  updateFocusHud(); // the "currently holding" readout is a label like any other
   renderGameHud();
   updateTrayUI();
 }
@@ -3089,6 +3242,21 @@ moreBtn.addEventListener("click", (event) => {
 document.getElementById("focus-btn").addEventListener("click", () => setFocusMode());
 document.getElementById("focus-exit").addEventListener("click", () => setFocusMode(false));
 document.getElementById("focus-quick").addEventListener("click", openRadial);
+document.getElementById("focus-undo").addEventListener("click", undo);
+document.getElementById("focus-redo").addEventListener("click", redo);
+document.getElementById("focus-center").addEventListener("click", () => {
+  studio.resetView?.();
+  studio.markInteraction();
+});
+document.getElementById("focus-lock").addEventListener("click", () => {
+  setCameraLock(!cameraLocked);
+  flashHint(cameraLocked ? "ক্যামেরা লক — জার আর ঘুরবে না।" : "ক্যামেরা খোলা — টেনে ঘোরাও।");
+});
+// Two ways to the same drawer: the HUD button, and an edge pull for a thumb
+// that is already down by the glass.
+for (const id of ["focus-tray", "focus-tray-edge"]) {
+  document.getElementById(id)?.addEventListener("click", () => setFocusTrayOpen(!focusTrayOpen));
+}
 // --- camera mode -----------------------------------------------------------
 // Composing a photo is its own activity: the interface steps out of the way,
 // a 4:5 window shows exactly what the frame will hold, and the last three
