@@ -111,7 +111,7 @@ let socialRecords = [];
 let socialMineRecords = [];
 let pendingRemixOf = null;
 // A photo world by default: the studio sweep is still one tap away in থিম ▸ আঁকা.
-let currentThemeId = "leaf-shadow-wall";
+let currentThemeId = "sunlit-adobe-room";
 let seasonId = "spring";
 let weatherId = "clear";
 let cycleEnabled = true;
@@ -708,7 +708,9 @@ function sprayMist(screen) {
 // so repeated watering builds up; re-applied after any rebuild.
 let wetLevel = 0;
 const game = loadGameState();
-currentThemeId = game.theme || currentThemeId;
+// themeById() falls back rather than trusting the save: a retired theme id
+// would otherwise leave the picker with nothing highlighted.
+currentThemeId = themeById(game.theme || currentThemeId).id;
 seasonId = game.season || seasonId;
 weatherId = game.weather || weatherId;
 timeOfDay = typeof game.timeOfDay === "number" ? game.timeOfDay : timeOfDay;

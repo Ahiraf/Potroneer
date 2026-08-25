@@ -244,7 +244,7 @@ function baseGameState() {
     ageDays: 0,
     evolutionStage: 0,
     achievements: {},
-    theme: "leaf-shadow-wall",
+    theme: "sunlit-adobe-room",
     season: "spring",
     weather: "clear",
     cosmeticPack: "starter",

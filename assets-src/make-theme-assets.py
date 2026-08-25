@@ -13,45 +13,35 @@ os.makedirs(OUT, exist_ok=True)
 
 # file, slug, en, bn, group, mood, weather, critters, pack
 T = [
- ("willow-swan-lake.jpg","willow-swan-lake","Willow Swan Lake","উইলো রাজহাঁস হ্রদ","nature","garden","mist","birds","village"),
- ("sunflower-curtain.jpg","sunflower-curtain","Sunflower Curtain","সূর্যমুখী পর্দা","bloom","day","petals","butterflies","blossom"),
- ("castle-arches.jpg","castle-arches","Castle Arches","দুর্গের খিলান","magic","library","sparkle","owls","wizarding"),
- ("spirit-stag-cave.jpg","spirit-stag-cave","Spirit Stag Cave","আলোর হরিণ গুহা","magic","night","glow","fireflies","wizarding"),
- ("lavender-dusk.jpg","lavender-dusk","Lavender Dusk","ল্যাভেন্ডার গোধূলি","nature","dusk","petals","butterflies","blossom"),
- ("golden-swan-forest.jpg","golden-swan-forest","Golden Swan Forest","সোনালি রাজহাঁস বন","nature","dusk","mist","birds","village"),
- ("cave-lookout-pines.jpg","cave-lookout-pines","Cave Lookout","গুহার জানালা","nature","mountain","breeze","birds","alpine"),
- ("starlit-hall.jpg","starlit-hall","Starlit Hall","তারাভরা হল","magic","space","stars","satellites","cosmic"),
- ("mossy-portal.jpg","mossy-portal","Mossy Portal","শ্যাওলার দরজা","magic","garden","glow","fireflies","jungle"),
- ("moonlit-bedroom.jpg","moonlit-bedroom","Moonlit Bedroom","জ্যোৎস্না ঘর","cozy","night","stars","fireflies","starter"),
- ("castle-night-window.jpg","castle-night-window","Castle Window","দুর্গের জানালা","magic","night","sparkle","owls","wizarding"),
- ("white-blossom-wall.jpg","white-blossom-wall","White Blossom Wall","সাদা ফুলের দেয়াল","bloom","day","petals","butterflies","blossom"),
- ("pink-blossom-wall.jpg","pink-blossom-wall","Pink Blossom Wall","গোলাপি ফুলের দেয়াল","bloom","blossom","petals","butterflies","blossom"),
- ("breezy-window.jpg","breezy-window","Breezy Window","হাওয়ার জানালা","window","day","breeze","birds","starter"),
- ("winter-castle-window.jpg","winter-castle-window","Winter Castle","শীতের দুর্গ","magic","mountain","snow","owls","alpine"),
- ("lantern-terrace.jpg","lantern-terrace","Lantern Terrace","লণ্ঠন বারান্দা","magic","lantern","lanterns","fireflies","lantern"),
- ("night-town-window.jpg","night-town-window","Night Town Window","রাতের শহরের জানালা","window","night","stars","fireflies","urban"),
- ("moonlit-library.jpg","moonlit-library","Moonlit Library","জ্যোৎস্না লাইব্রেরি","cozy","library","sparkle","owls","wizarding"),
- ("seaside-balcony.jpg","seaside-balcony","Seaside Balcony","সমুদ্র বারান্দা","window","beach","breeze","birds","starter"),
- ("leaf-shadow-wall.jpg","leaf-shadow-wall","Leaf Shadows","পাতার ছায়া","cozy","day","breeze","motes","starter"),
- ("patronus-forest.jpg","patronus-forest","Patronus Forest","রক্ষাকবচ বন","magic","night","glow","fireflies","wizarding"),
- ("cartoon-room.jpg","cartoon-room","Cartoon Room","কার্টুন ঘর","cozy","day","clear","motes","starter"),
- ("tatami-room.jpg","tatami-room","Tatami Room","তাতামি ঘর","cozy","day","clear","motes","starter"),
- ("mushroom-moon-forest.jpg","mushroom-moon-forest","Mushroom Moon Forest","ব্যাঙের ছাতার বন","nature","garden","fireflies","fireflies","jungle"),
- ("snowy-pine-window.jpg","snowy-pine-window","Snowy Pines","তুষার পাইন","nature","mountain","snow","birds","alpine"),
- ("forest-stream-window.jpg","forest-stream-window","Forest Stream","বনের ঝরনা","window","garden","mist","birds","jungle"),
- ("starry-town-window.jpg","starry-town-window","Starry Town","তারার শহর","window","night","stars","fireflies","urban"),
- ("quiet-beige-wall.jpg","quiet-beige-wall","Quiet Wall","শান্ত দেয়াল","cozy","studio","clear","motes","starter"),
- ("snowflake-blue.jpg","snowflake-blue","Blue Snowflake","নীল তুষারকণা","nature","night","snow","motes","alpine"),
- ("daisy-meadow-swing.jpg","daisy-meadow-swing","Daisy Meadow","ডেইজি মাঠ","nature","village","breeze","butterflies","village"),
- ("old-town-night.jpg","old-town-night","Old Town Night","পুরোনো শহরের রাত","window","town","stars","birds","urban"),
- ("candlelit-cathedral.jpg","candlelit-cathedral","Candlelit Cathedral","মোমবাতির ক্যাথিড্রাল","magic","library","snow","owls","wizarding"),
- ("keyhole-valley.jpg","keyhole-valley","Keyhole Valley","চাবির ফুটোয় উপত্যকা","magic","valley","glow","butterflies","caucasus"),
- ("white-steps-lake.jpg","white-steps-lake","White Steps Lake","সাদা সিঁড়ি হ্রদ","window","valley","breeze","birds","caucasus"),
- ("library-city-window.jpg","library-city-window","City Library Window","শহরের লাইব্রেরি","cozy","library","sparkle","owls","wizarding"),
- ("rose-sunlit-wall.jpg","rose-sunlit-wall","Sunlit Roses","রোদে গোলাপ","bloom","blossom","petals","butterflies","blossom"),
- ("yellow-blossom-brick.jpg","yellow-blossom-brick","Golden Blossom","সোনালি ফুল","bloom","day","petals","butterflies","blossom"),
- # High-resolution sources (4000–6000px). These are the first theme photos with
- # enough pixels for the backdrop wall to hold up when the camera leans in.
+ # Every photo here is sourced at 2000px or wider. The 37 themes that used to
+ # live in this table came from phone-sized wallpapers (most 736px across) and
+ # went soft the moment the camera leaned toward the backdrop wall — they were
+ # dropped rather than upscaled, because upscaling never put the detail back.
+ ("shoji-corridor.jpg","shoji-corridor","Shoji Corridor","শোজি বারান্দা","cozy","library","clear","motes","starter"),
+ ("firelit-sitting-room.jpg","firelit-sitting-room","Firelit Room","আগুনের ঘর","cozy","dusk","clear","motes","starter"),
+ ("gallery-window-room.jpg","gallery-window-room","Gallery Room","গ্যালারি ঘর","cozy","studio","clear","motes","starter"),
+ ("sunlit-adobe-room.jpg","sunlit-adobe-room","Adobe Room","মাটির ঘর","cozy","day","clear","motes","starter"),
+ ("window-seat-nook.jpg","window-seat-nook","Window Seat","জানালার আসন","cozy","day","breeze","motes","starter"),
+ ("linen-curtain-window.jpg","linen-curtain-window","Linen Curtains","লিনেন পর্দা","window","day","breeze","motes","starter"),
+ ("arched-autumn-window.jpg","arched-autumn-window","Arched Autumn Window","খিলানের শরৎ জানালা","window","day","leaves","birds","village"),
+ ("alpine-window.jpg","alpine-window","Alpine Window","আল্পসের জানালা","window","mountain","breeze","birds","alpine"),
+ ("cottage-sill-vases.jpg","cottage-sill-vases","Cottage Sill","কুটিরের জানালা","window","day","breeze","motes","starter"),
+ ("garden-porthole.jpg","garden-porthole","Garden Window","বাগানের জানালা","window","garden","breeze","motes","jungle"),
+ ("courtyard-window.jpg","courtyard-window","Courtyard Window","উঠোনের জানালা","window","garden","breeze","birds","jungle"),
+ ("sunset-sea-window.jpg","sunset-sea-window","Sunset Sea Window","সূর্যাস্তের সাগর জানালা","window","beach","breeze","birds","starter"),
+ ("paris-window.jpg","paris-window","Paris Window","প্যারিসের জানালা","window","town","clear","birds","urban"),
+ ("dusk-mist-window.jpg","dusk-mist-window","Dusk Mist Window","কুয়াশার গোধূলি জানালা","window","dusk","mist","fireflies","starter"),
+ ("white-cherry-branch.jpg","white-cherry-branch","White Cherry Branch","সাদা চেরি ডাল","bloom","blossom","petals","butterflies","blossom"),
+ ("sakura-canal-night.jpg","sakura-canal-night","Sakura Canal","সাকুরা খাল","bloom","lantern","petals","fireflies","blossom"),
+ ("platform-nine-and-three-quarters.jpg","platform-nine-and-three-quarters","Platform 9¾","প্ল্যাটফর্ম ৯¾","magic","night","sparkle","owls","wizarding"),
+ ("wizard-study.jpg","wizard-study","Wizard's Study","জাদুকরের পাঠকক্ষ","magic","library","sparkle","owls","wizarding"),
+ ("wizard-alley.jpg","wizard-alley","Wizard Alley","জাদুর গলি","magic","town","sparkle","owls","wizarding"),
+ ("common-room-hearth.jpg","common-room-hearth","Common Room","আরামকক্ষ","magic","library","sparkle","owls","wizarding"),
+ ("castle-moonrise.jpg","castle-moonrise","Castle Moonrise","চাঁদের দুর্গ","magic","night","sparkle","owls","wizarding"),
+ ("temple-dragon-dusk.jpg","temple-dragon-dusk","Temple Dragon","মন্দিরের ড্রাগন","places","dusk","sparkle","birds","lantern"),
+ ("palace-courtyard.jpg","palace-courtyard","Palace Courtyard","প্রাসাদ প্রাঙ্গণ","places","town","clear","birds","lantern"),
+ ("great-wall-autumn.jpg","great-wall-autumn","Great Wall","মহাপ্রাচীর","places","mountain","mist","birds","alpine"),
+ ("lake-boat-village.jpg","lake-boat-village","Lake Boat Village","হ্রদের নৌকা গ্রাম","places","village","mist","birds","village"),
  ("misty-autumn-road.jpg","misty-autumn-road","Misty Autumn Road","কুয়াশার শরৎ পথ","nature","dusk","mist","birds","village"),
  ("foggy-forest-road.jpg","foggy-forest-road","Foggy Forest Road","কুয়াশার বনপথ","nature","night","mist","fireflies","jungle"),
  ("autumn-avenue.jpg","autumn-avenue","Autumn Avenue","শরতের সড়ক","nature","dusk","breeze","birds","village"),
@@ -59,7 +49,16 @@ T = [
  ("day-sky.jpg","day-sky","Day Sky","দিনের আকাশ","window","day","clear","birds","starter"),
 ]
 
-FOCUS = {'willow-swan-lake': 0.6, 'spirit-stag-cave': 0.7, 'golden-swan-forest': 0.58, 'patronus-forest': 0.5, 'mossy-portal': 0.52, 'lantern-terrace': 0.5, 'daisy-meadow-swing': 0.55, 'snowy-pine-window': 0.4, 'rose-sunlit-wall': 0.5, 'moonlit-bedroom': 0.55, 'cave-lookout-pines': 0.5}
+# Vertical crop focus for the portrait sources, whose 16:9 band would otherwise
+# cut the subject in half (0 = top of the photo, 1 = bottom).
+FOCUS = {
+ 'shoji-corridor': 0.5, 'temple-dragon-dusk': 0.52, 'platform-nine-and-three-quarters': 0.5,
+ 'palace-courtyard': 0.42, 'arched-autumn-window': 0.46, 'wizard-study': 0.5,
+ 'white-cherry-branch': 0.5, 'firelit-sitting-room': 0.5, 'gallery-window-room': 0.46,
+ 'garden-porthole': 0.5, 'courtyard-window': 0.5, 'common-room-hearth': 0.5,
+ 'paris-window': 0.5, 'dusk-mist-window': 0.5, 'castle-moonrise': 0.42,
+ 'great-wall-autumn': 0.5,
+}
 
 # The backdrop hangs on a wall the camera can lean toward, so it wants real
 # pixels. 2560 is the ceiling; the floor is whatever the source actually has —
