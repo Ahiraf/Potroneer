@@ -46,6 +46,7 @@ const EN = {
   "সেটিংস": "Settings",
   "ঋতু ও আবহাওয়া": "Season & weather",
   "ব্যাকড্রপ শান্ত": "Backdrop calm",
+  "টেবিল": "Table",
   "থিম বেছে নাও": "Choose a theme",
   "ক্যামেরা": "Camera",
   "ফোকাস": "Focus",

@@ -245,6 +245,7 @@ function baseGameState() {
     evolutionStage: 0,
     achievements: {},
     theme: "sunlit-adobe-room",
+    tableStyle: "oak",
     season: "spring",
     weather: "clear",
     cosmeticPack: "starter",

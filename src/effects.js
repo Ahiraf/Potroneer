@@ -1,14 +1,17 @@
 import * as THREE from "three";
 
+// Weather only. There used to be two or three "critters" — birds, owls,
+// butterflies — orbiting the jar on a fixed circle in every world. They read as
+// pale spheres drifting across the backdrop rather than as wildlife, and having
+// the same three objects circle every single theme made all of them feel alike,
+// so they were removed rather than reworked.
 export function createWorldEffects(world) {
   const root = new THREE.Group();
   const weatherGroup = new THREE.Group();
-  const critterGroup = new THREE.Group();
-  root.add(weatherGroup, critterGroup);
+  root.add(weatherGroup);
   world.add(root);
   let weatherType = "clear";
   let weather = null;
-  let critters = [];
 
   function clearGroup(group) {
     while (group.children.length) group.remove(group.children[0]);
@@ -48,33 +51,6 @@ export function createWorldEffects(world) {
     }
   }
 
-  function makeCritter(type, index) {
-    const group = new THREE.Group();
-    const color = { butterflies: 0xe5a9c5, birds: 0x8ea8c6, owls: 0x9a7655, spiders: 0x25272b, fireflies: 0xc9e875, satellites: 0xb6c7d6 }[type] || 0x7fa56b;
-    group.add(new THREE.Mesh(new THREE.SphereGeometry(type === "spiders" ? 0.045 : 0.06, 8, 6), new THREE.MeshStandardMaterial({ color, roughness: 0.75, emissive: type === "fireflies" ? color : 0x000000, emissiveIntensity: type === "fireflies" ? 1.3 : 0 })));
-    if (type === "butterflies") {
-      const wingMat = new THREE.MeshBasicMaterial({ color: index % 2 ? 0x7ca7df : 0xd17aa0, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
-      for (const side of [-1, 1]) { const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.09), wingMat); wing.position.x = side * 0.07; wing.rotation.y = side * 0.35; group.add(wing); }
-    } else if (type === "spiders") {
-      const legMat = new THREE.LineBasicMaterial({ color: 0x1b1d20, transparent: true, opacity: 0.9 });
-      for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI; group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(Math.cos(a) * 0.14, -0.02, Math.sin(a) * 0.14)]), legMat)); group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(-Math.cos(a) * 0.14, -0.02, Math.sin(a) * 0.14)]), legMat)); }
-    } else if (type === "satellites") {
-      const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.07), new THREE.MeshBasicMaterial({ color: 0x5676a3, side: THREE.DoubleSide })); panel.position.x = 0.13; group.add(panel);
-    } else {
-      const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.05), new THREE.MeshBasicMaterial({ color: 0xe4e6df, side: THREE.DoubleSide, transparent: true, opacity: 0.7 })); wing.position.y = 0.03; group.add(wing);
-    }
-    group.userData = { phase: Math.random() * Math.PI * 2, radius: 0.55 + Math.random() * 0.35, height: 0.35 + Math.random() * 1.45, speed: 0.00025 + Math.random() * 0.00022, type };
-    group.position.set(0, group.userData.height, 0);
-    return group;
-  }
-
-  function makeCritters(type) {
-    clearGroup(critterGroup); critters = [];
-    if (type === "motes") return;
-    const count = type === "spiders" || type === "satellites" ? 2 : 3;
-    for (let i = 0; i < count; i++) { const critter = makeCritter(type, i); critters.push(critter); critterGroup.add(critter); }
-  }
-
   function update(now) {
     if (weather) {
       const pos = weather.geometry.attributes.position;
@@ -90,10 +66,9 @@ export function createWorldEffects(world) {
       }
       pos.needsUpdate = true;
     }
-    critters.forEach((critter) => { const u = critter.userData; const a = now * u.speed + u.phase; critter.position.set(Math.cos(a) * u.radius, u.height + Math.sin(a * 1.6) * 0.08, Math.sin(a) * u.radius); critter.rotation.y = -a + Math.PI / 2; if (["butterflies", "birds", "owls"].includes(u.type)) critter.children.forEach((child, index) => { if (index > 0) child.rotation.z = Math.sin(now * 0.01 + u.phase) * 0.4 * (index % 2 ? 1 : -1); }); });
   }
 
-  function setTheme(theme) { makeWeather(theme.weather || "clear"); makeCritters(theme.critters || "motes"); }
-  makeWeather("clear"); makeCritters("motes");
-  return { root, setWeather: makeWeather, setCritters: makeCritters, setTheme, update };
+  function setTheme(theme) { makeWeather(theme.weather || "clear"); }
+  makeWeather("clear");
+  return { root, setWeather: makeWeather, setTheme, update };
 }

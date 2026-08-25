@@ -49,7 +49,10 @@ body {
   overflow: hidden;
   font-family: "Hind Siliguri", system-ui, sans-serif;
   color: var(--ink);
-  background: #1a1d1a;
+  /* Whatever shows around the canvas — the letterbox on an odd aspect, the
+     flash before the first frame — wears the theme too, so nothing on screen
+     is left behind at the old world's colour. */
+  background: var(--theme-tone, #1a1d1a);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1355,6 +1358,37 @@ textarea.social-input {
 .theme-controls select { min-width: 0; padding: 5px; color: var(--ink); background: var(--hud-solid); border: 1px solid var(--hud-border); border-radius: 4px; font: inherit; }
 .theme-controls .cycle-toggle { grid-column: 1 / -1; justify-content: flex-start; }
 .theme-controls input[type="range"] { grid-column: 1 / -1; width: 100%; }
+/* The table row: each chip is a small sample of the surface it offers, so the
+   choice is made by looking rather than by reading Bengali furniture nouns. */
+.table-row { margin-top: 12px; color: var(--ink-dim); font-size: 11px; }
+#table-styles { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.table-chip {
+  padding: 5px 9px 5px 22px;
+  position: relative;
+  color: var(--ink);
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--hud-border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.table-chip::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  /* top colour over leg colour: a two-tone dot that says "wood over metal" or
+     "marble over marble" without a thumbnail to load */
+  background: linear-gradient(160deg, var(--table-top) 55%, var(--table-leg) 55%);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35) inset;
+}
+.table-chip.is-active { border-color: var(--accent); background: var(--accent-dim); }
+
 .pack-row { margin-top: 12px; color: var(--ink-dim); font-size: 11px; }
 #cosmetic-packs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .pack-chip { padding: 5px 7px; color: var(--ink); background: color-mix(in srgb, var(--pack-color) 26%, transparent); border: 1px solid color-mix(in srgb, var(--pack-color) 60%, transparent); border-radius: 999px; font: inherit; font-size: 10px; cursor: pointer; }
@@ -2547,6 +2581,7 @@ body.focus-mode .hint {
 .item-chip,
 .theme-card,
 .pack-chip,
+.table-chip,
 .small-action,
 .social-primary,
 .hud-btn {
@@ -2557,6 +2592,7 @@ body.focus-mode .hint {
 .cat-btn:hover,
 .build-toggle:hover,
 .theme-card:hover,
+.table-chip:hover,
 .pack-chip:hover {
   transform: translateY(-1px);
 }
@@ -2568,6 +2604,7 @@ body.focus-mode .hint {
 .build-toggle:active,
 .item-chip:active,
 .theme-card:active,
+.table-chip:active,
 .pack-chip:active,
 .small-action:active,
 .social-primary:active,

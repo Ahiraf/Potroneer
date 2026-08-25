@@ -21,18 +21,18 @@ export const THEME_GROUPS = [
 
 // --- painted worlds (backdrops drawn by scene.js) ---------------------------
 const PAINTED = [
-  { id: "studio", label: "Studio", bn: "স্টুডিও", mood: "studio", weather: "clear", critters: "motes", pack: "starter", accent: "#6d9e4f", tone: "#e3e6ea", lum: 0.86 },
-  { id: "hogwarts", label: "Wizarding Hall", bn: "জাদুর হল", mood: "library", weather: "sparkle", critters: "owls", pack: "wizarding", accent: "#c08a4a", tone: "#2c2114", lum: 0.14 },
-  { id: "space", label: "Astronomy", bn: "মহাকাশ", mood: "space", weather: "stars", critters: "satellites", pack: "cosmic", accent: "#7ea6dd", tone: "#141824", lum: 0.1 },
-  { id: "jungle", label: "Jungle", bn: "জঙ্গল", mood: "garden", weather: "mist", critters: "fireflies", pack: "jungle", accent: "#5aa863", tone: "#9db08c", lum: 0.62 },
-  { id: "town", label: "Urban Town", bn: "শহর", mood: "town", weather: "clear", critters: "birds", pack: "urban", accent: "#d09a5e", tone: "#c99070", lum: 0.55 },
-  { id: "village", label: "Green Village", bn: "সবুজ গ্রাম", mood: "village", weather: "breeze", critters: "birds", pack: "village", accent: "#7fae5c", tone: "#c3dcc0", lum: 0.76 },
-  { id: "cherry", label: "Cherry Blossom", bn: "চেরি ব্লসম", mood: "blossom", weather: "petals", critters: "butterflies", pack: "blossom", accent: "#dd8bab", tone: "#eec6d6", lum: 0.79 },
-  { id: "avatar", label: "Floating Grove", bn: "ভাসমান বন", mood: "grove", weather: "glow", critters: "fireflies", pack: "avatar", accent: "#54b3ad", tone: "#a9ded6", lum: 0.75 },
-  { id: "spiderman", label: "Spider City", bn: "স্পাইডার সিটি", mood: "spidercity", weather: "web", critters: "spiders", pack: "hero", accent: "#c9584a", tone: "#232d48", lum: 0.16 },
-  { id: "chinese-village", label: "Lantern Village", bn: "লণ্ঠন গ্রাম", mood: "lantern", weather: "lanterns", critters: "fireflies", pack: "lantern", accent: "#e4a052", tone: "#3a2740", lum: 0.2 },
-  { id: "alpine", label: "Alpine Valley", bn: "পাহাড়ি উপত্যকা", mood: "mountain", weather: "snow", critters: "birds", pack: "alpine", accent: "#8fb6cf", tone: "#d8b8a0", lum: 0.72 },
-  { id: "caucasus", label: "Caucasus Valley", bn: "ককেশাস উপত্যকা", mood: "valley", weather: "breeze", critters: "birds", pack: "caucasus", accent: "#7fa892", tone: "#d4e2da", lum: 0.84 },
+  { id: "studio", label: "Studio", bn: "স্টুডিও", mood: "studio", weather: "clear", pack: "starter", accent: "#6d9e4f", tone: "#e3e6ea", lum: 0.86 },
+  { id: "hogwarts", label: "Wizarding Hall", bn: "জাদুর হল", mood: "library", weather: "sparkle", pack: "wizarding", accent: "#c08a4a", tone: "#2c2114", lum: 0.14 },
+  { id: "space", label: "Astronomy", bn: "মহাকাশ", mood: "space", weather: "stars", pack: "cosmic", accent: "#7ea6dd", tone: "#141824", lum: 0.1 },
+  { id: "jungle", label: "Jungle", bn: "জঙ্গল", mood: "garden", weather: "mist", pack: "jungle", accent: "#5aa863", tone: "#9db08c", lum: 0.62 },
+  { id: "town", label: "Urban Town", bn: "শহর", mood: "town", weather: "clear", pack: "urban", accent: "#d09a5e", tone: "#c99070", lum: 0.55 },
+  { id: "village", label: "Green Village", bn: "সবুজ গ্রাম", mood: "village", weather: "breeze", pack: "village", accent: "#7fae5c", tone: "#c3dcc0", lum: 0.76 },
+  { id: "cherry", label: "Cherry Blossom", bn: "চেরি ব্লসম", mood: "blossom", weather: "petals", pack: "blossom", accent: "#dd8bab", tone: "#eec6d6", lum: 0.79 },
+  { id: "avatar", label: "Floating Grove", bn: "ভাসমান বন", mood: "grove", weather: "glow", pack: "avatar", accent: "#54b3ad", tone: "#a9ded6", lum: 0.75 },
+  { id: "spiderman", label: "Spider City", bn: "স্পাইডার সিটি", mood: "spidercity", weather: "web", pack: "hero", accent: "#c9584a", tone: "#232d48", lum: 0.16 },
+  { id: "chinese-village", label: "Lantern Village", bn: "লণ্ঠন গ্রাম", mood: "lantern", weather: "lanterns", pack: "lantern", accent: "#e4a052", tone: "#3a2740", lum: 0.2 },
+  { id: "alpine", label: "Alpine Valley", bn: "পাহাড়ি উপত্যকা", mood: "mountain", weather: "snow", pack: "alpine", accent: "#8fb6cf", tone: "#d8b8a0", lum: 0.72 },
+  { id: "caucasus", label: "Caucasus Valley", bn: "ককেশাস উপত্যকা", mood: "valley", weather: "breeze", pack: "caucasus", accent: "#7fa892", tone: "#d4e2da", lum: 0.84 },
 ].map((t) => ({ ...t, group: "painted" }));
 
 // --- photo worlds (assets in /public/themes) --------------------------------
@@ -41,36 +41,36 @@ const PAINTED = [
 // as the camera leaned toward the backdrop wall; they were retired rather than
 // upscaled, since no runtime work puts back detail the photo never had.
 const PHOTO = [
-  { id: "shoji-corridor", label: "Shoji Corridor", bn: "শোজি বারান্দা", group: "cozy", photo: true, mood: "library", weather: "clear", critters: "motes", pack: "starter", accent: "#ba7c4f", tone: "#29261c", lum: 0.148 },
-  { id: "firelit-sitting-room", label: "Firelit Room", bn: "আগুনের ঘর", group: "cozy", photo: true, mood: "dusk", weather: "clear", critters: "motes", pack: "starter", accent: "#c57344", tone: "#624634", lum: 0.294 },
-  { id: "gallery-window-room", label: "Gallery Room", bn: "গ্যালারি ঘর", group: "cozy", photo: true, mood: "studio", weather: "clear", critters: "motes", pack: "starter", accent: "#83c3d8", tone: "#adb1aa", lum: 0.69 },
-  { id: "sunlit-adobe-room", label: "Adobe Room", bn: "মাটির ঘর", group: "cozy", photo: true, mood: "day", weather: "clear", critters: "motes", pack: "starter", accent: "#b87e51", tone: "#483c33", lum: 0.243 },
-  { id: "window-seat-nook", label: "Window Seat", bn: "জানালার আসন", group: "cozy", photo: true, mood: "day", weather: "breeze", critters: "motes", pack: "starter", accent: "#b88f51", tone: "#817a6a", lum: 0.481 },
-  { id: "linen-curtain-window", label: "Linen Curtains", bn: "লিনেন পর্দা", group: "window", photo: true, mood: "day", weather: "breeze", critters: "motes", pack: "starter", accent: "#b88b51", tone: "#959694", lum: 0.586 },
-  { id: "arched-autumn-window", label: "Arched Autumn Window", bn: "খিলানের শরৎ জানালা", group: "window", photo: true, mood: "day", weather: "leaves", critters: "birds", pack: "village", accent: "#d29f37", tone: "#74643f", lum: 0.395 },
-  { id: "alpine-window", label: "Alpine Window", bn: "আল্পসের জানালা", group: "window", photo: true, mood: "mountain", weather: "breeze", critters: "birds", pack: "alpine", accent: "#d27637", tone: "#534b40", lum: 0.298 },
-  { id: "cottage-sill-vases", label: "Cottage Sill", bn: "কুটিরের জানালা", group: "window", photo: true, mood: "day", weather: "breeze", critters: "motes", pack: "starter", accent: "#b5d08b", tone: "#afb8a8", lum: 0.709 },
-  { id: "garden-porthole", label: "Garden Window", bn: "বাগানের জানালা", group: "window", photo: true, mood: "garden", weather: "breeze", critters: "motes", pack: "jungle", accent: "#95b851", tone: "#525747", lum: 0.333 },
-  { id: "courtyard-window", label: "Courtyard Window", bn: "উঠোনের জানালা", group: "window", photo: true, mood: "garden", weather: "breeze", critters: "birds", pack: "jungle", accent: "#b85c51", tone: "#86827a", lum: 0.511 },
-  { id: "sunset-sea-window", label: "Sunset Sea Window", bn: "সূর্যাস্তের সাগর জানালা", group: "window", photo: true, mood: "beach", weather: "breeze", critters: "birds", pack: "starter", accent: "#dba580", tone: "#79746e", lum: 0.456 },
-  { id: "paris-window", label: "Paris Window", bn: "প্যারিসের জানালা", group: "window", photo: true, mood: "town", weather: "clear", critters: "birds", pack: "urban", accent: "#b87e51", tone: "#746d64", lum: 0.432 },
-  { id: "dusk-mist-window", label: "Dusk Mist Window", bn: "কুয়াশার গোধূলি জানালা", group: "window", photo: true, mood: "dusk", weather: "mist", critters: "fireflies", pack: "starter", accent: "#b87451", tone: "#2d251e", lum: 0.151 },
-  { id: "white-cherry-branch", label: "White Cherry Branch", bn: "সাদা চেরি ডাল", group: "bloom", photo: true, mood: "blossom", weather: "petals", critters: "butterflies", pack: "blossom", accent: "#d0b98b", tone: "#c4c4ba", lum: 0.767 },
-  { id: "sakura-canal-night", label: "Sakura Canal", bn: "সাকুরা খাল", group: "bloom", photo: true, mood: "lantern", weather: "petals", critters: "fireflies", pack: "blossom", accent: "#ba574f", tone: "#875758", lum: 0.38 },
-  { id: "platform-nine-and-three-quarters", label: "Platform 9\u00be", bn: "প্ল্যাটফর্ম ৯¾", group: "magic", photo: true, mood: "night", weather: "sparkle", critters: "owls", pack: "wizarding", accent: "#517ab8", tone: "#232d41", lum: 0.173 },
-  { id: "wizard-study", label: "Wizard's Study", bn: "জাদুকরের পাঠকক্ষ", group: "magic", photo: true, mood: "library", weather: "sparkle", critters: "owls", pack: "wizarding", accent: "#b87551", tone: "#473a39", lum: 0.238 },
-  { id: "wizard-alley", label: "Wizard Alley", bn: "জাদুর গলি", group: "magic", photo: true, mood: "town", weather: "sparkle", critters: "owls", pack: "wizarding", accent: "#b87d51", tone: "#554d46", lum: 0.307 },
-  { id: "common-room-hearth", label: "Common Room", bn: "আরামকক্ষ", group: "magic", photo: true, mood: "library", weather: "sparkle", critters: "owls", pack: "wizarding", accent: "#b99351", tone: "#473b2a", lum: 0.235 },
-  { id: "castle-moonrise", label: "Castle Moonrise", bn: "চাঁদের দুর্গ", group: "magic", photo: true, mood: "night", weather: "sparkle", critters: "owls", pack: "wizarding", accent: "#b87451", tone: "#827d79", lum: 0.492 },
-  { id: "temple-dragon-dusk", label: "Temple Dragon", bn: "মন্দিরের ড্রাগন", group: "places", photo: true, mood: "dusk", weather: "sparkle", critters: "birds", pack: "lantern", accent: "#d38a73", tone: "#b88878", lum: 0.569 },
-  { id: "palace-courtyard", label: "Palace Courtyard", bn: "প্রাসাদ প্রাঙ্গণ", group: "places", photo: true, mood: "town", weather: "clear", critters: "birds", pack: "lantern", accent: "#b87251", tone: "#5b5550", lum: 0.338 },
-  { id: "great-wall-autumn", label: "Great Wall", bn: "মহাপ্রাচীর", group: "places", photo: true, mood: "mountain", weather: "mist", critters: "birds", pack: "alpine", accent: "#be774b", tone: "#736d62", lum: 0.43 },
-  { id: "lake-boat-village", label: "Lake Boat Village", bn: "হ্রদের নৌকা গ্রাম", group: "places", photo: true, mood: "village", weather: "mist", critters: "birds", pack: "village", accent: "#8bc1d0", tone: "#9daba9", lum: 0.658 },
-  { id: "misty-autumn-road", label: "Misty Autumn Road", bn: "কুয়াশার শরৎ পথ", group: "nature", photo: true, mood: "dusk", weather: "mist", critters: "birds", pack: "village", accent: "#b8b451", tone: "#3b402a", lum: 0.24 },
-  { id: "foggy-forest-road", label: "Foggy Forest Road", bn: "কুয়াশার বনপথ", group: "nature", photo: true, mood: "night", weather: "mist", critters: "fireflies", pack: "jungle", accent: "#9ab851", tone: "#222013", lum: 0.124 },
-  { id: "autumn-avenue", label: "Autumn Avenue", bn: "শরতের সড়ক", group: "nature", photo: true, mood: "dusk", weather: "breeze", critters: "birds", pack: "village", accent: "#b88e51", tone: "#5f4f3c", lum: 0.318 },
-  { id: "golden-facade", label: "Golden Facade", bn: "সোনালি অট্টালিকা", group: "window", photo: true, mood: "town", weather: "clear", critters: "birds", pack: "urban", accent: "#89b6d1", tone: "#b1aba0", lum: 0.671 },
-  { id: "day-sky", label: "Day Sky", bn: "দিনের আকাশ", group: "window", photo: true, mood: "day", weather: "clear", critters: "birds", pack: "starter", accent: "#5189b8", tone: "#7a8c9c", lum: 0.539 },
+  { id: "shoji-corridor", label: "Shoji Corridor", bn: "শোজি বারান্দা", group: "cozy", photo: true, mood: "library", weather: "clear", pack: "starter", accent: "#ba7c4f", tone: "#29261c", lum: 0.148 },
+  { id: "firelit-sitting-room", label: "Firelit Room", bn: "আগুনের ঘর", group: "cozy", photo: true, mood: "dusk", weather: "clear", pack: "starter", accent: "#c57344", tone: "#624634", lum: 0.294 },
+  { id: "gallery-window-room", label: "Gallery Room", bn: "গ্যালারি ঘর", group: "cozy", photo: true, mood: "studio", weather: "clear", pack: "starter", accent: "#83c3d8", tone: "#adb1aa", lum: 0.69 },
+  { id: "sunlit-adobe-room", label: "Adobe Room", bn: "মাটির ঘর", group: "cozy", photo: true, mood: "day", weather: "clear", pack: "starter", accent: "#b87e51", tone: "#483c33", lum: 0.243 },
+  { id: "window-seat-nook", label: "Window Seat", bn: "জানালার আসন", group: "cozy", photo: true, mood: "day", weather: "breeze", pack: "starter", accent: "#b88f51", tone: "#817a6a", lum: 0.481 },
+  { id: "linen-curtain-window", label: "Linen Curtains", bn: "লিনেন পর্দা", group: "window", photo: true, mood: "day", weather: "breeze", pack: "starter", accent: "#b88b51", tone: "#959694", lum: 0.586 },
+  { id: "arched-autumn-window", label: "Arched Autumn Window", bn: "খিলানের শরৎ জানালা", group: "window", photo: true, mood: "day", weather: "leaves", pack: "village", accent: "#d29f37", tone: "#74643f", lum: 0.395 },
+  { id: "alpine-window", label: "Alpine Window", bn: "আল্পসের জানালা", group: "window", photo: true, mood: "mountain", weather: "breeze", pack: "alpine", accent: "#d27637", tone: "#534b40", lum: 0.298 },
+  { id: "cottage-sill-vases", label: "Cottage Sill", bn: "কুটিরের জানালা", group: "window", photo: true, mood: "day", weather: "breeze", pack: "starter", accent: "#b5d08b", tone: "#afb8a8", lum: 0.709 },
+  { id: "garden-porthole", label: "Garden Window", bn: "বাগানের জানালা", group: "window", photo: true, mood: "garden", weather: "breeze", pack: "jungle", accent: "#95b851", tone: "#525747", lum: 0.333 },
+  { id: "courtyard-window", label: "Courtyard Window", bn: "উঠোনের জানালা", group: "window", photo: true, mood: "garden", weather: "breeze", pack: "jungle", accent: "#b85c51", tone: "#86827a", lum: 0.511 },
+  { id: "sunset-sea-window", label: "Sunset Sea Window", bn: "সূর্যাস্তের সাগর জানালা", group: "window", photo: true, mood: "beach", weather: "breeze", pack: "starter", accent: "#dba580", tone: "#79746e", lum: 0.456 },
+  { id: "paris-window", label: "Paris Window", bn: "প্যারিসের জানালা", group: "window", photo: true, mood: "town", weather: "clear", pack: "urban", accent: "#b87e51", tone: "#746d64", lum: 0.432 },
+  { id: "dusk-mist-window", label: "Dusk Mist Window", bn: "কুয়াশার গোধূলি জানালা", group: "window", photo: true, mood: "dusk", weather: "mist", pack: "starter", accent: "#b87451", tone: "#2d251e", lum: 0.151 },
+  { id: "white-cherry-branch", label: "White Cherry Branch", bn: "সাদা চেরি ডাল", group: "bloom", photo: true, mood: "blossom", weather: "petals", pack: "blossom", accent: "#d0b98b", tone: "#c4c4ba", lum: 0.767 },
+  { id: "sakura-canal-night", label: "Sakura Canal", bn: "সাকুরা খাল", group: "bloom", photo: true, mood: "lantern", weather: "petals", pack: "blossom", accent: "#ba574f", tone: "#875758", lum: 0.38 },
+  { id: "platform-nine-and-three-quarters", label: "Platform 9\u00be", bn: "প্ল্যাটফর্ম ৯¾", group: "magic", photo: true, mood: "night", weather: "sparkle", pack: "wizarding", accent: "#517ab8", tone: "#232d41", lum: 0.173 },
+  { id: "wizard-study", label: "Wizard's Study", bn: "জাদুকরের পাঠকক্ষ", group: "magic", photo: true, mood: "library", weather: "sparkle", pack: "wizarding", accent: "#b87551", tone: "#473a39", lum: 0.238 },
+  { id: "wizard-alley", label: "Wizard Alley", bn: "জাদুর গলি", group: "magic", photo: true, mood: "town", weather: "sparkle", pack: "wizarding", accent: "#b87d51", tone: "#554d46", lum: 0.307 },
+  { id: "common-room-hearth", label: "Common Room", bn: "আরামকক্ষ", group: "magic", photo: true, mood: "library", weather: "sparkle", pack: "wizarding", accent: "#b99351", tone: "#473b2a", lum: 0.235 },
+  { id: "castle-moonrise", label: "Castle Moonrise", bn: "চাঁদের দুর্গ", group: "magic", photo: true, mood: "night", weather: "sparkle", pack: "wizarding", accent: "#b87451", tone: "#827d79", lum: 0.492 },
+  { id: "temple-dragon-dusk", label: "Temple Dragon", bn: "মন্দিরের ড্রাগন", group: "places", photo: true, mood: "dusk", weather: "sparkle", pack: "lantern", accent: "#d38a73", tone: "#b88878", lum: 0.569 },
+  { id: "palace-courtyard", label: "Palace Courtyard", bn: "প্রাসাদ প্রাঙ্গণ", group: "places", photo: true, mood: "town", weather: "clear", pack: "lantern", accent: "#b87251", tone: "#5b5550", lum: 0.338 },
+  { id: "great-wall-autumn", label: "Great Wall", bn: "মহাপ্রাচীর", group: "places", photo: true, mood: "mountain", weather: "mist", pack: "alpine", accent: "#be774b", tone: "#736d62", lum: 0.43 },
+  { id: "lake-boat-village", label: "Lake Boat Village", bn: "হ্রদের নৌকা গ্রাম", group: "places", photo: true, mood: "village", weather: "mist", pack: "village", accent: "#8bc1d0", tone: "#9daba9", lum: 0.658 },
+  { id: "misty-autumn-road", label: "Misty Autumn Road", bn: "কুয়াশার শরৎ পথ", group: "nature", photo: true, mood: "dusk", weather: "mist", pack: "village", accent: "#b8b451", tone: "#3b402a", lum: 0.24 },
+  { id: "foggy-forest-road", label: "Foggy Forest Road", bn: "কুয়াশার বনপথ", group: "nature", photo: true, mood: "night", weather: "mist", pack: "jungle", accent: "#9ab851", tone: "#222013", lum: 0.124 },
+  { id: "autumn-avenue", label: "Autumn Avenue", bn: "শরতের সড়ক", group: "nature", photo: true, mood: "dusk", weather: "breeze", pack: "village", accent: "#b88e51", tone: "#5f4f3c", lum: 0.318 },
+  { id: "golden-facade", label: "Golden Facade", bn: "সোনালি অট্টালিকা", group: "window", photo: true, mood: "town", weather: "clear", pack: "urban", accent: "#89b6d1", tone: "#b1aba0", lum: 0.671 },
+  { id: "day-sky", label: "Day Sky", bn: "দিনের আকাশ", group: "window", photo: true, mood: "day", weather: "clear", pack: "starter", accent: "#5189b8", tone: "#7a8c9c", lum: 0.539 },
 ];
 
 export const THEMES = [...PAINTED, ...PHOTO];
@@ -161,10 +161,14 @@ function luminance(hex) {
 export function themeSkin(theme) {
   const accent = theme.accent || "#6d9e4f";
   const tone = theme.tone || "#1a1d1a";
-  // Panel base: the picture's own colour pulled far down toward black, so each
-  // theme's chrome feels related to its backdrop without ever competing.
-  const panel = mix(tone, "#0e100e", 0.78);
-  const panelUp = mix(tone, "#12140f", 0.62);
+  // Panel base: the picture's own colour pulled down toward black, so each
+  // theme's chrome feels related to its backdrop without ever competing. How
+  // far down used to be 0.78, which pulled every world to nearly the same near
+  // black and made switching themes look like it only changed the wallpaper.
+  // At 0.70 the tone still reads — a moonlit blue room gets blue panels — and
+  // the chrome is still dark enough for the glass to stay the subject.
+  const panel = mix(tone, "#0e100e", 0.7);
+  const panelUp = mix(tone, "#12140f", 0.54);
   const bright = luminance(accent) > 0.45;
   return {
     "--accent": accent,
@@ -177,10 +181,14 @@ export function themeSkin(theme) {
     "--hud-strong": rgba(panel, 0.94),
     "--hud-solid": panel,
     "--hud-raised": rgba(panelUp, 0.9),
-    "--hud-border": rgba(mix(accent, "#ffffff", 0.5), 0.16),
+    "--hud-border": rgba(mix(accent, "#ffffff", 0.45), 0.22),
     "--ink": mix("#ffffff", accent, 0.1),
     "--ink-dim": rgba(mix("#ffffff", accent, 0.25), 0.66),
     "--glow": rgba(accent, 0.3),
+    // The picture's own average colour, for anything that wants to mix its own
+    // shade rather than take a ready-made one — the page behind the canvas
+    // wears it, so even the letterbox belongs to the active world.
+    "--theme-tone": tone,
   };
 }
 

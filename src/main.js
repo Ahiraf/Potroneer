@@ -69,6 +69,7 @@ import {
   themeThumb,
   applyThemeSkin,
 } from "./themes.js";
+import { TABLES, tableById } from "./tables.js";
 
 // Play the boot sequence right away — it hides the rest of this module's
 // start-up work behind the logo sting and trailer.
@@ -112,6 +113,7 @@ let socialMineRecords = [];
 let pendingRemixOf = null;
 // A photo world by default: the studio sweep is still one tap away in থিম ▸ আঁকা.
 let currentThemeId = "sunlit-adobe-room";
+let tableStyleId = "oak";
 let seasonId = "spring";
 let weatherId = "clear";
 let cycleEnabled = true;
@@ -336,7 +338,7 @@ studio.setOnFrame((now) => {
   cursorGhost.update(now, handDt);
   handles.update(now, handDt);
   handFrame = now;
-  // Ambient drift — dust in the jar, weather and critters around it — is
+  // Ambient drift — dust in the jar and the weather around it — is
   // scenery, not feedback, so reduced motion stops it at the source rather than
   // just hiding it and leaving the maths running. Checked per frame because a
   // new jar rebuilds the motes with their visibility fresh.
@@ -711,6 +713,7 @@ const game = loadGameState();
 // themeById() falls back rather than trusting the save: a retired theme id
 // would otherwise leave the picker with nothing highlighted.
 currentThemeId = themeById(game.theme || currentThemeId).id;
+tableStyleId = tableById(game.tableStyle || tableStyleId).id;
 seasonId = game.season || seasonId;
 weatherId = game.weather || weatherId;
 timeOfDay = typeof game.timeOfDay === "number" ? game.timeOfDay : timeOfDay;
@@ -770,6 +773,7 @@ function currentBuildData() {
     terrainMat: Array.from(state.terrainMat),
     painted: state.painted,
     themeId: currentThemeId,
+    tableStyle: tableStyleId,
     seasonId,
     weatherId,
     timeOfDay,
@@ -870,6 +874,22 @@ function renderThemePanel() {
       grid.append(button);
     });
   }
+  const tables = document.getElementById("table-styles");
+  if (tables) {
+    tables.innerHTML = "";
+    TABLES.forEach((style) => {
+      const button = document.createElement("button");
+      button.className = `table-chip${style.id === tableStyleId ? " is-active" : ""}`;
+      button.type = "button";
+      button.textContent = bn ? style.bn : style.label;
+      // The chip wears the table it offers, so the row reads as a set of
+      // surfaces rather than a set of words.
+      button.style.setProperty("--table-top", style.top);
+      button.style.setProperty("--table-leg", style.leg);
+      button.addEventListener("click", () => setTableStyle(style.id));
+      tables.append(button);
+    });
+  }
   const season = document.getElementById("season-select");
   const weather = document.getElementById("weather-select");
   if (season && !season.options.length) SEASONS.forEach((item) => season.add(new Option(getLang() === "bn" ? item.bn : item.label, item.id)));
@@ -911,6 +931,17 @@ function setTheme(id, reward = true) {
   if (theme.weather) setWeather(theme.weather, false);
   renderThemePanel();
   if (reward) unlockGameAchievement("theme-tour");
+  scheduleAutosave();
+}
+
+/** Swap the furniture under the jar. Remembered with the rest of the build. */
+function setTableStyle(id, reward = true) {
+  const style = tableById(id);
+  tableStyleId = style.id;
+  game.tableStyle = style.id;
+  studio.setTable?.(style.id);
+  renderThemePanel();
+  if (reward) toast(getLang() === "bn" ? `টেবিল: ${style.bn}` : `Table: ${style.label}`);
   scheduleAutosave();
 }
 
@@ -2556,6 +2587,7 @@ function loadBuildData(build, { history = true } = {}) {
   if (build.terrainMat) state.terrainMat.set(build.terrainMat);
   state.painted = build.painted ?? false;
   if (build.themeId) setTheme(build.themeId, false);
+  if (build.tableStyle) setTableStyle(build.tableStyle, false);
   if (build.seasonId) {
     seasonId = build.seasonId;
     game.season = seasonId;
@@ -3417,6 +3449,7 @@ renderGameHud();
 renderThemePanel();
 renderAchievements();
 applyThemeSkin(themeById(currentThemeId));
+studio.setTable?.(tableStyleId); // before the theme, so the first tint lands on it
 studio.setTheme?.(currentThemeId);
 worldEffects.setTheme(themeById(currentThemeId));
 worldEffects.setWeather(weatherId);

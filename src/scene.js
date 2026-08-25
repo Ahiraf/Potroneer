@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { themeById } from "./themes.js";
+import { tableById } from "./tables.js";
 
 // createStudio owns everything render/interaction related but stays ignorant of
 // terrariums specifically: it exposes a rotatable `world` group, a raycaster
@@ -261,32 +262,34 @@ export function createStudio(canvas) {
   // runs to the fog swallows the lower half of the screen and buries whatever
   // theme photo is behind it. A real piece of furniture with an edge you can
   // see reads better *and* leaves the backdrop room to breathe.
-  const woodTex = makeWoodTexture();
+  //
+  // Which table is the user's choice (see src/tables.js). The three surfaces —
+  // top, legs, board — are built once and re-dressed on the fly: swapping a
+  // style only swaps maps, colours and which leg group is visible, so changing
+  // your mind costs nothing and never rebuilds geometry.
+  const surfaceTex = {
+    wood: makeWoodTexture(),
+    marble: makeMarbleTexture(),
+    stone: makeStoneTexture(),
+    rattan: makeRattanTexture(),
+  };
   const TABLE_R = 1.95;
   const TABLE_H = 0.17;
   const table = new THREE.Group();
-  const tableMats = [];
 
-  const topMat = new THREE.MeshStandardMaterial({
-    map: woodTex,
-    color: 0xd8bb92,
-    roughness: 0.72,
-    metalness: 0,
-  });
-  tableMats.push(topMat);
+  const topMat = new THREE.MeshStandardMaterial({ roughness: 0.72, metalness: 0 });
   const tableTop = new THREE.Mesh(makeTableTop(TABLE_R, TABLE_H), topMat);
   tableTop.receiveShadow = true;
   tableTop.castShadow = true;
   table.add(tableTop);
 
-  // Legs: slim, slightly splayed and tapered, running out of frame — enough of
-  // them shows to say "table", none of it competes with the jar.
-  const legMat = new THREE.MeshStandardMaterial({
-    map: woodTex,
-    color: 0xb08c62,
-    roughness: 0.78,
-  });
-  tableMats.push(legMat);
+  // Three understructures, all built up front and toggled by the style.
+  const legMat = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0 });
+  const legGroups = {};
+
+  // Slim, slightly splayed and tapered, running out of frame — enough of them
+  // shows to say "table", none of it competes with the jar.
+  legGroups.splay = new THREE.Group();
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + (i / 4) * Math.PI * 2;
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.045, 4.4, 12), legMat);
@@ -295,18 +298,40 @@ export function createStudio(canvas) {
     leg.rotation.z = -Math.cos(a) * 0.07;
     leg.rotation.x = Math.sin(a) * 0.07;
     leg.castShadow = true;
-    table.add(leg);
+    legGroups.splay.add(leg);
   }
+
+  // Hairpin: thin rods kicked further out, for the metal-legged styles.
+  legGroups.hairpin = new THREE.Group();
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i / 4) * Math.PI * 2;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.022, 4.4, 8), legMat);
+    const r = TABLE_R * 0.8;
+    leg.position.set(Math.cos(a) * r, -TABLE_H - 2.2, Math.sin(a) * r);
+    leg.rotation.z = -Math.cos(a) * 0.13;
+    leg.rotation.x = Math.sin(a) * 0.13;
+    leg.castShadow = true;
+    legGroups.hairpin.add(leg);
+  }
+
+  // Pedestal: one turned column on a wide foot — what marble and terracotta
+  // want, and the only style whose base is ever actually in frame.
+  legGroups.pedestal = new THREE.Group();
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.42, 4.4, 24), legMat);
+  column.position.y = -TABLE_H - 2.2;
+  column.castShadow = true;
+  legGroups.pedestal.add(column);
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.05, 0.16, 32), legMat);
+  foot.position.y = -TABLE_H - 4.32;
+  foot.castShadow = true;
+  legGroups.pedestal.add(foot);
+
+  for (const group of Object.values(legGroups)) table.add(group);
   scene.add(table);
 
-  // A bamboo board under the jar — the cutting board every terrarium build is
-  // actually assembled on, and a warm frame for the glass.
-  const boardMat = new THREE.MeshStandardMaterial({
-    map: woodTex,
-    color: 0xe8cfa4,
-    roughness: 0.66,
-  });
-  tableMats.push(boardMat);
+  // A board under the jar — the cutting board every terrarium build is actually
+  // assembled on, and a warm frame for the glass.
+  const boardMat = new THREE.MeshStandardMaterial({ map: surfaceTex.wood, roughness: 0.66 });
   const BOARD_H = 0.1;
   const board = new THREE.Mesh(makeTableTop(1.42, BOARD_H), boardMat);
   board.castShadow = true;
@@ -328,16 +353,56 @@ export function createStudio(canvas) {
   contact.position.y = -1.49;
   scene.add(contact);
 
-  // Tint every wooden part toward the light the scene is actually in, so the
-  // table never glows brighter than the picture behind it.
-  const TABLE_BASE = [0xd8bb92, 0xb08c62, 0xe8cfa4];
-  function tintTable(color, mix = 0) {
+  // Dressing the table in a style, and then in the room's light. The two are
+  // separate on purpose: `tintTable` runs again on every theme change, and it
+  // has to start from the style's own colours rather than from whatever the
+  // last theme left behind, or the tint compounds and the wood slowly turns to
+  // mud as the user browses.
+  const tableMats = [topMat, legMat, boardMat];
+  let tableStyle = tableById("oak");
+  let lastTint = { color: new THREE.Color(0xffffff), mix: 0, dim: 1 };
+
+  function dressTable(style) {
+    tableStyle = tableById(style?.id || style);
+    const tex = surfaceTex[tableStyle.surface] || surfaceTex.wood;
+    topMat.map = tex;
+    topMat.roughness = tableStyle.rough;
+    topMat.metalness = tableStyle.metal || 0;
+    legMat.map = tableStyle.legMetal > 0.4 ? null : tex;
+    legMat.roughness = tableStyle.legRough;
+    legMat.metalness = tableStyle.legMetal || 0;
+    for (const [name, group] of Object.entries(legGroups)) group.visible = name === tableStyle.legs;
+    for (const m of tableMats) m.needsUpdate = true;
+    tintTable(lastTint.color, lastTint.mix, lastTint.dim);
+  }
+
+  // Tint every surface toward the light the scene is actually in, so the table
+  // never glows brighter than the picture behind it — and so a moonlit room and
+  // a noon window don't hand back the same tabletop.
+  // `mix` is hue — how much of the room's colour the wood picks up, which a
+  // style is allowed to resist. `dim` is light level, which it is not: a white
+  // marble top under a midnight photo has to go grey like everything else in
+  // the room, or it sits in the shot like a lamp.
+  function tintTable(color, mix = 0, dim = 1) {
+    lastTint = { color: color.clone(), mix, dim };
+    const take = mix * (tableStyle.tintTake ?? 1);
+    const base = [tableStyle.top, tableStyle.leg, tableStyle.board];
     tableMats.forEach((m, i) => {
-      m.color.set(TABLE_BASE[i]);
-      if (mix > 0) m.color.lerp(color, mix);
+      m.color.set(base[i]);
+      if (take > 0) m.color.lerp(color, take);
+      // Colours live in linear space here, so a flat multiply barely reads as
+      // darker on screen — 0.6 comes back looking like 0.8. Gamma it first and
+      // the number means what the eye thinks it means.
+      if (dim !== 1) m.color.multiplyScalar(dim ** 2.2);
       m.needsUpdate = true;
     });
   }
+
+  /** Swap the furniture. Called from the table row in the theme panel. */
+  function setTable(id) {
+    dressTable(tableById(id));
+  }
+  dressTable(tableStyle);
 
   // The jar bases differ per shape; slide the table/board/shadow to meet the
   // chosen jar so everything sits flush.
@@ -430,6 +495,19 @@ export function createStudio(canvas) {
     if (!moodDef) return;
     key.intensity = (moodDef.keyI ?? 1.4) * photoLight;
     hemi.intensity = (moodDef.hemiI ?? 0.7) * photoLight;
+    // Fill and rim were left at full strength, which put a bright edge on the
+    // tabletop no matter how dark the world behind it was.
+    fill.intensity = 0.32 * photoLight;
+    rim.intensity = 0.8 * photoLight;
+    // The environment map is a room's worth of ambient light that the lamps
+    // above don't control, so a polished top kept reflecting a bright studio
+    // into a midnight photo — the table read as the only lit thing in the shot.
+    // It follows the photo's light like everything else now.
+    const envScale = clamp(photoLight, 0.3, 1.1);
+    for (const m of tableMats) {
+      m.envMapIntensity = envScale;
+      m.needsUpdate = true;
+    }
     renderer.toneMappingExposure = (moodDef.exposure ?? 1) * clamp(0.8 + photoLight * 0.24, 0.8, 1.06);
   }
   // Switch the whole scene to a different mood — a flat studio/time-of-day
@@ -592,13 +670,22 @@ export function createStudio(canvas) {
     scene.fog.near = 11;
     scene.fog.far = 26;
     // Pull the table into the photo's light too — a moonlit room shouldn't have
-    // a noon-bright tabletop under the jar.
-    tintTable(new THREE.Color().copy(moodGround).lerp(tone, 0.55), 0.6);
-    // Dim the room's own light to match how far back the photo was pushed: the
-    // table and the jar then sit in the same light as the picture behind them,
-    // instead of a bright tabletop against a dark wall.
-    const b = backdropBrightness(theme);
-    photoLight = clamp(0.4 + b * 0.5, 0.42, 1.1);
+    // a noon-bright tabletop under the jar. The tint carries the photo's average
+    // colour, a little of its accent so the furniture agrees with the buttons,
+    // and its brightness, so a dark world gets dark wood instead of a tabletop
+    // that glows out of the picture. How much of it lands is the table's call
+    // (`tintTake`): oak takes all of it, white marble a third.
+    const accent = new THREE.Color(theme.accent || "#6d9e4f");
+    const lum = typeof theme.lum === "number" ? theme.lum : 0.5;
+    const tint = new THREE.Color().copy(moodGround).lerp(tone, 0.7).lerp(accent, 0.22);
+    tintTable(tint, 0.78, clamp(0.5 + lum * 0.7, 0.5, 1.1));
+    // Light the room the way the picture is lit. This used to read
+    // `backdropBrightness(theme)` — the *gain* applied to the photo on its way
+    // to the canvas — which is backwards: a midnight photo needs the most gain,
+    // so the darkest worlds were the ones lit hottest, and their tabletop came
+    // out glowing white in front of a black window. The photo's own luminance
+    // is the honest number, and it runs the right way round.
+    photoLight = clamp(0.3 + lum, 0.35, 1.15);
     applyLightScale();
   }
 
@@ -645,7 +732,7 @@ export function createStudio(canvas) {
     key.intensity = (0.58 + daylight * 1.15) * photoLight;
     hemi.intensity = (0.25 + daylight * 0.65) * photoLight;
     fill.intensity = (0.1 + daylight * 0.28) * photoLight;
-    rim.intensity = 0.5 + (1 - daylight) * 0.85;
+    rim.intensity = (0.5 + (1 - daylight) * 0.85) * photoLight;
     renderer.toneMappingExposure = (0.82 + daylight * 0.3) * clamp(0.8 + photoLight * 0.24, 0.8, 1.06);
   }
   // Snapshot the current frame as a PNG data-URL (photo mode).
@@ -932,12 +1019,15 @@ export function createStudio(canvas) {
   // it there. Re-fitting every frame would glue the picture back to the lens
   // and undo the parallax; this only runs when the frame itself changes (a new
   // backdrop, a resize, a different vessel to frame).
-  // Generous margin of real picture around the frame. It has to cover the eye
-  // being raised or lowered and drifting after the fit was taken, or the wall
-  // runs out mid-shot and the bottom of the screen fills with the flat colour
-  // behind it. Overscanning also means the photo is enlarged less, which the
-  // low-resolution ones need.
-  const SHELL_OVERSCAN = 1.5;
+  // Margin of real picture around the frame, to cover the eye being raised or
+  // lowered and drifting after the fit was taken — without that the wall runs
+  // out mid-shot and the bottom of the screen fills with the flat colour behind
+  // it. It used to be 1.5, back when the photos were 736px and being enlarged
+  // less mattered more than being seen: that showed only the middle 67% of each
+  // picture in both axes, so every backdrop arrived cropped into a detail of
+  // itself. At 1.15 roughly 87% of the photo is on screen — nearly double the
+  // area — and there is still enough spare wall for the parallax sway.
+  const SHELL_OVERSCAN = 1.15;
   function fitBackdrop() {
     const tex = shellMat.map;
     if (!tex) return;
@@ -1097,6 +1187,7 @@ export function createStudio(canvas) {
     setMood,
     setTheme,
     setBackdropCalm,
+    setTable,
     setTimeOfDay,
     resetView,
     capture,
@@ -1285,6 +1376,113 @@ function makeWoodTexture() {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(4, 4);
+  return tex;
+}
+
+// The other three tabletops. Each is painted the same way the wood is — a base
+// fill, then the marks that make the material read at a glance — and each is
+// deliberately low-contrast: this surface sits directly under the glass, and a
+// busy tabletop steals the eye from what is growing on it.
+function makeMarbleTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#f2f1ec";
+  ctx.fillRect(0, 0, 512, 512);
+  // Veins: a few long forks, each shadowed by hairlines running alongside it.
+  for (let i = 0; i < 14; i++) {
+    const y = Math.random() * 512;
+    const x = -40 + Math.random() * 120;
+    const drift = jitter2(160);
+    for (let pass = 0; pass < 3; pass++) {
+      ctx.strokeStyle = pass === 0 ? "rgba(150,150,145,0.34)" : `rgba(170,168,160,${0.1 + Math.random() * 0.1})`;
+      ctx.lineWidth = pass === 0 ? 1.6 + Math.random() * 1.6 : 0.5;
+      const off = pass === 0 ? 0 : jitter2(9);
+      ctx.beginPath();
+      ctx.moveTo(x, y + off);
+      ctx.bezierCurveTo(x + 180, y + drift * 0.4 + off, x + 380, y - drift * 0.5 + off, 560, y + drift + off);
+      ctx.stroke();
+    }
+  }
+  // Cloudy mineral blotches so the white is never a flat fill.
+  for (let i = 0; i < 40; i++) {
+    const g = ctx.createRadialGradient(Math.random() * 512, Math.random() * 512, 2, Math.random() * 512, Math.random() * 512, 40 + Math.random() * 90);
+    g.addColorStop(0, "rgba(214,212,205,0.2)");
+    g.addColorStop(1, "rgba(214,212,205,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 512, 512);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(1.6, 1.6); // marble wants big slabs, not a tiled pattern
+  return tex;
+}
+
+function makeStoneTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#8d8f90";
+  ctx.fillRect(0, 0, 512, 512);
+  // Speckle first, then broad cleavage bands: fine grit under flat planes is
+  // what separates slate from concrete.
+  for (let i = 0; i < 5200; i++) {
+    ctx.fillStyle = Math.random() < 0.5
+      ? `rgba(255,255,255,${Math.random() * 0.09})`
+      : `rgba(30,32,34,${Math.random() * 0.12})`;
+    ctx.fillRect(Math.random() * 512, Math.random() * 512, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  for (let i = 0; i < 24; i++) {
+    ctx.strokeStyle = `rgba(40,43,46,${0.05 + Math.random() * 0.09})`;
+    ctx.lineWidth = 3 + Math.random() * 14;
+    const y = Math.random() * 512;
+    ctx.beginPath();
+    ctx.moveTo(-20, y);
+    ctx.bezierCurveTo(140, y + jitter2(22), 340, y + jitter2(22), 532, y + jitter2(30));
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  return tex;
+}
+
+function makeRattanTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#c9a878";
+  ctx.fillRect(0, 0, 512, 512);
+  // A woven check: strands one way, strands the other, and the over-under read
+  // comes from shading alternate cells rather than from real geometry.
+  const S = 32;
+  for (let y = 0; y < 512; y += S) {
+    for (let x = 0; x < 512; x += S) {
+      const over = ((x / S + y / S) | 0) % 2 === 0;
+      ctx.fillStyle = over ? "rgba(226,197,150,0.75)" : "rgba(150,116,74,0.5)";
+      if (over) ctx.fillRect(x + 1, y + 4, S - 2, S - 8);
+      else ctx.fillRect(x + 4, y + 1, S - 8, S - 2);
+      ctx.strokeStyle = "rgba(96,72,44,0.22)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 1.5, y + 1.5, S - 3, S - 3);
+    }
+  }
+  for (let i = 0; i < 90; i++) {
+    ctx.strokeStyle = `rgba(255,240,214,${0.05 + Math.random() * 0.1})`;
+    ctx.lineWidth = 0.7;
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + jitter2(26), y + jitter2(26));
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(5, 5);
   return tex;
 }
 
