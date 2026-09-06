@@ -147,6 +147,11 @@ const EN = {
   "ফ্লাস্ক": "Flask",
   "ডিম জার": "Egg jar",
   "গ্রিনহাউস": "Greenhouse",
+  "অষ্টভুজ ঘর": "Octagon house",
+  "কাত চূড়া": "Slant tower",
+  "ঘুড়ি জার": "Kite jar",
+  "ষড়ভুজ রত্ন": "Hex gem",
+  "কাঠের বাক্স": "Wood case",
   "ছোট": "Small",
   "বড়": "Large",
   // base layers
@@ -282,6 +287,8 @@ const EN = {
   "আলো": "Light",
   "আলোর উচ্চতা": "Light height",
   "উজ্জ্বলতা": "Brightness",
+  "দরজা": "Door",
+  "খোলা": "Open",
   "চালু": "On",
   "বন্ধ": "Off",
   // staging tray

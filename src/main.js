@@ -1,7 +1,15 @@
 import { startIntro, introReady, onIntroDone, replayIntro } from "./intro.js";
 import * as THREE from "three";
 import { createStudio } from "./scene.js";
-import { buildJar, buildPickPlane, jarInnerSilhouette, JAR_TYPES, JAR_BY_ID } from "./jar.js";
+import {
+  buildJar,
+  buildPickPlane,
+  jarInnerSilhouette,
+  geoFootprint,
+  geoSpecFor,
+  JAR_TYPES,
+  JAR_BY_ID,
+} from "./jar.js";
 import {
   buildLayer,
   buildDecoration,
@@ -151,6 +159,10 @@ let currentJarId = JAR_TYPES[0].id;
 let jarGroup = null;
 let jarGlass = null;
 let jarBuilt = null; // {glassMats, frameMats, frameOrig} of the current jar
+// The hinged pane on the geometric jars: {pivot, knob, sign, max}. Opening it
+// is purely a scene-graph rotation, so it works the same mid-build and after.
+let jarDoor = null;
+let jarDoorOpen = false;
 const jarCustom = { frame: null, glass: null, w: 1, h: 1 };
 let pickPlane = null;
 let motes = null;
@@ -235,12 +247,18 @@ function jarInterior(type) {
       };
     }
   }
-  return {
+  const it = {
     ...type.interior,
     innerRadius: type.interior.innerRadius * jarCustom.w,
     bodyHeight: type.interior.bodyHeight * jarCustom.h,
     floorY: type.interior.floorY * jarCustom.h,
   };
+  // A framed geometric vessel is a polygon, not a circle: substrate has to take
+  // its outline, and its spire/flare stands above the body the camera would
+  // otherwise frame on.
+  const spec = geoSpecFor(type.id);
+  if (spec) it.footprint = geoFootprint(spec);
+  return it;
 }
 
 function setJar(typeId) {
@@ -259,6 +277,7 @@ function setJar(typeId) {
   applyJarColors();
   jarGroup = built.group;
   jarGlass = built.glass;
+  jarDoor = built.door ?? null;
   studio.world.add(jarGroup);
 
   pickPlane = buildPickPlane();
@@ -281,8 +300,22 @@ function setJar(typeId) {
   studio.setBaseY(targetBottom);
   // Frame the camera on *this* vessel: a bell jar and a shallow bowl should
   // both fill the shot, rather than sharing one distance that suits neither.
-  const vesselTop = it.vesselTop ?? it.floorY + it.bodyHeight + (type.lid ? 0.55 : 0.3);
+  // Measure the top off the mesh where there is one — a kite's spire and a
+  // slanted crown both stand well above the body the interior describes, and
+  // framing on the interior alone crops them off.
+  const declaredTop = it.vesselTop ?? it.floorY + it.bodyHeight + (type.lid ? 0.55 : 0.3);
+  const measuredTop = hasVisibleVessel && Number.isFinite(jarBounds.max.y)
+    ? jarBounds.max.y + (targetBottom - actualBottom)
+    : -Infinity;
+  const vesselTop = Math.max(declaredTop, measuredTop);
   studio.frameJar((targetBottom + vesselTop) / 2, Math.max(1.6, vesselTop - targetBottom));
+
+  // A jar without a door can't be left ajar; one with a door keeps whatever the
+  // player last chose across a rebuild (the width/height sliders rebuild too).
+  // Restored after framing, so a pane standing open never widens the shot.
+  if (!jarDoor) jarDoorOpen = false;
+  else jarDoor.pivot.rotation.y = jarDoorOpen ? jarDoor.sign * jarDoor.max : 0;
+  syncDoorUi();
 
   // Fresh dust motes sized to this jar's interior.
   if (motes) studio.world.remove(motes);
@@ -317,6 +350,42 @@ function applyJarColors() {
     if (jarCustom.frame) m.color.set(jarCustom.frame);
     else m.color.copy(jarBuilt.frameOrig[i]);
   });
+}
+
+// --- the hinged door -------------------------------------------------------
+// Swing the pane open or shut. Nothing about the terrarium inside depends on
+// it, so this is legal at any point: while you are still pouring layers, or
+// years later on a finished jar.
+function setJarDoor(open, { animate = true } = {}) {
+  if (!jarDoor) return;
+  jarDoorOpen = open;
+  const to = open ? jarDoor.sign * jarDoor.max : 0;
+  const from = jarDoor.pivot.rotation.y;
+  if (!animate || calmMotion()) jarDoor.pivot.rotation.y = to;
+  else {
+    // Opening swings wide and settles; closing lands with a small bounce, the
+    // way a real latch-less pane knocks against its frame.
+    tween(open ? 460 : 380, (k) => {
+      jarDoor.pivot.rotation.y = from + (to - from) * k;
+    }, open ? easeOut : easeOutBack);
+  }
+  syncDoorUi();
+  playSfx(open ? "tap" : "plop");
+  studio.markInteraction();
+}
+
+function toggleJarDoor() {
+  setJarDoor(!jarDoorOpen);
+}
+
+// Keep the customiser's door row honest about the current vessel.
+function syncDoorUi() {
+  const row = document.getElementById("door-row");
+  const btn = document.getElementById("door-toggle");
+  if (!row || !btn) return;
+  row.classList.toggle("hidden", !jarDoor);
+  btn.textContent = t(jarDoorOpen ? "খোলা" : "বন্ধ");
+  btn.classList.toggle("is-on", jarDoorOpen);
 }
 
 // --- tiny tween system (for satisfying "plop" placements) ------------------
@@ -1766,6 +1835,12 @@ studio.setAimHandler({
 });
 
 studio.setTapHandler((screen) => {
+  // The knob comes before every tool: grabbing it is how you open the jar, and
+  // it should work whatever you happen to be holding.
+  if (jarDoor && studio.raycast(screen, [jarDoor.knob])) {
+    toggleJarDoor();
+    return;
+  }
   if (focusMode && radialOpen) return;
   if (focusMode && !focusToolArmed) {
     openRadial();
@@ -2837,6 +2912,9 @@ document.getElementById("jar-h").addEventListener("input", (e) => {
   jarCustom.h = Number(e.target.value) / 100;
   setJar(currentJarId);
 });
+
+// the hinged door — mirrored by tapping its knob in the scene
+document.getElementById("door-toggle").addEventListener("click", toggleJarDoor);
 
 // jar-mounted lamp controls
 const lightToggleEl = document.getElementById("light-toggle");

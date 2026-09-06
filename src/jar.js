@@ -119,6 +119,51 @@ const BASE_JARS = [
     profile: null,
   },
   {
+    id: "hexhouse",
+    label: "অষ্টভুজ ঘর",
+    glyph: "⬢",
+    lid: false,
+    geo: "hexhouse", // octagonal glass house with a hinged, knobbed door
+    interior: { innerRadius: 0.92, bodyHeight: 1.55, floorY: -0.9, wallThickness: 0.045 },
+    profile: null,
+  },
+  {
+    id: "wedge",
+    label: "কাত চূড়া",
+    glyph: "◺",
+    lid: false,
+    geo: "wedge", // square tower sheared off at the top, hinged door
+    interior: { innerRadius: 0.8, bodyHeight: 1.85, floorY: -1.0, wallThickness: 0.045 },
+    profile: null,
+  },
+  {
+    id: "kite",
+    label: "ঘুড়ি জার",
+    glyph: "◆",
+    lid: false,
+    geo: "kite", // pointed spire over a short opening band
+    interior: { innerRadius: 0.88, bodyHeight: 0.85, floorY: -0.5, wallThickness: 0.045 },
+    profile: null,
+  },
+  {
+    id: "hexgem",
+    label: "ষড়ভুজ রত্ন",
+    glyph: "⬣",
+    lid: false,
+    geo: "hexgem", // hexagonal body with a flared rim, hinged door
+    interior: { innerRadius: 0.92, bodyHeight: 1.5, floorY: -0.86, wallThickness: 0.045 },
+    profile: null,
+  },
+  {
+    id: "woodcase",
+    label: "কাঠের বাক্স",
+    glyph: "🪵",
+    lid: false,
+    geo: "woodcase", // frameless glass case in a wooden tray
+    interior: { innerRadius: 0.62, bodyHeight: 1.15, floorY: -0.62, wallThickness: 0.04 },
+    profile: null,
+  },
+  {
     id: "greenhouse",
     label: "গ্রিনহাউস",
     glyph: "🏠",
@@ -211,6 +256,7 @@ export const JAR_BY_ID = Object.fromEntries(JAR_TYPES.map((j) => [j.id, j]));
 export function jarInnerSilhouette(typeId, it) {
   const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
   if (type.none || type.modelJar || type.bottle || type.house) return null;
+  if (type.geo) return geoSilhouette(GEO_SPECS[type.geo], it);
   const floor = it.floorY;
   const top = it.floorY + it.bodyHeight;
   const N = 24;
@@ -475,6 +521,10 @@ export function buildJar(typeId, envMap, itOverride) {
     return { group, glass: ghost, glassMats, frameMats };
   }
 
+  if (type.geo) {
+    const spec = GEO_SPECS[type.geo];
+    return buildGeoJar(it, envMap, group, spec, spec.closed);
+  }
   if (type.bottle) return buildBottle(it, envMap, group);
   if (type.house) return buildGreenhouse(it, envMap, group);
   if (type.poly) return buildPolyJar(it, envMap, group, type.poly);
@@ -940,6 +990,496 @@ function buildCondensation(it, envMap) {
   }
   mesh.renderOrder = 5;
   return mesh;
+}
+
+// ---------------------------------------------------------------------------
+// Framed geometric terrariums
+// ---------------------------------------------------------------------------
+// The stained-glass style vessels from the product photos: a stack of regular
+// polygon rings, glazed pane by pane inside a black came frame. One pane of the
+// body is hinged with a little brass knob, so the vessel actually opens — see
+// buildGeoJar().
+//
+// `rings(it)` runs bottom -> top. `k` is the ring's inner radius as a multiple
+// of the jar's own, `0` collapses the ring to a point on the axis, and `tiltX`
+// shears the ring's height across x to cut a slanted crown. `door.band` names
+// which gap between rings the opening pane is cut from; the pane itself is
+// always the face pointing at the camera.
+
+// The octagonal glass house: straight body, then two faceted steps drawing in
+// to a small flat crown.
+const GEO_HEX_HOUSE = {
+  sides: 8,
+  phase: Math.PI / 8,
+  capTop: true,
+  capBottom: true,
+  closed: true,
+  door: { band: 0 },
+  rings: (it) => {
+    const top = it.floorY + it.bodyHeight;
+    return [
+      { y: it.floorY - it.wallThickness, k: 1 },
+      { y: top, k: 1 },
+      { y: top + it.bodyHeight * 0.24, k: 0.76 },
+      { y: top + it.bodyHeight * 0.38, k: 0.32 },
+    ];
+  },
+};
+
+// The slant-topped tower: square body on a bevelled foot, sheared off at an
+// angle across the top.
+const GEO_WEDGE = {
+  sides: 4,
+  phase: Math.PI / 4,
+  capTop: true,
+  capBottom: true,
+  closed: true,
+  door: { band: 1 },
+  rings: (it) => {
+    const top = it.floorY + it.bodyHeight;
+    return [
+      { y: it.floorY - it.bodyHeight * 0.3, k: 0.54 },
+      { y: it.floorY + it.wallThickness, k: 1 },
+      { y: top + it.bodyHeight * 0.3, k: 1, tiltX: 0.46 },
+    ];
+  },
+};
+
+// The kite: a truncated point below, a short upright band you open, and a long
+// spire above it.
+const GEO_KITE = {
+  sides: 6,
+  phase: 0,
+  capTop: false,
+  capBottom: true,
+  closed: true,
+  door: { band: 1 },
+  rings: (it) => {
+    const top = it.floorY + it.bodyHeight;
+    return [
+      { y: it.floorY - it.bodyHeight * 0.5, k: 0.26 },
+      { y: it.floorY + it.bodyHeight * 0.08, k: 1 },
+      { y: top, k: 1 },
+      { y: top + it.bodyHeight * 1.5, k: 0 },
+    ];
+  },
+};
+
+// The hexagonal gem: bevelled foot, upright body, rim flaring back out.
+const GEO_HEX_GEM = {
+  sides: 6,
+  phase: 0,
+  capTop: false,
+  capBottom: true,
+  closed: false,
+  door: { band: 1 },
+  rings: (it) => {
+    const top = it.floorY + it.bodyHeight;
+    return [
+      { y: it.floorY - it.bodyHeight * 0.26, k: 0.62 },
+      { y: it.floorY + it.wallThickness, k: 1 },
+      { y: top, k: 1 },
+      { y: top + it.bodyHeight * 0.2, k: 1.26 },
+    ];
+  },
+};
+
+// The glued glass case dropped into a wooden tray — frameless, so no came and
+// no door; you plant it from the open top.
+const GEO_WOOD_CASE = {
+  sides: 4,
+  phase: Math.PI / 4,
+  sx: 1.9,
+  capTop: false,
+  capBottom: true,
+  closed: false,
+  frame: false,
+  woodTray: true,
+  rings: (it) => [
+    { y: it.floorY - it.wallThickness, k: 1 },
+    { y: it.floorY + it.bodyHeight, k: 1 },
+  ],
+};
+
+const GEO_SPECS = {
+  hexhouse: GEO_HEX_HOUSE,
+  wedge: GEO_WEDGE,
+  kite: GEO_KITE,
+  hexgem: GEO_HEX_GEM,
+  woodcase: GEO_WOOD_CASE,
+};
+
+// The spec behind a jar id, for callers that need the vessel's real extents or
+// footprint before it is built.
+export function geoSpecFor(typeId) {
+  const type = JAR_BY_ID[typeId];
+  return type && type.geo ? GEO_SPECS[type.geo] : null;
+}
+
+// --- geometric jars: shared maths -------------------------------------------
+
+// The vertices of one ring, in world space. A regular polygon whose inradius is
+// `baseR * ring.k`, optionally stretched along x and sheared into a slant.
+function geoRingVerts(spec, ring, baseR) {
+  const n = spec.sides;
+  const sx = spec.sx || 1;
+  const R = (baseR * ring.k) / Math.cos(Math.PI / n);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = spec.phase + (i * Math.PI * 2) / n;
+    const x = Math.cos(a) * R * sx;
+    const z = Math.sin(a) * R;
+    out.push(new THREE.Vector3(x, ring.y + (ring.tiltX || 0) * x, z));
+  }
+  return out;
+}
+
+// The lowest point of a ring — what the interior has to respect when the ring
+// is sheared, since the low corner is the first thing substrate would meet.
+function geoRingLowY(spec, ring, baseR) {
+  if (!ring.tiltX) return ring.y;
+  let lo = Infinity;
+  for (const v of geoRingVerts(spec, ring, baseR)) lo = Math.min(lo, v.y);
+  return lo;
+}
+
+// Cross-section outline as a footprint multiplier: how far the wall reaches at
+// each heading compared with the narrowest direction. Constant with height,
+// because every ring shares one phase and one stretch.
+export function geoFootprint(spec) {
+  const n = spec.sides;
+  const sx = spec.sx || 1;
+  const R = 1 / Math.cos(Math.PI / n);
+  const poly = [];
+  for (let i = 0; i < n; i++) {
+    const a = spec.phase + (i * Math.PI * 2) / n;
+    poly.push([Math.cos(a) * R * sx, Math.sin(a) * R]);
+  }
+  const N = 72;
+  const raw = [];
+  for (let s = 0; s < N; s++) {
+    const a = (s / N) * Math.PI * 2;
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    // Nearest edge the ray from the origin crosses.
+    let best = Infinity;
+    for (let i = 0; i < n; i++) {
+      const [x1, z1] = poly[i];
+      const [x2, z2] = poly[(i + 1) % n];
+      const ex = x2 - x1;
+      const ez = z2 - z1;
+      const den = dx * ez - dz * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const t = (x1 * ez - z1 * ex) / den; // distance along the ray
+      const u = (x1 * dz - z1 * dx) / den; // position along the edge
+      if (t > 0 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.min(best, t);
+    }
+    raw.push(best === Infinity ? 1 : best);
+  }
+  const min = Math.min(...raw);
+  return raw.map((r) => r / min);
+}
+
+// Inner silhouette of a geometric jar: the ring profile read as a lathe, in the
+// narrowest direction, since the footprint above widens it per heading.
+function geoSilhouette(spec, it) {
+  const baseR = it.innerRadius + it.wallThickness;
+  const pts = spec
+    .rings(it)
+    .map((r) => new THREE.Vector2(baseR * r.k, geoRingLowY(spec, r, baseR)));
+  const floor = it.floorY;
+  const top = it.floorY + it.bodyHeight;
+  const N = 24;
+  const out = [];
+  for (let i = 0; i <= N; i++) {
+    const y = floor + ((top - floor) * i) / N;
+    out.push({ y, r: Math.max(0.05, latheRadiusAt(pts, y) - it.wallThickness) });
+  }
+  return out;
+}
+
+// --- geometric jars: the mesh ----------------------------------------------
+
+function buildGeoJar(it, envMap, group, spec, closedLid) {
+  const n = spec.sides;
+  const baseR = it.innerRadius + it.wallThickness;
+  const rings = spec.rings(it).map((r) => ({
+    k: r.k,
+    apex: r.k < 1e-4,
+    verts: geoRingVerts(spec, r, baseR),
+  }));
+
+  const glassMat = regGlass(makeGlassMaterial(envMap));
+  glassMat.thickness = 0.3;
+  const frameMat = regFrame(
+    new THREE.MeshStandardMaterial({
+      color: 0x1e1e20,
+      roughness: 0.42,
+      metalness: 0.6,
+      envMap: envMap || null,
+    }),
+  );
+
+  // Which pane opens: the one facing the camera, on the band the spec names.
+  const band = spec.door ? spec.door.band : -1;
+  let doorFace = -1;
+  if (band >= 0) {
+    let bestZ = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const z = (rings[band].verts[i].z + rings[band].verts[j].z) / 2;
+      if (z > bestZ) {
+        bestZ = z;
+        doorFace = i;
+      }
+    }
+  }
+
+  // --- glass: every pane but the door, plus the caps
+  const tris = [];
+  const push = (...v) => v.forEach((p) => tris.push(p.x, p.y, p.z));
+  for (let s = 0; s < rings.length - 1; s++) {
+    const lo = rings[s];
+    const hi = rings[s + 1];
+    for (let i = 0; i < n; i++) {
+      if (s === band && i === doorFace) continue;
+      const j = (i + 1) % n;
+      const A = lo.verts[i];
+      const B = lo.verts[j];
+      const C = hi.verts[j];
+      const D = hi.verts[i];
+      if (lo.apex) push(A, C, D);
+      else if (hi.apex) push(A, B, C);
+      else push(A, B, C, A, C, D);
+    }
+  }
+  const capFan = (verts, flip) => {
+    for (let i = 1; i < n - 1; i++) {
+      if (flip) push(verts[0], verts[i + 1], verts[i]);
+      else push(verts[0], verts[i], verts[i + 1]);
+    }
+  };
+  if (spec.capBottom && !rings[0].apex) capFan(rings[0].verts, true);
+  const topRing = rings[rings.length - 1];
+  if (spec.capTop && !topRing.apex) capFan(topRing.verts, false);
+
+  const glassGeo = new THREE.BufferGeometry();
+  glassGeo.setAttribute("position", new THREE.Float32BufferAttribute(tris, 3));
+  glassGeo.computeVertexNormals();
+  const glass = new THREE.Mesh(glassGeo, glassMat);
+  group.add(glass);
+
+  // --- came: a square bar down every edge of the cage
+  const up = new THREE.Vector3(0, 1, 0);
+  const bar = (a, b, t) => {
+    const dir = b.clone().sub(a);
+    const len = dir.length();
+    if (len < 1e-4) return;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(t, len, t), frameMat);
+    m.position.copy(a).add(b).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(up, dir.normalize());
+    m.castShadow = true;
+    return m;
+  };
+  if (spec.frame !== false) {
+    const t = spec.strut || 0.03;
+    rings.forEach((ring) => {
+      if (ring.apex) return;
+      for (let i = 0; i < n; i++) {
+        const m = bar(ring.verts[i], ring.verts[(i + 1) % n], t);
+        if (m) group.add(m);
+      }
+    });
+    for (let s = 0; s < rings.length - 1; s++) {
+      for (let i = 0; i < n; i++) {
+        const a = rings[s].apex ? rings[s].verts[0] : rings[s].verts[i];
+        const b = rings[s + 1].apex ? rings[s + 1].verts[0] : rings[s + 1].verts[i];
+        const m = bar(a, b, t);
+        if (m) group.add(m);
+      }
+    }
+  }
+
+  // --- the door itself
+  let door = null;
+  if (doorFace >= 0) {
+    door = buildJarDoor({
+      group,
+      spec,
+      lo: rings[band],
+      hi: rings[band + 1],
+      i: doorFace,
+      n,
+      glassMat,
+      frameMat,
+      envMap,
+    });
+  }
+
+  // --- floor the substrate lands on, cut to the polygon
+  const floorRing = {
+    k: latheRadiusAt(
+      spec.rings(it).map((r) => new THREE.Vector2(baseR * r.k, geoRingLowY(spec, r, baseR))),
+      it.floorY,
+    ) / baseR * 0.985,
+    y: it.floorY + 0.002,
+  };
+  const floorVerts = geoRingVerts(spec, floorRing, baseR);
+  const floorTris = [];
+  for (let i = 1; i < n - 1; i++) {
+    for (const v of [floorVerts[0], floorVerts[i], floorVerts[i + 1]]) {
+      floorTris.push(v.x, v.y, v.z);
+    }
+  }
+  const floorGeo = new THREE.BufferGeometry();
+  floorGeo.setAttribute("position", new THREE.Float32BufferAttribute(floorTris, 3));
+  floorGeo.computeVertexNormals();
+  const floorMesh = new THREE.Mesh(
+    floorGeo,
+    new THREE.MeshStandardMaterial({ color: "#3c2c1e", roughness: 1, side: THREE.DoubleSide }),
+  );
+  floorMesh.receiveShadow = true;
+  group.add(floorMesh);
+
+  // --- wooden tray the frameless case drops into
+  if (spec.woodTray) {
+    const woodMat = regFrame(
+      new THREE.MeshStandardMaterial({ color: "#96693a", roughness: 0.9, metalness: 0 }),
+    );
+    const hw = it.innerRadius * (spec.sx || 1) + it.wallThickness;
+    const hd = it.innerRadius + it.wallThickness;
+    const lip = 0.09;
+    // A shallow tray the case sits down into — the glass is meant to be the
+    // thing you look at, not the joinery holding it.
+    const wallH = it.bodyHeight * 0.34;
+    const bottom = it.floorY - it.wallThickness;
+    const slab = new THREE.Mesh(
+      new THREE.BoxGeometry((hw + lip) * 2, 0.1, (hd + lip) * 2),
+      woodMat,
+    );
+    slab.position.y = bottom - 0.05;
+    slab.castShadow = true;
+    slab.receiveShadow = true;
+    group.add(slab);
+    for (const sz of [-1, 1]) {
+      const side = new THREE.Mesh(
+        new THREE.BoxGeometry((hw + lip) * 2, wallH, lip),
+        woodMat,
+      );
+      side.position.set(0, bottom + wallH / 2, sz * (hd + lip / 2));
+      side.castShadow = true;
+      group.add(side);
+    }
+    for (const sx2 of [-1, 1]) {
+      const end = new THREE.Mesh(
+        new THREE.BoxGeometry(lip, wallH, hd * 2),
+        woodMat,
+      );
+      end.position.set(sx2 * (hw + lip / 2), bottom + wallH / 2, 0);
+      end.castShadow = true;
+      group.add(end);
+    }
+  }
+
+  if (closedLid) group.add(buildCondensation(it, envMap));
+
+  return { group, glass, glassMats, frameMats, door };
+}
+
+// One hinged pane: glass, its own came frame, and the brass knob you grab. The
+// whole thing hangs off a group pivoted on the hinge edge, so opening it is a
+// single rotation — nothing about the build inside has to know.
+function buildJarDoor({ group, spec, lo, hi, i, n, glassMat, frameMat, envMap }) {
+  const j = (i + 1) % n;
+  const A = lo.verts[i]; // hinge, bottom
+  const B = lo.verts[j]; // free edge, bottom
+  const C = hi.verts[j];
+  const D = hi.verts[i];
+
+  // Outward normal of this pane, for the knob's stand-off and the swing sense.
+  const dx = B.x - A.x;
+  const dz = B.z - A.z;
+  const len = Math.hypot(dx, dz) || 1;
+  const outX = dz / len;
+  const outZ = -dx / len;
+
+  const pivot = new THREE.Group();
+  pivot.name = "jarDoor";
+  pivot.position.set(A.x, 0, A.z);
+  const rel = (v) => new THREE.Vector3(v.x - A.x, v.y, v.z - A.z);
+  const a = rel(A);
+  const b = rel(B);
+  const c = rel(C);
+  const d = rel(D);
+
+  // Nudge the pane a hair outward so it does not z-fight the cage it sits in.
+  const bias = 0.006;
+  const quad = [a, b, c, a, c, d];
+  const pos = [];
+  quad.forEach((v) => pos.push(v.x + outX * bias, v.y, v.z + outZ * bias));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  const pane = new THREE.Mesh(geo, glassMat);
+  pivot.add(pane);
+
+  const up = new THREE.Vector3(0, 1, 0);
+  const t = (spec.strut || 0.03) * 1.05;
+  for (const [p, q] of [[a, b], [b, c], [c, d], [d, a]]) {
+    const p2 = p.clone().addScaledVector(new THREE.Vector3(outX, 0, outZ), bias);
+    const q2 = q.clone().addScaledVector(new THREE.Vector3(outX, 0, outZ), bias);
+    const dir = q2.clone().sub(p2);
+    const l = dir.length();
+    if (l < 1e-4) continue;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(t, l, t), frameMat);
+    m.position.copy(p2).add(q2).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(up, dir.normalize());
+    m.castShadow = true;
+    pivot.add(m);
+  }
+
+  // Aged brass knob, low on the free edge exactly like the real hardware.
+  const brass = new THREE.MeshStandardMaterial({
+    color: 0xa8813c,
+    roughness: 0.34,
+    metalness: 0.95,
+    envMap: envMap || null,
+    envMapIntensity: 1.3,
+  });
+  const across = 0.86;
+  const upAt = 0.26;
+  const low = a.clone().lerp(b, across);
+  const high = d.clone().lerp(c, across);
+  const seat = low.clone().lerp(high, upAt);
+  const knob = new THREE.Group();
+  knob.name = "jarKnob";
+  knob.position.copy(seat);
+  const outward = new THREE.Vector3(outX, 0, outZ);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.058, 0.022, 16), brass);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.05, 12), brass);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.062, 18, 14), brass);
+  collar.quaternion.setFromUnitVectors(up, outward);
+  stem.quaternion.copy(collar.quaternion);
+  collar.position.copy(outward).multiplyScalar(0.02);
+  stem.position.copy(outward).multiplyScalar(0.055);
+  ball.position.copy(outward).multiplyScalar(0.12);
+  ball.castShadow = true;
+  knob.add(collar, stem, ball);
+  // A brass ball is a few pixels wide on a phone. Give the tap a target it can
+  // actually hit — invisible, but still solid to the raycaster.
+  const grab = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 8, 6),
+    new THREE.MeshBasicMaterial({ visible: false }),
+  );
+  grab.position.copy(outward).multiplyScalar(0.12);
+  knob.add(grab);
+  pivot.add(knob);
+
+  group.add(pivot);
+
+  // Which way the free edge travels when the group turns +y.
+  const sign = Math.sign(dz * outX - dx * outZ) || 1;
+  return { pivot, knob, sign, max: Math.PI * 0.62 };
 }
 
 // Invisible interior disc used purely as a raycast target for taps.
