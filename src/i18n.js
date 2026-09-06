@@ -288,6 +288,7 @@ const EN = {
   "আলোর উচ্চতা": "Light height",
   "উজ্জ্বলতা": "Brightness",
   "দরজা": "Door",
+  "ডিফল্ট": "Default",
   "খোলা": "Open",
   "চালু": "On",
   "বন্ধ": "Off",

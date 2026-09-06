@@ -2860,8 +2860,64 @@ try {
 }
 
 // --- jar customiser (🎨) ----------------------------------------------------
-const FRAME_COLORS = [null, "#26282c", "#b08d3e", "#a05a32", "#e8e4dc", "#7a5a34", "#3a5a8c", "#c76a94"];
-const GLASS_TINTS = [null, "#cfe8d8", "#cfe0f0", "#f0d9b0", "#f0d0dc", "#ded0f0", "#b8bcc0"];
+// Frame and glass are picked off a generated spectrum rather than a short list
+// of hexes: a neutral ramp across the top, then a hue-by-tone grid underneath.
+// Widening the choice is a matter of changing the numbers below.
+const SPECTRUM_COLS = 12;
+
+function hslHex(h, s, l) {
+  const f = (n) => {
+    const k = (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const v = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(v * 255)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+// One sheet: the leading cell is "default" (null), the rest of the first row is
+// a neutral ramp, and each `tones` entry adds a full row of hues.
+function spectrumSheet({ neutral, tones }) {
+  const cells = [null];
+  for (let i = 0; i < SPECTRUM_COLS - 1; i++) {
+    const t = i / (SPECTRUM_COLS - 2);
+    cells.push(hslHex(0, 0, neutral[0] + (neutral[1] - neutral[0]) * t));
+  }
+  tones.forEach(([sat, lum]) => {
+    for (let i = 0; i < SPECTRUM_COLS; i++) {
+      cells.push(hslHex((i * 360) / SPECTRUM_COLS, sat, lum));
+    }
+  });
+  return cells;
+}
+
+// Frame came takes the whole range — matte black through brass and painted
+// steel to bone white.
+const FRAME_COLORS = spectrumSheet({
+  neutral: [0.08, 0.97],
+  tones: [
+    [0.6, 0.2],
+    [0.66, 0.34],
+    [0.62, 0.48],
+    [0.54, 0.63],
+    [0.4, 0.78],
+  ],
+});
+
+// Glass keeps to the pale end: the tint also drives `attenuationColor`, so a
+// saturated pick turns the vessel into a solid lump instead of tinted glass.
+const GLASS_TINTS = spectrumSheet({
+  neutral: [0.62, 0.99],
+  tones: [
+    [0.26, 0.92],
+    [0.4, 0.85],
+    [0.5, 0.77],
+    [0.56, 0.68],
+  ],
+});
+
 const ITEM_TINTS = [null, "#c94f3f", "#e8a33d", "#e8d24a", "#6faa4e", "#4a9c8c", "#5a7ac9", "#9a6ac9", "#d17aa0", "#f2ece0"];
 
 const jarPanelEl = document.getElementById("jar-panel");
@@ -2883,12 +2939,40 @@ function buildSwatches(containerId, colors, getActive, onPick) {
   });
 }
 
+// The spectrum sheets. Same contract as buildSwatches, but laid out as a grid
+// and with the current pick echoed beside the label, since one cell out of
+// sixty is too small to find by looking for the ring.
+function buildSpectrum(containerId, currentId, colors, getActive, onPick) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = "";
+  el.style.setProperty("--cols", SPECTRUM_COLS);
+  colors.forEach((hex) => {
+    const b = document.createElement("button");
+    b.className = hex ? "sw-cell" : "sw-cell sw-cell--none";
+    b.title = hex ?? t("ডিফল্ট");
+    if (hex) b.style.setProperty("--sw", hex);
+    b.classList.toggle("is-active", getActive() === hex);
+    b.addEventListener("click", () => {
+      onPick(hex);
+      buildSpectrum(containerId, currentId, colors, getActive, onPick);
+    });
+    el.appendChild(b);
+  });
+  const cur = document.getElementById(currentId);
+  if (cur) {
+    const hex = getActive();
+    cur.textContent = hex ?? t("ডিফল্ট");
+    cur.style.setProperty("--sw", hex ?? "transparent");
+    cur.classList.toggle("is-default", !hex);
+  }
+}
+
 function refreshJarSwatches() {
-  buildSwatches("frame-swatches", FRAME_COLORS, () => jarCustom.frame, (hex) => {
+  buildSpectrum("frame-swatches", "frame-current", FRAME_COLORS, () => jarCustom.frame, (hex) => {
     jarCustom.frame = hex;
     applyJarColors();
   });
-  buildSwatches("glass-swatches", GLASS_TINTS, () => jarCustom.glass, (hex) => {
+  buildSpectrum("glass-swatches", "glass-current", GLASS_TINTS, () => jarCustom.glass, (hex) => {
     jarCustom.glass = hex;
     applyJarColors();
   });

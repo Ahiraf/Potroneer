@@ -1205,6 +1205,11 @@ textarea.social-input {
   border-radius: 8px;
   z-index: 9;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  /* The spectrum sheets make this panel tall; on a short window it scrolls
+     rather than running off the bottom of the screen. */
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .cfg-panel.hidden {
   display: none;
@@ -1460,6 +1465,81 @@ textarea.social-input {
 .swatch--none {
   background:
     linear-gradient(135deg, transparent 44%, #c95f4a 46%, #c95f4a 54%, transparent 56%),
+    rgba(255, 255, 255, 0.1);
+}
+
+/* Spectrum sheet: a full grid of colour rather than a handful of chips. Cells
+   are deliberately tiny and butted close together so the whole range reads as
+   one continuous surface you sweep across, the way a paint chart does. */
+.cfg-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.sw-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sw-current {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+.sw-current::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: var(--sw);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+.sw-current.is-default::before {
+  background:
+    linear-gradient(135deg, transparent 42%, #c95f4a 44%, #c95f4a 56%, transparent 58%),
+    rgba(255, 255, 255, 0.08);
+}
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 12), 1fr);
+  gap: 2px;
+}
+.sw-cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  background: var(--sw);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+  transition: transform 0.08s ease;
+}
+.sw-cell:hover,
+.sw-cell:focus-visible {
+  transform: scale(1.55);
+  position: relative;
+  z-index: 2;
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.55);
+}
+.sw-cell.is-active {
+  position: relative;
+  z-index: 1;
+  box-shadow:
+    inset 0 0 0 1.5px var(--hud-strong),
+    0 0 0 2px var(--green);
+}
+.sw-cell--none {
+  background:
+    linear-gradient(135deg, transparent 40%, #c95f4a 42%, #c95f4a 58%, transparent 60%),
     rgba(255, 255, 255, 0.1);
 }
 .cfg-sep {

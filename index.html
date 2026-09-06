@@ -392,8 +392,17 @@
       <!-- jar customiser: frame colour, glass tint, shape sliders -->
       <div class="cfg-panel hidden" id="jar-panel">
         <div class="cfg-head"><span data-i18n="জার কাস্টমাইজ">জার কাস্টমাইজ</span><button class="hud-btn cfg-close" data-close="jar-panel">✕</button></div>
-        <div class="cfg-row"><span class="cfg-label" data-i18n="ফ্রেম রং">ফ্রেম রং</span><div class="swatches" id="frame-swatches"></div></div>
-        <div class="cfg-row"><span class="cfg-label" data-i18n="কাচের রং">কাচের রং</span><div class="swatches" id="glass-swatches"></div></div>
+        <!-- Colour is picked off a spectrum sheet: a neutral ramp, then hue by
+             tone. The glass sheet stays in the pale end of the range, since a
+             saturated tint stops reading as glass at all. -->
+        <div class="cfg-row cfg-row--stack">
+          <div class="sw-head"><span class="cfg-label" data-i18n="ফ্রেম রং">ফ্রেম রং</span><span class="sw-current" id="frame-current"></span></div>
+          <div class="swatch-grid" id="frame-swatches"></div>
+        </div>
+        <div class="cfg-row cfg-row--stack">
+          <div class="sw-head"><span class="cfg-label" data-i18n="কাচের রং">কাচের রং</span><span class="sw-current" id="glass-current"></span></div>
+          <div class="swatch-grid" id="glass-swatches"></div>
+        </div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="চওড়া">চওড়া</span><input id="jar-w" type="range" min="70" max="135" value="100" /></div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="উচ্চতা">উচ্চতা</span><input id="jar-h" type="range" min="70" max="140" value="100" /></div>
         <div class="cfg-sep"></div>
