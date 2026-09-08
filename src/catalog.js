@@ -457,6 +457,27 @@ add("ivy", "আইভি", [
   ["সবুজ", { leaf: "#35682f", edge: "#7faa5a" }],
 ]);
 
+// The plants closed-jar hobbyists reach for first and this catalog was
+// missing: a spikemoss, the fleshy Peperomias, a baby-tears carpet and a
+// creeping fig to climb the glass.
+add("selaginella", "স্পাইক মস", [
+  ["সবুজ", { form: "frond", colors: ["#4a8c3a", "#5a9c46", "#3f7a30"], shoots: 34, shootLen: 0.07, leafLen: 0.018, steps: 8 }],
+  ["নীলচে", { form: "frond", colors: ["#4a7a6b", "#5a8c7a", "#3f6b5c"], shoots: 34, shootLen: 0.07, leafLen: 0.018, steps: 8 }],
+]);
+add("peperomia", "পেপেরোমিয়া", [
+  ["সবুজ", { leaf: "#3f7a44" }],
+  ["ওয়াটারমেলন", { leaf: "#2f6b46", stripe: "#cfe0c0", leafScale: 1.15 }],
+  ["লালচে", { leaf: "#6b4a52", stem: "#a8646a" }],
+]);
+add("babytears", "বেবি টিয়ার্স", [
+  ["সবুজ", {}],
+  ["সোনালি", { leaf: "#a8c455", stem: "#b0cc6a" }],
+]);
+add("creepingfig", "ক্রিপিং ফিগ", [
+  ["সবুজ", { leaf: "#3d6b33", stem: "#7a6a45", leafScale: 0.55, vines: 5, reach: 0.24 }],
+  ["ভ্যারিগেটেড", { leaf: "#5f8a4a", stem: "#8a7a55", leafScale: 0.55, vines: 5, reach: 0.24 }],
+]);
+
 // The clean-up crew.
 add("nerite", "নেরাইট শামুক", [
   ["টাইগার", { shell: "#6b5433", band: "#22190f" }],
@@ -611,6 +632,10 @@ const CAT_BY_KIND = {
   philodendron: "plants",
   haworthia: "plants",
   ivy: "plants",
+  selaginella: "plants",
+  peperomia: "plants",
+  babytears: "plants",
+  creepingfig: "plants",
   nerite: "animals",
   shrimp: "animals",
   bonsai: "plants",
@@ -688,6 +713,50 @@ const CAT_BY_KIND = {
   log: "wood",
 };
 D.forEach((d) => (d.cat = CAT_BY_KIND[d.kind] || "plants"));
+
+// What each plant actually wants, which is not the same question as what
+// category it sits in. A sealed jar is a humid, still, low-light box: forest
+// floor plants love it, desert plants rot in it within weeks, and the aquarium
+// species need their roots in water. The tray says so on the chip rather than
+// letting someone discover it three months in.
+//
+//   closed  — thrives sealed and humid, the classic terrarium plant
+//   open    — needs airflow and a dry spell; put it in an open vessel
+//   aquatic — submerged or emersed; wants water, not damp soil
+export const HABITATS = {
+  closed: { label: "বদ্ধ জারে", hint: "আর্দ্র, বদ্ধ জারে ভালো থাকে" },
+  open: { label: "খোলা পাত্রে", hint: "বাতাস চলাচল আর শুকনো সময় দরকার" },
+  aquatic: { label: "জলজ", hint: "পানিতে বা ভেজা তীরে বাঁচে" },
+};
+
+const HABITAT_BY_KIND = {
+  // forest-floor plants and mosses — the ones a closed jar is built for
+  moss: "closed", mossball: "closed", cushionmoss: "closed", starmoss: "closed",
+  smoothcapmoss: "closed", fissidens: "closed", fernmoss: "closed",
+  broomforkmoss: "closed", javamoss: "closed", trachycystis: "closed",
+  selaginella: "closed", peperomia: "closed", babytears: "closed",
+  creepingfig: "closed", fern: "closed", pink: "closed", pilea: "closed",
+  pothos: "closed", calathea: "closed", ivy: "closed", leafy: "closed",
+  aglaonema: "closed", anthurium: "closed", alocasia: "closed",
+  philodendron: "closed", venusflytrap: "closed",
+  // these want air and a dry spell — they rot in a sealed jar
+  succulent: "open", cactus: "open", saguaro: "open", pricklypear: "open",
+  pincushion: "open", haworthia: "open", airplant: "open", snakeplant: "open",
+  bonsai: "open", flowers: "open",
+  // aquarium species: submerged or emersed on a wet bank
+  rotala: "aquatic", ludwigia: "aquatic", bacopa: "aquatic",
+  hygrophila: "aquatic", persicaria: "aquatic", lindernia: "aquatic",
+  alternanthera: "aquatic", cabomba: "aquatic", myriophyllum: "aquatic",
+  ambulia: "aquatic", anacharis: "aquatic", pogostemon: "aquatic",
+  echinodorus: "aquatic", cryptocoryne: "aquatic", sagittaria: "aquatic",
+  waterwisteria: "aquatic", hydrocotyle: "aquatic", waterpoppy: "aquatic",
+  nerite: "aquatic", shrimp: "aquatic",
+};
+D.forEach((d) => (d.habitat = HABITAT_BY_KIND[d.kind] ?? null));
+
+// The two decorations that do a job: while either is in the jar, mould gets
+// grazed back instead of spreading. `src/game.js` reads this.
+export const CLEANUP_KINDS = new Set(["springtails", "isopod"]);
 
 export const DECORATIONS = D;
 

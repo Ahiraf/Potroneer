@@ -17,7 +17,14 @@ import {
   updateTerrainCap,
   buildJarLamp,
 } from "./builders.js";
-import { BASE_LAYERS, BASE_BY_ID, DECORATIONS, CATEGORIES } from "./catalog.js";
+import {
+  BASE_LAYERS,
+  BASE_BY_ID,
+  DECORATIONS,
+  CATEGORIES,
+  CLEANUP_KINDS,
+  HABITATS,
+} from "./catalog.js";
 import {
   createState,
   addLayer,
@@ -2555,6 +2562,19 @@ function renderStrip() {
         `<img class="item-img" draggable="false" src="${iconFor(group, item)}" alt="">` +
         `<span class="item-label">${tLabel(item.label)}</span>` +
         (locked ? `<span class="item-lock">🔒</span>` : "");
+      // What the plant actually wants, on the chip itself. A sealed jar suits
+      // forest-floor plants and slowly rots desert ones, and that is not
+      // something anyone should have to learn the hard way.
+      if (item.habitat && HABITATS[item.habitat]) {
+        const h = HABITATS[item.habitat];
+        card.classList.add(`habitat-${item.habitat}`);
+        card.title = `${tLabel(item.label)} — ${t(h.label)} · ${t(h.hint)}`;
+        const badge = document.createElement("span");
+        badge.className = "item-habitat";
+        badge.textContent = { closed: "🫙", open: "🌤️", aquatic: "💧" }[item.habitat];
+        badge.title = t(h.hint);
+        card.appendChild(badge);
+      }
       const active =
         group === "jar"
           ? item.id === currentJarId

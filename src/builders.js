@@ -557,7 +557,17 @@ function buildDecorationParts(kind, v = {}) {
     case "broomforkmoss":
     case "javamoss":
     case "trachycystis":
+    // Selaginella is a spikemoss, not a true moss, but it grows as the same
+    // low mat of branching fronds — so it shares the builder and sits with the
+    // plants in the tray.
+    case "selaginella":
       return buildSpeciesMoss(v);
+    case "peperomia":
+      return buildPeperomia(v);
+    case "babytears":
+      return buildBabyTears(v);
+    case "creepingfig":
+      return buildPothos(v);
     case "aglaonema":
       return buildBroadLeaf(v);
     case "anthurium":
@@ -2206,6 +2216,90 @@ function buildPilea(v = {}) {
   return g;
 }
 
+// Peperomia: a low clump of thick, cupped oval leaves on short petioles. The
+// leaves are the whole plant at this size — fleshy, glossier than a fern, and
+// held at every angle rather than in a tidy rosette.
+function buildPeperomia(v = {}) {
+  const g = new THREE.Group();
+  const leafMat = craftMaterial(v.leaf ?? "#3f7a44", { rough: 0.45 });
+  leafMat.side = THREE.DoubleSide;
+  const stemMat = craftMaterial(v.stem ?? "#8fae5a", { rough: 0.8 });
+  const stripeMat = v.stripe ? craftMaterial(v.stripe, { rough: 0.45 }) : null;
+  if (stripeMat) stripeMat.side = THREE.DoubleSide;
+  const leaves = 9 + ((Math.random() * 5) | 0);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.5);
+    const rise = 0.07 + Math.random() * 0.1;
+    const out = 0.05 + Math.random() * 0.06;
+    const tip = new THREE.Vector3(Math.cos(a) * out, rise, Math.sin(a) * out);
+    const petiole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.005, 0.006, rise, 5),
+      stemMat,
+    );
+    petiole.position.set(tip.x * 0.5, rise / 2, tip.z * 0.5);
+    g.add(petiole);
+    // A dome rather than a disc: Peperomia leaves are thick, and a flat circle
+    // shows a dark unlit back the moment it tips away from the light.
+    const r = (v.leafScale ?? 1) * (0.05 + Math.random() * 0.02);
+    const blade = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 14, 9, 0, Math.PI * 2, 0, Math.PI / 2),
+      leafMat,
+    );
+    blade.scale.set(0.8, 0.3, 1);
+    blade.position.copy(tip);
+    blade.rotation.set(0.45 + jitter(0.25), -a, 0);
+    blade.castShadow = true;
+    g.add(blade);
+    // the watermelon cultivar wears silver bands running down the blade
+    if (stripeMat) {
+      for (let k = -1; k <= 1; k++) {
+        const band = new THREE.Mesh(
+          new THREE.BoxGeometry(r * 0.12, r * 0.02, r * 1.5),
+          stripeMat,
+        );
+        band.position.copy(tip);
+        band.rotation.copy(blade.rotation);
+        band.translateX(k * r * 0.4);
+        band.translateY(r * 0.26);
+        g.add(band);
+      }
+    }
+  }
+  return g;
+}
+
+// Baby tears (Soleirolia / Hemianthus): a dense creeping mat of tiny round
+// leaves. Nothing about one leaf is interesting — the plant is the carpet, so
+// it is built as a spread of little discs on hair-thin runners.
+function buildBabyTears(v = {}) {
+  const g = new THREE.Group();
+  const leafMat = craftMaterial(v.leaf ?? "#7fbc55", { rough: 0.6 });
+  leafMat.side = THREE.DoubleSide;
+  const stemMat = craftMaterial(v.stem ?? "#8fc46a", { rough: 0.8 });
+  const spread = v.spread ?? 0.2;
+  const runners = 9;
+  for (let s = 0; s < runners; s++) {
+    const a = (s / runners) * Math.PI * 2 + jitter(0.4);
+    const len = spread * (0.5 + Math.random() * 0.6);
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0.02, 0),
+      new THREE.Vector3(Math.cos(a) * len * 0.5, 0.05, Math.sin(a) * len * 0.5),
+      new THREE.Vector3(Math.cos(a) * len, 0.015, Math.sin(a) * len),
+    );
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 8, 0.0035, 4), stemMat));
+    for (let i = 1; i <= 7; i++) {
+      const p = curve.getPoint(i / 7);
+      for (const side of [-1, 1]) {
+        const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.011 + Math.random() * 0.006, 7), leafMat);
+        leaf.position.set(p.x + side * 0.008, p.y + 0.006 + Math.random() * 0.01, p.z + jitter(0.008));
+        leaf.rotation.set(-Math.PI / 2 + jitter(0.5), 0, jitter(0.6));
+        g.add(leaf);
+      }
+    }
+  }
+  return g;
+}
+
 // Heart-shaped leaf used by trailing vines.
 function heartLeafGeo(size = 1) {
   const s = new THREE.Shape();
@@ -2228,13 +2322,13 @@ function buildPothos(v = {}) {
   leafMat.side = THREE.DoubleSide;
   const variMat = craftMaterial(shade(leaf, 1.5), { rough: 0.6 });
   variMat.side = THREE.DoubleSide;
-  const stemMat = craftMaterial("#6f8c4a", { rough: 0.8 });
-  const leafGeo = heartLeafGeo(1);
-  const vines = 3 + ((Math.random() * 3) | 0);
+  const stemMat = craftMaterial(v.stem ?? "#6f8c4a", { rough: 0.8 });
+  const leafGeo = heartLeafGeo(v.leafScale ?? 1);
+  const vines = v.vines ?? 3 + ((Math.random() * 3) | 0);
   for (let vi = 0; vi < vines; vi++) {
     const a = (vi / vines) * Math.PI * 2 + jitter(0.5);
     // vine rises a little then trails outward and drops (over the rim)
-    const reach = 0.3 + Math.random() * 0.25;
+    const reach = (v.reach ?? 0.3) + Math.random() * 0.25;
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 0.02, 0),
       new THREE.Vector3(Math.cos(a) * 0.1, 0.18, Math.sin(a) * 0.1),

@@ -1926,6 +1926,17 @@ body.focus-mode .tray-show {
   pointer-events: none;
 }
 
+/* What the plant wants: jar = happy sealed, sun = needs air, drop = aquatic.
+   It sits opposite the lock so the two never collide on one chip. */
+.item-chip .item-habitat {
+  position: absolute;
+  left: 6px;
+  bottom: 5px;
+  font-size: 10px;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
 .item-img {
   width: 46px;
   height: 46px;

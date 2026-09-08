@@ -381,6 +381,29 @@ const EN = {
   "টাইগার": "Tiger",
   "জেব্রা": "Zebra",
 
+  // --- closed-terrarium plants and the clean-up crew ------------------------
+  "স্পাইক মস": "Spikemoss",
+  "পেপেরোমিয়া": "Peperomia",
+  "বেবি টিয়ার্স": "Baby tears",
+  "ক্রিপিং ফিগ": "Creeping fig",
+  "আইসোপড": "Isopod",
+  "স্প্রিংটেইল": "Springtails",
+  "ওয়াটারমেলন": "Watermelon",
+  "ডেইরি কাউ": "Dairy cow",
+  "সোনালি": "Golden",
+  // where a plant actually wants to live
+  "বদ্ধ জারে": "Closed jar",
+  "খোলা পাত্রে": "Open vessel",
+  "জলজ": "Aquatic",
+  "আর্দ্র, বদ্ধ জারে ভালো থাকে": "Thrives sealed and humid",
+  "বাতাস চলাচল আর শুকনো সময় দরকার": "Needs airflow and a dry spell",
+  "পানিতে বা ভেজা তীরে বাঁচে": "Lives in water or on a wet bank",
+  // mould
+  "মোল্ড ছড়াচ্ছে — কম পানি দাও, আর স্প্রিংটেইল বা আইসোপড যোগ করো।":
+    "Mould is spreading — water less, and add springtails or isopods.",
+  "মোল্ড ছড়াচ্ছে — কিছুদিন পানি কম দাও, দলটাকে কাজ করতে দাও।":
+    "Mould is spreading — ease off the water and let the crew work.",
+
   // --- printed hardscape set -----------------------------------------------
   "মাশরুম সেতু": "Mushroom bridge",
   "দড়ির সেতু": "Rope bridge",
