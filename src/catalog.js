@@ -312,8 +312,15 @@ add("cushionmoss", "কুশন মস", [
 add("starmoss", "স্টার মস", [
   ["", { form: "star", colors: ["#7fa83c", "#8fb84c", "#6f983a"] }],
 ]);
+// Smoothcap grows as separate plants, each a wide-open star on a short stalk,
+// so it sits looser and brighter than the tight star mosses beside it.
 add("smoothcapmoss", "ক্যাথরিন মস", [
-  ["", { form: "star", colors: ["#4f7a2c", "#5f8a36", "#456e26"] }],
+  ["", {
+    form: "star",
+    colors: ["#6f9e34", "#7fb043", "#5f8e2c", "#8cbc55"],
+    rosettes: 46, leaves: 9, leafLen: 0.036, leafWidth: 0.005,
+    rise: 0.42, stalk: 0, spread: 0.2,
+  }],
 ]);
 add("fissidens", "ফিসিডেন্স মস", [
   ["", { form: "frond", colors: ["#4a7a2e", "#5a8c3a", "#3f6b26"] }],
@@ -321,14 +328,27 @@ add("fissidens", "ফিসিডেন্স মস", [
 add("fernmoss", "ফার্ন মস", [
   ["", { form: "frond", colors: ["#6f9a3a", "#7faa4a", "#5f8a30"] }],
 ]);
+// Dicranum: spiky needle tufts with pale tips, every one swept the same way.
 add("broomforkmoss", "ব্রুম ফর্ক মস", [
-  ["", { form: "fork", colors: ["#5f9a34", "#6faa40", "#4f8a2c"] }],
+  ["", {
+    form: "fork",
+    colors: ["#5f9e2e", "#72b23a", "#4f8e26"],
+    needle: true, tip: "#c2d98a",
+    shoots: 80, shootLen: 0.085, shootVary: 0.04, leafLen: 0.024, steps: 12,
+  }],
 ]);
 add("javamoss", "জাভা মস", [
   ["", { form: "frond", colors: ["#3f6b2c", "#4a7a34", "#356024"], spread: 0.2 }],
 ]);
+// Trachycystis packs short fine-leaved shoots into a dense low mat — no gaps
+// and no comb to it, just crowded upright growth.
 add("trachycystis", "ট্র্যাকিসিস্টিস মস", [
-  ["", { form: "frond", colors: ["#557f30", "#659040", "#4a7028"] }],
+  ["", {
+    form: "frond",
+    colors: ["#4a7a28", "#5f9233", "#6ea63c", "#3f6b22"],
+    shoots: 120, shootLen: 0.05, shootVary: 0.022,
+    leafLen: 0.014, steps: 10, spread: 0.16,
+  }],
 ]);
 
 // Aquarium stem plants. `form` is what the eye actually reads at this size:

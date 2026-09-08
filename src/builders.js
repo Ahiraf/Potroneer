@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { BASE_BY_ID, BASE_LAYERS, DECOR_BY_ID } from "./catalog.js";
 import { JAR, footprintK, heightAt, jarGridR, jarPolar, jarRadiusAt, TERRAIN_N } from "./state.js";
 
@@ -3624,57 +3625,98 @@ function buildSpeciesMoss(v = {}) {
   }
 
   if (form === "star") {
-    // Tortula / Atrichum: open rosettes of pointed leaves, like tiny stars.
-    const geo = new THREE.ConeGeometry(0.007, 0.038, 4);
+    // Tortula / Atrichum: rosettes of pointed leaves, like tiny stars. `rise`
+    // is what separates them — a tight upright star, or the wide open one
+    // smoothcap makes, each rosette carried clear of the mat on a short stalk.
+    const leafLen = v.leafLen ?? 0.038;
+    const leafWidth = v.leafWidth ?? 0.007;
+    const perStar = v.leaves ?? 7;
+    const rise = v.rise ?? 0.85;
+    const stalkH = v.stalk ?? 0;
+    const geo = new THREE.ConeGeometry(leafWidth, leafLen, 4);
     const up = new THREE.Vector3(0, 1, 0);
-    const rosettes = 16 + ((Math.random() * 8) | 0);
+    const rosettes = v.rosettes ?? 16 + ((Math.random() * 8) | 0);
+    // A carpet is a lot of little leaves, so each rosette is merged down to a
+    // single mesh — the draw call count follows the plants, not the leaves.
+    const leaf = new THREE.Object3D();
     for (let r = 0; r < rosettes; r++) {
       const a0 = Math.random() * Math.PI * 2;
       const rr = Math.pow(Math.random(), 0.6) * spread;
       const cx = Math.cos(a0) * rr;
       const cz = Math.sin(a0) * rr;
-      const cy = 0.02 + Math.random() * 0.02;
-      const mat = pick();
-      for (let i = 0; i < 7; i++) {
-        const a = (i / 7) * Math.PI * 2 + a0;
-        const dir = new THREE.Vector3(Math.cos(a), 0.85, Math.sin(a)).normalize();
-        const leaf = new THREE.Mesh(geo, mat);
-        leaf.quaternion.setFromUnitVectors(up, dir);
-        leaf.position.set(cx, cy, cz).addScaledVector(dir, 0.016);
-        g.add(leaf);
+      const cy = 0.02 + Math.random() * 0.02 + stalkH * (0.7 + Math.random() * 0.5);
+      const parts = [];
+      if (stalkH > 0) {
+        parts.push(
+          new THREE.CylinderGeometry(0.003, 0.004, cy, 4).translate(cx, cy / 2, cz),
+        );
       }
+      for (let i = 0; i < perStar; i++) {
+        const a = (i / perStar) * Math.PI * 2 + a0;
+        const dir = new THREE.Vector3(Math.cos(a), rise, Math.sin(a)).normalize();
+        leaf.quaternion.setFromUnitVectors(up, dir);
+        leaf.position.set(cx, cy, cz).addScaledVector(dir, leafLen * 0.42);
+        leaf.updateMatrix();
+        parts.push(geo.clone().applyMatrix4(leaf.matrix));
+      }
+      const m = new THREE.Mesh(mergeGeometries(parts), pick());
+      m.castShadow = true;
+      g.add(m);
     }
     return g;
   }
 
   // "frond" and "fork" are both shoots, one feathery and one combed flat.
+  // `needle` swaps the flat leaflets for spikes, which is what turns a shoot
+  // into a broom fork tuft; `tip` frosts the top of each one pale.
   const combed = form === "fork";
-  const shoots = 26 + ((Math.random() * 12) | 0);
+  const shoots = v.shoots ?? 26 + ((Math.random() * 12) | 0);
   const lean = Math.random() * Math.PI * 2; // fork moss all leans one way
-  const leafletGeo = new THREE.PlaneGeometry(0.026, 0.008);
+  const needle = v.needle === true;
+  const leafLen = v.leafLen ?? 0.026;
+  const tipMat = v.tip ? craftMaterial(v.tip, { rough: 1.0 }) : null;
+  const leafletGeo = needle
+    ? new THREE.ConeGeometry(0.0038, leafLen, 4).translate(0, leafLen / 2, 0)
+    : new THREE.PlaneGeometry(leafLen, 0.008);
+  const steps = v.steps ?? 7;
+  // Each shoot merges into one mesh (two when it has pale tips), so a dense
+  // mat stays cheap however many leaflets it takes to close the gaps.
+  const lf = new THREE.Object3D();
   for (let s = 0; s < shoots; s++) {
     const shoot = new THREE.Group();
-    const len = 0.09 + Math.random() * 0.07;
+    const len = (v.shootLen ?? 0.09) + Math.random() * (v.shootVary ?? 0.07);
     const mat = pick();
     mat.side = THREE.DoubleSide;
-    const axis = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.0035, 0.0045, len, 4),
-      mat,
-    );
-    axis.position.y = len / 2;
-    shoot.add(axis);
-    const steps = 7;
+    const body = [
+      new THREE.CylinderGeometry(0.0035, 0.0045, len, 4).translate(0, len / 2, 0),
+    ];
+    const tips = [];
     for (let i = 1; i <= steps; i++) {
       const y = (i / steps) * len;
       const size = combed ? 1 : (1 - i / steps) * 0.7 + 0.5;
       for (const side of [-1, 1]) {
-        const lf = new THREE.Mesh(leafletGeo, mat);
         lf.position.set(side * 0.012 * size, y, 0);
-        lf.rotation.set(combed ? -0.9 : -0.35, 0, side * (combed ? 0.9 : 0.4));
+        if (needle) lf.rotation.set(-0.55 + jitter(0.15), 0, side * (0.7 + jitter(0.2)));
+        else lf.rotation.set(combed ? -0.9 : -0.35, 0, side * (combed ? 0.9 : 0.4));
         lf.scale.setScalar(size);
-        shoot.add(lf);
+        lf.updateMatrix();
+        (tipMat && i === steps ? tips : body).push(
+          leafletGeo.clone().applyMatrix4(lf.matrix),
+        );
       }
     }
+    if (needle) {
+      // The apex closes in a few upright spikes, pale like the rest of the tip.
+      for (let i = 0; i < 3; i++) {
+        lf.position.set(0, len, 0);
+        lf.rotation.set(jitter(0.3), 0, jitter(0.3));
+        lf.scale.setScalar(0.8);
+        lf.updateMatrix();
+        (tipMat ? tips : body).push(leafletGeo.clone().applyMatrix4(lf.matrix));
+      }
+    }
+    shoot.add(new THREE.Mesh(mergeGeometries(body), mat));
+    if (tips.length) shoot.add(new THREE.Mesh(mergeGeometries(tips), tipMat));
     const a = Math.random() * Math.PI * 2;
     const rr = Math.pow(Math.random(), 0.6) * spread;
     shoot.position.set(Math.cos(a) * rr, 0.01, Math.sin(a) * rr);
