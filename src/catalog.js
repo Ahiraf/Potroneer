@@ -467,6 +467,97 @@ add("shrimp", "চেরি চিংড়ি", [
   ["হলুদ", { body: "#d9b03a", legs: "#e8cf7a" }],
 ]);
 
+// ---------------------------------------------------------------------------
+// The printed hardscape set
+// ---------------------------------------------------------------------------
+// The 3D-printed miniatures people buy alongside the plants: fairy cottages,
+// temple halls, ruins and reptile hides. Where one shape covers several of the
+// printed pieces (a half-timbered cottage and a three-storey townhouse are the
+// same building with another floor) the kind is the shape and the variants are
+// the pieces, so the builder is written once.
+
+add("mushroombridge", "মাশরুম সেতু", [
+  ["কাঠ", { wood: "#b5854e", dark: "#96693a" }],
+  ["ফ্যাকাশে", { wood: "#cdbba0", dark: "#ae9c82" }],
+]);
+add("ropebridge", "দড়ির সেতু", [
+  ["সোজা", { arch: false }],
+  ["খিলান", { arch: true }],
+  ["কাঠের", { arch: false, wood: "#a98a5e", dark: "#8a6d45" }],
+]);
+add("crookedcottage", "হেলানো কুটির", [
+  ["গাঢ়", {}],
+  ["ফ্যাকাশে", { wall: "#c9c3b8", roof: "#b3ada2", wood: "#a49d92", base: "#bdb7ac" }],
+]);
+add("tudorhouse", "টিউডর ঘর", [
+  ["কুটির", { storeys: 1, dormers: true, barrels: true, chimneys: [-0.06, 0.068] }],
+  ["দোতলা", { storeys: 2, dormers: true, chimneys: [0.068] }],
+  ["সরাইখানা", { storeys: 3, chimneys: [-0.05, 0.05] }],
+  ["বাদামি", { storeys: 2, wall: "#c9b48d", beam: "#7a5c3a", roof: "#8a6a46", dormers: true }],
+]);
+add("shellhouse", "শঙ্খ ঘর", [["", {}]]);
+add("logcabin", "কাঠের কেবিন", [
+  ["ফ্যাকাশে", {}],
+  ["বাদামি", { wood: "#a8845a", dark: "#8a6a45", thatch: "#c2a874" }],
+]);
+add("mushroomhouse", "মাশরুম কুটির", [
+  ["ধূসর", {}],
+  ["লাল ছাদ", { cap: "#b45a48", wall: "#e0d6c4" }],
+]);
+add("domecottage", "গম্বুজ কুটির", [["", {}]]);
+add("witchhat", "ডাইনির টুপি ঘর", [
+  ["সাদা", {}],
+  ["গাঢ়", { wall: "#6e6a62", hat: "#5c5850", wood: "#5a564e", base: "#66625a" }],
+]);
+add("spiraltower", "প্যাঁচানো টাওয়ার", [["", {}]]);
+add("chapel", "গির্জা", [
+  ["সাদা", {}],
+  ["পাথুরে", { wall: "#b7b0a2", roof: "#8f8778", wood: "#8a8274" }],
+]);
+add("stumphouse", "গুঁড়ি ঘর", [
+  ["বাদামি", {}],
+  ["ধূসর", { wood: "#9a9186", dark: "#7f776c" }],
+]);
+add("ziggurat", "ধাপ মন্দির", [
+  ["বেলেপাথর", {}],
+  ["ধূসর", { stone: "#a8a49a", dark: "#8d897f" }],
+]);
+add("rockcave", "পাথুরে গুহা", [
+  ["শ্যাওলা", {}],
+  ["খিলান", { arch: true, stone: "#c9a86e", dark: "#a8874f" }],
+  ["ধূসর", { stone: "#8f8b84", dark: "#6f6c66" }],
+]);
+add("slateledge", "স্লেট ধাপ", [
+  ["কালো", {}],
+  ["ধূসর", { stone: "#6f6f74", dark: "#57575c" }],
+]);
+add("canyon", "ক্যানিয়ন", [
+  ["বেলেপাথর", {}],
+  ["লালচে", { stone: "#b3714a", dark: "#96593a" }],
+]);
+add("stonestairs", "পাথুরে সিঁড়ি", [
+  ["ধূসর", {}],
+  ["বেলেপাথর", { stone: "#c9b48d", dark: "#ab9670" }],
+]);
+add("brokenwall", "ভাঙা দেয়াল", [["", {}]]);
+add("ruinedtower", "ভাঙা টাওয়ার", [["", {}]]);
+add("templehall", "চীনা মন্দির", [
+  ["দোতলা", { tiers: 2 }],
+  ["একতলা", { tiers: 1 }],
+  ["প্রাচীরঘেরা", { tiers: 2, walled: true }],
+  ["কাঠের", { tiers: 1, body: "#8a6a4a", tile: "#3a3733" }],
+]);
+add("pavilion", "মণ্ডপ", [
+  ["ছোট", { size: 0.12 }],
+  ["দোতলা ছাউনি", { size: 0.16, doubleEave: true }],
+  ["পাথরের ভিত", { size: 0.15, podium: true }],
+  ["সাদা", { size: 0.15, podium: true, body: "#c9c2b4", tile: "#4a4742" }],
+]);
+add("anchor", "নোঙর", [
+  ["বালি", {}],
+  ["ধূসর", { metal: "#9a958c", rope: "#b0a893" }],
+]);
+
 // Category assignment for the flyout panel (like the reference game's
 // Favorites / Mushrooms / Rocks / Structures / Pine / Wood / Plant list).
 const CAT_BY_KIND = {
@@ -547,6 +638,30 @@ const CAT_BY_KIND = {
   fence: "structures",
   well: "structures",
   pond: "structures",
+  // the printed set: buildings, ruins and hides are structures; the figurines
+  // that ship with them belong with the other creatures
+  mushroombridge: "structures",
+  ropebridge: "structures",
+  crookedcottage: "structures",
+  tudorhouse: "structures",
+  shellhouse: "structures",
+  logcabin: "structures",
+  mushroomhouse: "structures",
+  domecottage: "structures",
+  witchhat: "structures",
+  spiraltower: "structures",
+  chapel: "structures",
+  stumphouse: "structures",
+  ziggurat: "structures",
+  rockcave: "structures",
+  slateledge: "structures",
+  canyon: "structures",
+  stonestairs: "structures",
+  brokenwall: "structures",
+  ruinedtower: "structures",
+  templehall: "structures",
+  pavilion: "structures",
+  anchor: "structures",
   driftwood: "wood",
   pinecone: "wood",
   log: "wood",

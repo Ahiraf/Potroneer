@@ -380,6 +380,30 @@ const EN = {
   "চেরি চিংড়ি": "Cherry shrimp",
   "টাইগার": "Tiger",
   "জেব্রা": "Zebra",
+
+  // --- printed hardscape set -----------------------------------------------
+  "মাশরুম সেতু": "Mushroom bridge",
+  "দড়ির সেতু": "Rope bridge",
+  "হেলানো কুটির": "Crooked cottage",
+  "টিউডর ঘর": "Tudor house",
+  "শঙ্খ ঘর": "Shell house",
+  "কাঠের কেবিন": "Log cabin",
+  "মাশরুম কুটির": "Toadstool cottage",
+  "গম্বুজ কুটির": "Dome cottage",
+  "ডাইনির টুপি ঘর": "Witch hat house",
+  "প্যাঁচানো টাওয়ার": "Spiral tower",
+  "গির্জা": "Chapel",
+  "গুঁড়ি ঘর": "Stump house",
+  "ধাপ মন্দির": "Stepped ruin",
+  "পাথুরে গুহা": "Rock cave",
+  "স্লেট ধাপ": "Slate ledges",
+  "ক্যানিয়ন": "Canyon",
+  "পাথুরে সিঁড়ি": "Stone stairs",
+  "ভাঙা দেয়াল": "Broken wall",
+  "ভাঙা টাওয়ার": "Ruined tower",
+  "চীনা মন্দির": "Temple hall",
+  "মণ্ডপ": "Pavilion",
+  "নোঙর": "Anchor",
 };
 
 const LANG_KEY = "potroneer-lang";

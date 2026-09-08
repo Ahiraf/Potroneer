@@ -519,6 +519,51 @@ export function buildDecoration(kind, v = {}) {
       return buildNerite(v);
     case "shrimp":
       return buildShrimp(v);
+    // The printed hardscape set — miniature buildings, ruins and reptile hides.
+    case "mushroombridge":
+      return buildMushroomBridge(v);
+    case "ropebridge":
+      return buildRopeBridge(v);
+    case "crookedcottage":
+      return buildCrookedCottage(v);
+    case "tudorhouse":
+      return buildTudorHouse(v);
+    case "shellhouse":
+      return buildShellHouse(v);
+    case "logcabin":
+      return buildLogCabin(v);
+    case "mushroomhouse":
+      return buildMushroomHouse(v);
+    case "domecottage":
+      return buildDomeCottage(v);
+    case "witchhat":
+      return buildWitchHat(v);
+    case "spiraltower":
+      return buildSpiralTower(v);
+    case "chapel":
+      return buildChapel(v);
+    case "stumphouse":
+      return buildStumpHouse(v);
+    case "ziggurat":
+      return buildZiggurat(v);
+    case "rockcave":
+      return buildRockCave(v);
+    case "slateledge":
+      return buildSlateLedge(v);
+    case "canyon":
+      return buildCanyon(v);
+    case "stonestairs":
+      return buildStoneStairs(v);
+    case "brokenwall":
+      return buildBrokenWall(v);
+    case "ruinedtower":
+      return buildRuinedTower(v);
+    case "templehall":
+      return buildTempleHall(v);
+    case "pavilion":
+      return buildPavilion(v);
+    case "anchor":
+      return buildAnchor(v);
     default:
       return new THREE.Group();
   }
@@ -4083,6 +4128,1512 @@ function buildShrimp(v = {}) {
     ant.rotation.z = 1.25;
     ant.rotation.y = s * 0.3;
     g.add(ant);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// The printed hardscape set
+// ---------------------------------------------------------------------------
+// The resin and FDM miniatures people actually buy for a terrarium: fairy
+// cottages, temple halls, ruins and reptile hides. These read as buildings
+// rather than plants, so they model to a ~0.45 footprint and share a handful of
+// roof/masonry helpers instead of repeating the same slab maths ten times.
+
+// Two slanted slabs meeting at a ridge, with the eaves hanging past the wall.
+function gableRoof(mat, w, d, h, thick = 0.016) {
+  const g = new THREE.Group();
+  const a = Math.atan2(h, d / 2);
+  const len = Math.hypot(d / 2, h) * 1.12;
+  for (const s of [-1, 1]) {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(w, thick, len), mat);
+    panel.position.set(0, h / 2, (s * d) / 4);
+    panel.rotation.x = s * a;
+    panel.castShadow = true;
+    g.add(panel);
+  }
+  return g;
+}
+
+// The tiled hip roof every East-Asian hall in this set wears: a shallow
+// pyramid, a deep overhang, and four corner tips swept up off the eave line.
+function flaredRoof(mat, w, d, h) {
+  const g = new THREE.Group();
+  const eave = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, d), mat);
+  eave.position.y = 0.006;
+  eave.castShadow = true;
+  g.add(eave);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, h, 4), mat);
+  cap.rotation.y = Math.PI / 4;
+  cap.scale.set((w * 0.92) / 0.707, 1, (d * 0.92) / 0.707);
+  cap.position.y = 0.012 + h / 2;
+  cap.castShadow = true;
+  g.add(cap);
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(w * 0.55, 0.014, 0.02), mat);
+  ridge.position.y = 0.012 + h;
+  g.add(ridge);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.05, 4), mat);
+      tip.position.set(sx * w * 0.47, 0.02, sz * d * 0.47);
+      tip.rotation.set(sz * -0.9, 0, sx * 0.9);
+      g.add(tip);
+    }
+  }
+  return g;
+}
+
+// Darker recessed bands so a plain block reads as coursed stone.
+function courseLines(g, mat, w, h, d, rows) {
+  for (let i = 1; i < rows; i++) {
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(w * 1.005, 0.006, d * 1.005),
+      mat,
+    );
+    line.position.y = (i / rows) * h;
+    g.add(line);
+  }
+}
+
+// A scatter of tumbled blocks — every ruin in this set sheds some.
+function rubble(g, mat, count, spread, size = 0.03) {
+  for (let i = 0; i < count; i++) {
+    const s = size * (0.5 + Math.random());
+    const block = new THREE.Mesh(new THREE.BoxGeometry(s, s * 0.6, s * 0.8), mat);
+    const a = Math.random() * Math.PI * 2;
+    const r = spread * (0.55 + Math.random() * 0.6);
+    block.position.set(Math.cos(a) * r, s * 0.3, Math.sin(a) * r);
+    block.rotation.set(jitter(0.5), Math.random() * Math.PI, jitter(0.5));
+    block.castShadow = true;
+    g.add(block);
+  }
+}
+
+// A limb segment drawn between two points, so the joints of a figurine
+// actually meet instead of each bone being posed by eye.
+function bone(mat, a, b, r) {
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.8, r, dir.length(), 6), mat);
+  m.position.copy(a).addScaledVector(dir, 0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  m.castShadow = true;
+  return m;
+}
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+// A round display plinth — the printed cottages all come mounted on one.
+function plinth(mat, r, h = 0.022) {
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.03, h, 24), mat);
+  disc.position.y = h / 2;
+  disc.receiveShadow = true;
+  return disc;
+}
+
+// A round-topped door slab, used by nearly every cottage here.
+function archDoor(mat, w, h) {
+  const g = new THREE.Group();
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.012), mat);
+  leaf.position.y = h / 2;
+  g.add(leaf);
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(w / 2, w / 2, 0.012, 12, 1, false, 0, Math.PI),
+    mat,
+  );
+  top.rotation.x = Math.PI / 2;
+  top.position.y = h;
+  g.add(top);
+  return g;
+}
+
+// A cross-barred window pane with a bright glow behind it.
+function panedWindow(frameMat, r) {
+  const g = new THREE.Group();
+  const glass = new THREE.Mesh(
+    new THREE.CircleGeometry(r, 12),
+    craftMaterial("#f2d089", { rough: 0.4 }),
+  );
+  g.add(glass);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(r, r * 0.13, 5, 14), frameMat);
+  g.add(ring);
+  for (let i = 0; i < 2; i++) {
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(r * 2, r * 0.16, r * 0.16),
+      frameMat,
+    );
+    bar.rotation.z = (i * Math.PI) / 2;
+    g.add(bar);
+  }
+  g.position.z = 0.002;
+  return g;
+}
+
+// A gnarled bare branch — the twisted trees leaning over the witch cottages.
+function twistBranch(mat, h, forks = 3) {
+  const g = new THREE.Group();
+  const pts = [new THREE.Vector3(0, 0, 0)];
+  for (let i = 1; i <= 5; i++) {
+    pts.push(new THREE.Vector3(Math.sin(i * 1.3) * h * 0.14, (i / 5) * h, Math.cos(i * 0.9) * h * 0.1));
+  }
+  const trunk = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 14, h * 0.045, 6),
+    mat,
+  );
+  trunk.castShadow = true;
+  g.add(trunk);
+  for (let i = 0; i < forks; i++) {
+    const base = pts[2 + (i % 3)];
+    const dir = new THREE.Vector3(Math.sin(i * 2.1), 0.9, Math.cos(i * 2.1)).normalize();
+    const arm = new THREE.Mesh(
+      new THREE.TubeGeometry(
+        new THREE.QuadraticBezierCurve3(
+          base,
+          base.clone().addScaledVector(dir, h * 0.2),
+          base.clone().addScaledVector(dir, h * 0.34).setY(base.y + h * 0.3),
+        ),
+        8,
+        h * 0.022,
+        5,
+      ),
+      mat,
+    );
+    g.add(arm);
+  }
+  return g;
+}
+
+// The mushroom bridge: an arched plank walk with cut-stump posts, vines over
+// the handrail and toadstools crowding both abutments.
+function buildMushroomBridge(v = {}) {
+  const g = new THREE.Group();
+  const wood = craftMaterial(v.wood ?? "#b5854e", { rough: 0.9, flat: true });
+  const dark = craftMaterial(v.dark ?? "#96693a", { rough: 0.9, flat: true });
+  const span = 0.52;
+  const rise = 0.14;
+  for (let i = 0; i < 15; i++) {
+    const t = i / 14;
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.012, 0.19), i % 2 ? wood : dark);
+    plank.position.set((t - 0.5) * span, rise * Math.sin(t * Math.PI) + 0.03, 0);
+    plank.rotation.z = -Math.cos(t * Math.PI) * 0.5;
+    plank.castShadow = true;
+    g.add(plank);
+  }
+  // cut stumps for posts — flat tops, growing taller towards the crown
+  for (const side of [-1, 1]) {
+    for (const t of [0.06, 0.3, 0.5, 0.7, 0.94]) {
+      const y = rise * Math.sin(t * Math.PI) + 0.03;
+      const h = 0.1 + Math.sin(t * Math.PI) * 0.05;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.021, h, 8), wood);
+      post.position.set((t - 0.5) * span, y + h / 2, side * 0.1);
+      post.castShadow = true;
+      g.add(post);
+    }
+    const rail = new THREE.Mesh(
+      new THREE.TubeGeometry(
+        new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(-span * 0.46, 0.12, side * 0.1),
+          new THREE.Vector3(0, 0.15 + rise, side * 0.1),
+          new THREE.Vector3(span * 0.46, 0.12, side * 0.1),
+        ),
+        14,
+        0.009,
+        5,
+      ),
+      dark,
+    );
+    g.add(rail);
+  }
+  // stone abutments, then toadstools crowding them
+  for (const end of [-1, 1]) {
+    const bank = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 7), dark);
+    bank.scale.set(1, 0.34, 1.1);
+    bank.position.set(end * span * 0.52, 0.01, 0);
+    g.add(bank);
+    for (let i = 0; i < 7; i++) {
+      const capR = 0.022 + Math.random() * 0.014;
+      const h = 0.03 + Math.random() * 0.02;
+      const x = end * span * (0.46 + Math.random() * 0.16);
+      const z = jitter(0.12);
+      const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, h, 6), wood);
+      stalk.position.set(x, h / 2 + 0.01, z);
+      g.add(stalk);
+      const cap = new THREE.Mesh(
+        new THREE.SphereGeometry(capR, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2),
+        wood,
+      );
+      cap.scale.y = 0.55;
+      cap.position.set(x, h + 0.01, z);
+      cap.castShadow = true;
+      g.add(cap);
+    }
+  }
+  return g;
+}
+
+// The rope-and-plank bridge set: the same walkway flat or arched, slung
+// between four lashed posts.
+function buildRopeBridge(v = {}) {
+  const g = new THREE.Group();
+  const wood = craftMaterial(v.wood ?? "#9a9188", { rough: 0.95, flat: true });
+  const dark = craftMaterial(v.dark ?? "#7d746b", { rough: 0.95, flat: true });
+  const arch = v.arch === true;
+  const span = 0.46;
+  const rise = arch ? 0.1 : 0;
+  const planks = 13;
+  for (let i = 0; i < planks; i++) {
+    const t = i / (planks - 1);
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.011, 0.17), i % 2 ? wood : dark);
+    plank.position.set((t - 0.5) * span, rise * Math.sin(t * Math.PI) + 0.09, 0);
+    if (arch) plank.rotation.z = -Math.cos(t * Math.PI) * 0.42;
+    plank.castShadow = true;
+    g.add(plank);
+  }
+  // legs under the deck, or stone piles under an arch
+  for (const end of [-1, 1]) {
+    if (arch) {
+      const pile = new THREE.Mesh(new THREE.SphereGeometry(0.06, 9, 6), dark);
+      pile.scale.set(1, 0.55, 1.2);
+      pile.position.set(end * span * 0.48, 0.03, 0);
+      g.add(pile);
+    } else {
+      for (const side of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.09, 6), dark);
+        leg.position.set(end * span * 0.34, 0.045, side * 0.06);
+        g.add(leg);
+      }
+    }
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.13, 8), wood);
+      post.position.set(end * span * 0.46, 0.14 + rise * 0.15, side * 0.085);
+      post.castShadow = true;
+      g.add(post);
+      // the lashing ring at the top of each post
+      const knot = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.005, 5, 10), dark);
+      knot.rotation.x = Math.PI / 2;
+      knot.position.set(end * span * 0.46, 0.185 + rise * 0.15, side * 0.085);
+      g.add(knot);
+    }
+  }
+  // the rope sags between the posts, one strand each side
+  for (const side of [-1, 1]) {
+    const rope = new THREE.Mesh(
+      new THREE.TubeGeometry(
+        new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(-span * 0.46, 0.2, side * 0.085),
+          new THREE.Vector3(0, arch ? 0.24 : 0.15, side * 0.085),
+          new THREE.Vector3(span * 0.46, 0.2, side * 0.085),
+        ),
+        14,
+        0.006,
+        5,
+      ),
+      dark,
+    );
+    g.add(rope);
+  }
+  return g;
+}
+
+// The crooked cottage: a leaning house under a swooping roof, with a stacked
+// chimney spire and dead trees clawing over it.
+function buildCrookedCottage(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#6f6a63", { rough: 0.95 });
+  const roofMat = craftMaterial(v.roof ?? "#5c5750", { rough: 0.9, flat: true });
+  const woodMat = craftMaterial(v.wood ?? "#4e4a44", { rough: 0.95 });
+  g.add(plinth(craftMaterial(v.base ?? "#57534d", { rough: 1.0 }), 0.21));
+
+  const house = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.2, 0.15), wall);
+  body.position.y = 0.12;
+  body.castShadow = true;
+  house.add(body);
+  // the roof is oversized and hangs past the walls, but not so far that it
+  // swallows the house under it
+  const roof = gableRoof(roofMat, 0.26, 0.21, 0.12, 0.02);
+  roof.position.y = 0.225;
+  roof.rotation.y = 0.12;
+  house.add(roof);
+  // a spire of shrinking discs where a chimney would be
+  for (let i = 0; i < 5; i++) {
+    const disc = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.026 - i * 0.005, 0.03 - i * 0.005, 0.016, 10),
+      roofMat,
+    );
+    disc.position.set(0.02, 0.35 + i * 0.022, -0.01);
+    house.add(disc);
+  }
+  const spike = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.04, 8), roofMat);
+  spike.position.set(0.02, 0.47, -0.01);
+  house.add(spike);
+  const door = archDoor(woodMat, 0.055, 0.075);
+  door.position.set(-0.01, 0.015, 0.077);
+  house.add(door);
+  const win = panedWindow(woodMat, 0.024);
+  win.position.set(0.035, 0.15, 0.077);
+  house.add(win);
+  house.rotation.z = -0.06;
+  house.position.y = 0.02;
+  g.add(house);
+
+  const branchMat = craftMaterial(v.wood ?? "#4e4a44", { rough: 0.95 });
+  for (const [x, z, h, r] of [[-0.14, 0.02, 0.4, 0.4], [0.15, -0.04, 0.32, -1.1]]) {
+    const tree = twistBranch(branchMat, h, 3);
+    tree.position.set(x, 0.02, z);
+    tree.rotation.y = r;
+    g.add(tree);
+  }
+  return g;
+}
+
+// The half-timbered house — one builder for the whole street: `storeys` sets
+// the height, `dormers` puts eyes in the roof, `barrels` stands casks outside.
+function buildTudorHouse(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#8a8b8e", { rough: 0.92 });
+  const beam = craftMaterial(v.beam ?? "#55565a", { rough: 0.95, flat: true });
+  const roofMat = craftMaterial(v.roof ?? "#7b7c80", { rough: 0.9, flat: true });
+  const storeys = v.storeys ?? 2;
+  const W = 0.2;
+  const D = 0.16;
+  const floorH = 0.085;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(W * 1.6, 0.018, D * 1.7), beam);
+  base.position.y = 0.009;
+  base.receiveShadow = true;
+  g.add(base);
+
+  for (let s = 0; s < storeys; s++) {
+    // each floor juts a little further out than the one below it
+    const k = 1 + s * 0.07;
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(W * k, floorH, D * k), wall);
+    floor.position.y = 0.018 + floorH * (s + 0.5);
+    floor.castShadow = true;
+    g.add(floor);
+    // timber frame: a sill, a head and a few uprights on the long faces
+    for (const y of [0.018 + floorH * s + 0.006, 0.018 + floorH * (s + 1) - 0.006]) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(W * k * 1.02, 0.012, D * k * 1.02), beam);
+      band.position.y = y;
+      g.add(band);
+    }
+    for (let i = 0; i < 4; i++) {
+      const x = (i / 3 - 0.5) * W * k * 0.9;
+      const stud = new THREE.Mesh(new THREE.BoxGeometry(0.012, floorH, D * k * 1.01), beam);
+      stud.position.set(x, 0.018 + floorH * (s + 0.5), 0);
+      g.add(stud);
+    }
+    // windows facing front
+    for (const x of [-W * 0.28, W * 0.28]) {
+      const winPane = new THREE.Mesh(
+        new THREE.BoxGeometry(0.038, 0.036, 0.006),
+        craftMaterial("#4a4b4f", { rough: 0.6 }),
+      );
+      winPane.position.set(x, 0.018 + floorH * (s + 0.55), (D * k) / 2 + 0.002);
+      g.add(winPane);
+    }
+  }
+  const eaveY = 0.018 + floorH * storeys;
+  const roofH = 0.11;
+  const roof = gableRoof(roofMat, W * 1.2, D * 1.35, roofH, 0.018);
+  roof.position.y = eaveY;
+  g.add(roof);
+  // ridge tiles
+  const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, W * 1.2, 8), roofMat);
+  ridge.rotation.z = Math.PI / 2;
+  ridge.position.y = eaveY + roofH;
+  g.add(ridge);
+  const door = archDoor(beam, 0.045, 0.06);
+  door.position.set(0, 0.018, D / 2 + 0.004);
+  g.add(door);
+
+  for (const cx of v.chimneys ?? [-W * 0.3, W * 0.34]) {
+    const stack = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.1, 0.034), wall);
+    stack.position.set(cx, eaveY + roofH * 0.55, 0);
+    stack.castShadow = true;
+    g.add(stack);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.012, 0.042), beam);
+    cap.position.set(cx, eaveY + roofH * 0.55 + 0.056, 0);
+    g.add(cap);
+  }
+  if (v.dormers) {
+    for (const x of [-0.045, 0.045]) {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.04, 0.05), roofMat);
+      box.position.set(x, eaveY + 0.045, D * 0.35);
+      g.add(box);
+      const hood = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.026, 0.026, 0.05, 10, 1, false, 0, Math.PI),
+        roofMat,
+      );
+      hood.rotation.set(Math.PI / 2, 0, 0);
+      hood.position.set(x, eaveY + 0.062, D * 0.35);
+      g.add(hood);
+    }
+  }
+  if (v.barrels) {
+    for (const x of [-W * 0.62, W * 0.62]) {
+      const cask = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.024, 0.05, 12), beam);
+      cask.position.set(x, 0.043, jitter(0.03));
+      cask.castShadow = true;
+      g.add(cask);
+    }
+  }
+  return g;
+}
+
+// The snail-shell house: a big spiral shell with a cottage tucked under its lip.
+function buildShellHouse(v = {}) {
+  const g = new THREE.Group();
+  const shellMat = craftMaterial(v.shell ?? "#a9a49b", { rough: 0.75 });
+  const wall = craftMaterial(v.wall ?? "#9a958c", { rough: 0.92 });
+  const woodMat = craftMaterial(v.wood ?? "#7d776d", { rough: 0.95 });
+  g.add(plinth(craftMaterial(v.base ?? "#8f8a81", { rough: 1.0 }), 0.2));
+
+  // shell: a fat whorl of shrinking spheres winding up to a point
+  const turns = 11;
+  for (let i = 0; i < turns; i++) {
+    const t = i / (turns - 1);
+    const r = 0.085 * (1 - t * 0.82);
+    const a = t * Math.PI * 2.6;
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), shellMat);
+    bead.position.set(-0.06 + Math.cos(a) * 0.035 * (1 - t), 0.09 + t * 0.17, Math.sin(a) * 0.035 * (1 - t));
+    bead.castShadow = true;
+    g.add(bead);
+  }
+  const port = panedWindow(shellMat, 0.032);
+  port.position.set(-0.028, 0.13, 0.075);
+  port.rotation.y = 0.3;
+  g.add(port);
+
+  // the cottage half, lower and to one side
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.1), wall);
+  body.position.set(0.1, 0.075, 0.01);
+  body.castShadow = true;
+  g.add(body);
+  const roof = gableRoof(craftMaterial(v.roof ?? "#8d887f", { rough: 0.9, flat: true }), 0.15, 0.13, 0.05, 0.014);
+  roof.position.set(0.1, 0.13, 0.01);
+  roof.rotation.y = Math.PI / 2;
+  g.add(roof);
+  const door = archDoor(woodMat, 0.04, 0.055);
+  door.position.set(0.1, 0.02, 0.062);
+  g.add(door);
+  // barnacle clusters at the foot of the shell
+  for (let i = 0; i < 8; i++) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.014, 8), shellMat);
+    b.position.set(-0.09 + jitter(0.06), 0.028, 0.04 + jitter(0.05));
+    g.add(b);
+  }
+  return g;
+}
+
+// The log cabin: stacked round logs with a mossy thatch and a stump chimney.
+function buildLogCabin(v = {}) {
+  const g = new THREE.Group();
+  const logMat = craftMaterial(v.wood ?? "#c9bfae", { rough: 0.95, flat: true });
+  const dark = craftMaterial(v.dark ?? "#a89e8d", { rough: 0.95 });
+  const W = 0.2;
+  const D = 0.17;
+  const rows = 6;
+  for (let i = 0; i < rows; i++) {
+    const y = 0.018 + i * 0.03;
+    for (const s of [-1, 1]) {
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, D, 8), logMat);
+      log.rotation.x = Math.PI / 2;
+      log.position.set(s * W * 0.5, y, 0);
+      log.castShadow = true;
+      g.add(log);
+    }
+    // the back wall only — the front is left open for the door face
+    const back = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, W, 8), logMat);
+    back.rotation.z = Math.PI / 2;
+    back.position.set(0, y, -D / 2);
+    g.add(back);
+  }
+  // front face with a round-topped door and two gable windows
+  const face = new THREE.Mesh(new THREE.BoxGeometry(W * 0.92, 0.19, 0.014), dark);
+  face.position.set(0, 0.105, D / 2);
+  g.add(face);
+  const door = archDoor(logMat, 0.06, 0.09);
+  door.position.set(-0.01, 0.014, D / 2 + 0.009);
+  g.add(door);
+  for (const [x, y] of [[-0.02, 0.14], [0.055, 0.075]]) {
+    const win = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.03, 3), logMat);
+    win.rotation.x = Math.PI / 2;
+    win.position.set(x, y, D / 2 + 0.009);
+    g.add(win);
+  }
+  // thatched roof: fine straws laid over the top
+  const straw = craftMaterial(v.thatch ?? "#d5cbb8", { rough: 1.0 });
+  for (let i = 0; i < 40; i++) {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, D * 1.15, 4), straw);
+    s.rotation.x = Math.PI / 2 + jitter(0.06);
+    s.position.set((Math.random() - 0.5) * W * 0.95, 0.2 + jitter(0.006), jitter(0.01));
+    g.add(s);
+  }
+  // the trunk growing out of the roof, cut off ragged
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.042, 0.16, 9), logMat);
+  trunk.position.set(-0.04, 0.28, -0.03);
+  trunk.rotation.z = 0.14;
+  trunk.castShadow = true;
+  g.add(trunk);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const shard = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.05, 4), logMat);
+    shard.position.set(-0.04 + Math.cos(a) * 0.022, 0.375, -0.03 + Math.sin(a) * 0.022);
+    shard.rotation.set(jitter(0.3), 0, jitter(0.3));
+    g.add(shard);
+  }
+  const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.014, 0.09, 6), logMat);
+  limb.position.set(-0.09, 0.32, -0.03);
+  limb.rotation.z = 1.15;
+  g.add(limb);
+  return g;
+}
+
+// The toadstool cottage: a barrel of a house under two overhanging caps, with a
+// long crooked spire, a balcony and a mailbox.
+function buildMushroomHouse(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#a29c92", { rough: 0.92 });
+  const capMat = craftMaterial(v.cap ?? "#968f85", { rough: 0.85 });
+  const woodMat = craftMaterial(v.wood ?? "#857e74", { rough: 0.95 });
+  g.add(plinth(craftMaterial(v.base ?? "#8d877d", { rough: 1.0 }), 0.22));
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.115, 0.15, 16), wall);
+  body.position.y = 0.095;
+  body.castShadow = true;
+  g.add(body);
+  // the big skirted cap over the ground floor
+  const cap1 = new THREE.Mesh(
+    new THREE.SphereGeometry(0.17, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    capMat,
+  );
+  cap1.scale.y = 0.42;
+  cap1.position.y = 0.17;
+  cap1.castShadow = true;
+  g.add(cap1);
+  // upper room, smaller cap, then the spire leaning off true
+  const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.1, 14), wall);
+  upper.position.y = 0.23;
+  upper.castShadow = true;
+  g.add(upper);
+  const cap2 = new THREE.Mesh(
+    new THREE.SphereGeometry(0.115, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    capMat,
+  );
+  cap2.scale.y = 0.5;
+  cap2.position.y = 0.28;
+  g.add(cap2);
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.19, 14), capMat);
+  spire.position.set(0.012, 0.38, -0.006);
+  spire.rotation.z = -0.1;
+  spire.castShadow = true;
+  g.add(spire);
+  // shingle rings up the spire
+  for (let i = 0; i < 4; i++) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.042 - i * 0.009, 0.005, 5, 14), capMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(0.012, 0.32 + i * 0.04, -0.006);
+    g.add(ring);
+  }
+  const door = archDoor(woodMat, 0.055, 0.075);
+  door.position.set(0, 0.02, 0.108);
+  g.add(door);
+  for (const [x, y, z, r] of [[-0.062, 0.11, 0.085, -0.6], [0.07, 0.1, 0.078, 0.7], [0.0, 0.25, 0.07, 0]]) {
+    const win = panedWindow(woodMat, 0.019);
+    win.position.set(x, y, z);
+    win.rotation.y = r;
+    g.add(win);
+  }
+  // balcony off the upper room
+  const rail = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.005, 5, 14, Math.PI), woodMat);
+  rail.rotation.x = Math.PI / 2;
+  rail.position.set(-0.03, 0.225, 0.05);
+  rail.rotation.z = 0.6;
+  g.add(rail);
+  // mailbox on a post
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.08, 6), woodMat);
+  post.position.set(-0.14, 0.04, 0.05);
+  g.add(post);
+  const box = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.03, 10, 1, false, 0, Math.PI), woodMat);
+  box.rotation.z = Math.PI / 2;
+  box.position.set(-0.14, 0.09, 0.05);
+  g.add(box);
+  return g;
+}
+
+// The dome cottage: a smooth acorn shell of a roof with a brick stair, a stubby
+// chimney and a lollipop tree leaning in.
+function buildDomeCottage(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#a49d92", { rough: 0.9 });
+  const roofMat = craftMaterial(v.roof ?? "#989186", { rough: 0.85 });
+  const stone = craftMaterial(v.stone ?? "#8e887d", { rough: 0.95 });
+  g.add(plinth(craftMaterial(v.base ?? "#918a80", { rough: 1.0 }), 0.22));
+
+  // a straight-walled drum, with the dome resting on top rather than over it
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.108, 0.11, 16), wall);
+  body.position.y = 0.075;
+  body.castShadow = true;
+  g.add(body);
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.115, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    roofMat,
+  );
+  dome.scale.y = 0.95;
+  dome.position.y = 0.13;
+  dome.castShadow = true;
+  g.add(dome);
+  // ribs down the dome
+  for (let i = 0; i < 6; i++) {
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.004, 5, 16, Math.PI), roofMat);
+    rib.rotation.y = (i / 6) * Math.PI;
+    rib.position.y = 0.13;
+    rib.scale.y = 0.95;
+    g.add(rib);
+  }
+  const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.09, 10), roofMat);
+  stack.position.set(0.03, 0.27, -0.02);
+  g.add(stack);
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.03, 10), roofMat);
+  hat.position.set(0.03, 0.33, -0.02);
+  g.add(hat);
+  const door = archDoor(craftMaterial(v.wood ?? "#877f74", { rough: 0.95 }), 0.05, 0.07);
+  door.position.set(0, 0.035, 0.104);
+  g.add(door);
+  const win = panedWindow(roofMat, 0.02);
+  win.position.set(0.072, 0.085, 0.072);
+  win.rotation.y = 0.78;
+  g.add(win);
+  // brick steps up to the door
+  for (let i = 0; i < 3; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.07 + i * 0.008, 0.012, 0.022), stone);
+    step.position.set(0, 0.033 - i * 0.012, 0.112 + i * 0.021);
+    g.add(step);
+  }
+  // the lollipop tree: three fat blobs on a bent trunk
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.01, 0.16, 7), craftMaterial(v.wood ?? "#877f74", { rough: 0.95 }));
+  trunk.position.set(-0.15, 0.09, 0.02);
+  trunk.rotation.z = 0.16;
+  g.add(trunk);
+  for (const [dx, dy, r] of [[-0.03, 0.19, 0.045], [0.02, 0.21, 0.04], [-0.005, 0.24, 0.036]]) {
+    const blob = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), roofMat);
+    blob.position.set(-0.15 + dx, dy, 0.02);
+    blob.castShadow = true;
+    g.add(blob);
+  }
+  // shrubs banked against the walls
+  for (let i = 0; i < 9; i++) {
+    const a = 2.2 + (i / 9) * 2.6;
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(0.022 + Math.random() * 0.012, 9, 7), roofMat);
+    bush.position.set(Math.cos(a) * 0.12, 0.03, Math.sin(a) * 0.12);
+    g.add(bush);
+  }
+  return g;
+}
+
+// The witch-hat house: a stone drum under a floppy pointed hat, with a bare
+// branch over it and a cat sitting on the brim.
+function buildWitchHat(v = {}) {
+  const g = new THREE.Group();
+  const stone = craftMaterial(v.wall ?? "#e6e2da", { rough: 0.95, flat: true });
+  const hatMat = craftMaterial(v.hat ?? "#dcd7ce", { rough: 0.9 });
+  g.add(plinth(craftMaterial(v.base ?? "#d8d3ca", { rough: 1.0 }), 0.16));
+
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.105, 0.17, 14), stone);
+  drum.position.y = 0.105;
+  drum.castShadow = true;
+  g.add(drum);
+  // the drum is round, so its courses are rings rather than the box bands the
+  // rectangular buildings use
+  for (let i = 1; i < 5; i++) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.098 + i * 0.002, 0.004, 5, 18),
+      craftMaterial("#cfcac1", { rough: 0.95 }),
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.03 + i * 0.037;
+    g.add(ring);
+  }
+  const door = archDoor(craftMaterial(v.wood ?? "#cdc7be", { rough: 0.95 }), 0.05, 0.07);
+  door.position.set(0, 0.02, 0.1);
+  g.add(door);
+
+  // the hat: a wide brim, then a stack of shrinking discs curling over
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.2, 0.014, 20), hatMat);
+  brim.position.y = 0.2;
+  brim.rotation.z = 0.1;
+  brim.castShadow = true;
+  g.add(brim);
+  let hx = 0;
+  for (let i = 0; i < 9; i++) {
+    const t = i / 8;
+    hx += 0.008 * t;
+    const seg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.085 * (1 - t * 0.88), 0.095 * (1 - t * 0.8), 0.03, 14),
+      hatMat,
+    );
+    seg.position.set(hx, 0.22 + i * 0.028, -0.004 * i);
+    seg.rotation.z = -0.13 * t;
+    seg.castShadow = true;
+    g.add(seg);
+  }
+  const branch = twistBranch(craftMaterial(v.wood ?? "#dedad2", { rough: 0.95 }), 0.34, 3);
+  branch.position.set(-0.14, 0.02, 0.03);
+  branch.rotation.y = 0.5;
+  g.add(branch);
+  // the cat: a loaf, a head, two ears and an arched tail
+  const cat = new THREE.Group();
+  const catMat = craftMaterial(v.hat ?? "#dcd7ce", { rough: 0.9 });
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), catMat);
+  torso.scale.set(1.5, 0.9, 0.8);
+  cat.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), catMat);
+  head.position.set(0.032, 0.018, 0);
+  cat.add(head);
+  for (const s of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.006, 0.012, 4), catMat);
+    ear.position.set(0.032, 0.03, s * 0.007);
+    cat.add(ear);
+  }
+  const tail = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.004, 5, 12, Math.PI * 1.1), catMat);
+  tail.position.set(-0.035, 0.012, 0);
+  tail.rotation.set(Math.PI / 2, 0, -0.6);
+  cat.add(tail);
+  cat.position.set(-0.075, 0.245, 0.03);
+  cat.rotation.y = -0.5;
+  g.add(cat);
+  return g;
+}
+
+// The spiral tower: a tapering keep with a staircase winding all the way up to
+// a shingled cone and two little turrets.
+function buildSpiralTower(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#cfc8ba", { rough: 0.92 });
+  const roofMat = craftMaterial(v.roof ?? "#c4bcae", { rough: 0.88 });
+  const H = 0.46;
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.08, H, 16), wall);
+  tower.position.y = H / 2;
+  tower.castShadow = true;
+  g.add(tower);
+  // the stair: steps marching around the outside on a rising helix
+  const steps = 46;
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    const a = t * Math.PI * 3.4;
+    const r = 0.08 - t * 0.022;
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.022), roofMat);
+    step.position.set(Math.cos(a) * (r + 0.022), 0.02 + t * (H - 0.06), Math.sin(a) * (r + 0.022));
+    step.rotation.y = -a;
+    step.castShadow = true;
+    g.add(step);
+    if (i % 3 === 0) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.03, 0.008), roofMat);
+      rail.position.set(Math.cos(a) * (r + 0.042), 0.035 + t * (H - 0.06), Math.sin(a) * (r + 0.042));
+      g.add(rail);
+    }
+  }
+  for (const [y, a] of [[0.1, 0.4], [0.22, 2.4], [0.34, 4.2], [0.4, 1.2]]) {
+    const win = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.036, 0.01),
+      craftMaterial(v.wood ?? "#b5ac9e", { rough: 0.8 }),
+    );
+    const r = 0.078 - (y / H) * 0.02;
+    win.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    win.lookAt(Math.cos(a) * 0.4, y, Math.sin(a) * 0.4);
+    g.add(win);
+  }
+  // a corbelled ring of blocks, then the roof cone and its turrets
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const block = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), roofMat);
+    block.position.set(Math.cos(a) * 0.072, H, Math.sin(a) * 0.072);
+    g.add(block);
+  }
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.15, 14), roofMat);
+  cone.position.y = H + 0.085;
+  cone.castShadow = true;
+  g.add(cone);
+  for (let i = 0; i < 5; i++) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.058 - i * 0.011, 0.005, 5, 14), roofMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = H + 0.03 + i * 0.026;
+    g.add(ring);
+  }
+  for (const a of [0.8, 3.9]) {
+    const turret = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.07, 8), roofMat);
+    turret.position.set(Math.cos(a) * 0.062, H + 0.045, Math.sin(a) * 0.062);
+    g.add(turret);
+  }
+  return g;
+}
+
+// A stone chapel: a nave with a steep roof and a bell tower under a tall spire.
+function buildChapel(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#ded7cb", { rough: 0.95, flat: true });
+  const roofMat = craftMaterial(v.roof ?? "#cfc7ba", { rough: 0.9, flat: true });
+  const woodMat = craftMaterial(v.wood ?? "#c3bbae", { rough: 0.95 });
+  const W = 0.19;
+  const D = 0.15;
+  const nave = new THREE.Mesh(new THREE.BoxGeometry(W, 0.14, D), wall);
+  nave.position.y = 0.07;
+  nave.castShadow = true;
+  g.add(nave);
+  courseLines(g, craftMaterial("#cdc5b8", { rough: 0.95 }), W, 0.14, D, 5);
+  const roof = gableRoof(roofMat, W * 1.15, D * 1.25, 0.11, 0.016);
+  roof.position.y = 0.14;
+  g.add(roof);
+  // porch gable over the door, set at right angles to the nave
+  const porch = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.11, 0.06), wall);
+  porch.position.set(0.045, 0.055, D * 0.55);
+  g.add(porch);
+  const porchRoof = gableRoof(roofMat, 0.075, 0.09, 0.05, 0.012);
+  porchRoof.rotation.y = Math.PI / 2;
+  porchRoof.position.set(0.045, 0.11, D * 0.55);
+  g.add(porchRoof);
+  const door = archDoor(woodMat, 0.04, 0.06);
+  door.position.set(0.045, 0.005, D * 0.55 + 0.032);
+  g.add(door);
+  for (const [x, z] of [[-0.06, D / 2], [-0.06, -D / 2]]) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.04, 0.008), woodMat);
+    win.position.set(x, 0.085, z);
+    g.add(win);
+  }
+  // the tower, capped by a tall shingled spire
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.038, 0.24, 12), wall);
+  tower.position.set(W * 0.42, 0.12, -D * 0.2);
+  tower.castShadow = true;
+  g.add(tower);
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.16, 12), roofMat);
+  spire.position.set(W * 0.42, 0.32, -D * 0.2);
+  spire.castShadow = true;
+  g.add(spire);
+  const louvre = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.03, 0.008), woodMat);
+  louvre.position.set(W * 0.42, 0.2, -D * 0.2 + 0.036);
+  g.add(louvre);
+  return g;
+}
+
+// The stump house: a hollow trunk with root buttresses, a door in the bark, a
+// little balcony and a ragged broken crown.
+function buildStumpHouse(v = {}) {
+  const g = new THREE.Group();
+  const bark = craftMaterial(v.wood ?? "#b78b4e", { rough: 0.98, flat: true });
+  const dark = craftMaterial(v.dark ?? "#9c7440", { rough: 0.98 });
+  const H = 0.34;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, H, 14), bark);
+  trunk.position.y = H / 2;
+  trunk.castShadow = true;
+  g.add(trunk);
+  // bark ridges running up the trunk
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.012, H * 0.95, 0.02), dark);
+    ridge.position.set(Math.cos(a) * 0.125, H / 2, Math.sin(a) * 0.125);
+    ridge.rotation.y = -a;
+    ridge.rotation.z = jitter(0.05);
+    g.add(ridge);
+  }
+  // roots splaying out at the foot
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + jitter(0.2);
+    // the cone lies down and points away from the trunk, tip on the ground
+    const root = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.1, 6), bark);
+    root.position.set(Math.cos(a) * 0.12, 0.035, Math.sin(a) * 0.12);
+    root.rotation.set(Math.PI / 2 + 0.35, 0, 0);
+    root.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI / 2 - a);
+    root.castShadow = true;
+    g.add(root);
+  }
+  // the broken top: short ragged teeth of bark around a hollow rim
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const shard = new THREE.Mesh(
+      new THREE.ConeGeometry(0.019, 0.025 + Math.random() * 0.035, 4),
+      bark,
+    );
+    shard.position.set(Math.cos(a) * 0.095, H + 0.015, Math.sin(a) * 0.095);
+    shard.rotation.set(jitter(0.12), a, jitter(0.12));
+    g.add(shard);
+  }
+  const hollow = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.075, 0.07, 0.02, 14),
+    craftMaterial("#4a3823", { rough: 1.0 }),
+  );
+  hollow.position.y = H;
+  g.add(hollow);
+  const door = archDoor(dark, 0.06, 0.085);
+  door.position.set(0, 0.03, 0.14);
+  g.add(door);
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.008, 6, 14, Math.PI), dark);
+  arch.position.set(0, 0.115, 0.142);
+  g.add(arch);
+  for (const [x, y, r] of [[-0.09, 0.19, -0.9], [0.085, 0.13, 0.85]]) {
+    const win = panedWindow(dark, 0.022);
+    win.position.set(x, y, Math.cos(r) * 0.1);
+    win.rotation.y = r;
+    g.add(win);
+  }
+  // steps up to the door, then a balcony round the back-right
+  for (let i = 0; i < 3; i++) {
+    const step = new THREE.Mesh(new THREE.CylinderGeometry(0.055 + i * 0.012, 0.06 + i * 0.012, 0.012, 14, 1, false, 0, Math.PI), dark);
+    step.position.set(0, 0.03 - i * 0.011, 0.15 + i * 0.012);
+    g.add(step);
+  }
+  const balcony = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.008, 12, 1, false, 0, Math.PI), dark);
+  balcony.position.set(0.1, 0.2, -0.04);
+  balcony.rotation.y = -1.2;
+  g.add(balcony);
+  const brail = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.005, 5, 12, Math.PI), dark);
+  brail.rotation.set(Math.PI / 2, 0, 0);
+  brail.rotation.y = -1.2;
+  brail.position.set(0.1, 0.225, -0.04);
+  g.add(brail);
+  return g;
+}
+
+// The stepped ruin: a tiered pyramid with a long stair up the front and a
+// pillared chamber under the top platform.
+function buildZiggurat(v = {}) {
+  const g = new THREE.Group();
+  const stone = craftMaterial(v.stone ?? "#c2a880", { rough: 0.98, flat: true });
+  const dark = craftMaterial(v.dark ?? "#a78e69", { rough: 0.98, flat: true });
+  const tiers = 4;
+  let y = 0;
+  for (let i = 0; i < tiers; i++) {
+    const w = 0.36 - i * 0.07;
+    const h = 0.05 - i * 0.004;
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.8), i % 2 ? stone : dark);
+    slab.position.set(jitter(0.006), y + h / 2, jitter(0.006));
+    slab.rotation.y = jitter(0.05);
+    slab.castShadow = true;
+    g.add(slab);
+    // a course line so each tier reads as cut blocks, not a solid box
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(w * 1.04, 0.008, w * 0.84), dark);
+    lip.position.y = y + h;
+    g.add(lip);
+    y += h;
+  }
+  // the pillared chamber under the top tier
+  for (const x of [-0.055, -0.018, 0.018, 0.055]) {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.048, 8), stone);
+    col.position.set(x, y - 0.024, 0.05);
+    g.add(col);
+  }
+  // the stair down the front
+  const steps = 9;
+  for (let i = 0; i < steps; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.014, 0.026), stone);
+    step.position.set(0, 0.01 + i * 0.019, 0.17 - i * 0.014);
+    step.castShadow = true;
+    g.add(step);
+  }
+  for (const s of [-1, 1]) {
+    const cheek = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.16), dark);
+    cheek.position.set(s * 0.048, 0.09, 0.11);
+    cheek.rotation.x = -0.86;
+    g.add(cheek);
+  }
+  rubble(g, dark, 10, 0.22, 0.035);
+  return g;
+}
+
+// A reptile hide carved from rock: chunky low-poly boulders piled into a cave,
+// either a squat blocky mound or a bare standing arch.
+function buildRockCave(v = {}) {
+  const g = new THREE.Group();
+  const rockMat = craftMaterial(v.stone ?? "#8e8b72", { rough: 1.0, flat: true });
+  const shade = craftMaterial(v.dark ?? "#6e6c58", { rough: 1.0, flat: true });
+  const arch = v.arch === true;
+  const R = 0.2;
+  // two legs and a lintel — the mouth of the hide
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const sz = 0.075 - i * 0.008;
+      const block = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), i % 2 ? rockMat : shade);
+      block.position.set(s * (R * 0.62 - i * 0.012), 0.03 + i * 0.055, jitter(0.02));
+      block.rotation.set(jitter(0.6), Math.random() * Math.PI, jitter(0.6));
+      block.scale.set(1.1, 0.85, 1);
+      block.castShadow = true;
+      g.add(block);
+    }
+  }
+  for (let i = 0; i < 3; i++) {
+    const cap = new THREE.Mesh(new THREE.DodecahedronGeometry(0.075, 0), rockMat);
+    cap.position.set((i - 1) * 0.075, 0.235, jitter(0.02));
+    cap.rotation.set(jitter(0.4), Math.random() * Math.PI, jitter(0.4));
+    cap.scale.set(1.2, 0.6, 1.1);
+    cap.castShadow = true;
+    g.add(cap);
+  }
+  // the dark interior, so the mouth reads as a hole and not a gap
+  const hollow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.075, 12, 9),
+    craftMaterial("#241f18", { rough: 1.0 }),
+  );
+  hollow.scale.set(1, 1.1, 1.3);
+  hollow.position.set(0, 0.09, -0.02);
+  g.add(hollow);
+  if (!arch) {
+    // the blocky version piles a whole shoulder of rock behind and above the
+    // mouth — never in front of it, or the hide stops reading as a hide
+    for (let i = 0; i < 12; i++) {
+      const a = Math.PI * (0.15 + Math.random() * 0.7);
+      const rr = 0.09 + Math.random() * 0.12;
+      const sz = 0.045 + Math.random() * 0.045;
+      const block = new THREE.Mesh(new THREE.DodecahedronGeometry(sz, 0), i % 3 ? rockMat : shade);
+      block.position.set(Math.cos(a) * rr * 1.3, 0.06 + Math.random() * 0.2, -0.05 - Math.sin(a) * rr * 0.8);
+      block.rotation.set(jitter(0.7), Math.random() * Math.PI, jitter(0.7));
+      block.scale.set(1.2, 0.7, 1.05);
+      block.castShadow = true;
+      g.add(block);
+    }
+  }
+  return g;
+}
+
+// Stacked slate: broad thin plates layered into shelves with a stair climbing
+// between them — the shale hide that looks like a card house of stone.
+function buildSlateLedge(v = {}) {
+  const g = new THREE.Group();
+  const slateMat = craftMaterial(v.stone ?? "#4a4a4e", { rough: 0.85, flat: true });
+  const edge = craftMaterial(v.dark ?? "#3a3a3e", { rough: 0.85, flat: true });
+  const levels = [
+    [0.0, 0.21, 0],
+    [0.052, 0.16, -0.05],
+    [0.1, 0.13, 0.045],
+    [0.145, 0.1, -0.03],
+    [0.185, 0.075, 0.02],
+  ];
+  levels.forEach(([y, r, xoff], i) => {
+    // each shelf is two or three overlapping plates, not one clean disc
+    for (let p = 0; p < 3; p++) {
+      const plate = new THREE.Mesh(new THREE.CylinderGeometry(r * (0.7 + p * 0.15), r * (0.72 + p * 0.15), 0.012, 9), p ? slateMat : edge);
+      plate.position.set(xoff + jitter(0.03), y + p * 0.005, jitter(0.03));
+      plate.rotation.y = Math.random() * Math.PI;
+      plate.castShadow = true;
+      g.add(plate);
+    }
+    // squat props holding the next shelf up, leaving a gap to hide under
+    if (i < levels.length - 1) {
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 + i;
+        const prop = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.04, 0.03), edge);
+        prop.position.set(xoff + Math.cos(a) * r * 0.5, y + 0.03, Math.sin(a) * r * 0.5);
+        g.add(prop);
+      }
+    }
+  });
+  // the stair up the middle
+  for (let i = 0; i < 10; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.01, 0.022), slateMat);
+    step.position.set(0.02, 0.02 + i * 0.02, 0.12 - i * 0.014);
+    g.add(step);
+  }
+  return g;
+}
+
+// The canyon: two layered rock stacks leaning together into a bridge, with a
+// cave mouth through the base of one side.
+function buildCanyon(v = {}) {
+  const g = new THREE.Group();
+  const rockMat = craftMaterial(v.stone ?? "#b98f63", { rough: 1.0, flat: true });
+  const bandMat = craftMaterial(v.dark ?? "#a07a51", { rough: 1.0, flat: true });
+  for (const s of [-1, 1]) {
+    const layers = 7;
+    for (let i = 0; i < layers; i++) {
+      const t = i / (layers - 1);
+      const w = 0.16 - t * 0.05;
+      const slab = new THREE.Mesh(
+        new THREE.CylinderGeometry(w, w * 1.06, 0.036, 7),
+        i % 2 ? rockMat : bandMat,
+      );
+      slab.position.set(s * (0.14 - t * 0.03) + jitter(0.012), 0.02 + i * 0.038, jitter(0.02));
+      slab.rotation.y = Math.random() * Math.PI;
+      slab.scale.z = 0.75;
+      slab.castShadow = true;
+      g.add(slab);
+    }
+    // a shelf jutting out of each stack
+    const shelf = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.095, 0.026, 7), rockMat);
+    shelf.position.set(s * 0.2, 0.14 + s * 0.05, 0.03);
+    shelf.scale.z = 0.7;
+    shelf.castShadow = true;
+    g.add(shelf);
+  }
+  // the span bridging the two towers
+  const span = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, 0.14), rockMat);
+  span.position.set(0, 0.29, 0);
+  span.rotation.z = -0.06;
+  span.castShadow = true;
+  g.add(span);
+  const under = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.03, 0.1), bandMat);
+  under.position.set(0, 0.26, 0);
+  g.add(under);
+  // the cave mouth on the left foot
+  const mouth = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05, 12, 9),
+    craftMaterial("#241f18", { rough: 1.0 }),
+  );
+  mouth.scale.set(1, 1.1, 1.4);
+  mouth.position.set(-0.14, 0.06, 0.04);
+  g.add(mouth);
+  return g;
+}
+
+// A rough flight of stone steps, cut as one block and weathered along the treads.
+function buildStoneStairs(v = {}) {
+  const g = new THREE.Group();
+  const stone = craftMaterial(v.stone ?? "#b8b3ab", { rough: 1.0, flat: true });
+  const dark = craftMaterial(v.dark ?? "#98938b", { rough: 1.0, flat: true });
+  const steps = 11;
+  const rise = 0.021;
+  const run = 0.029;
+  for (let i = 0; i < steps; i++) {
+    const y = 0.01 + i * rise;
+    const z = 0.15 - i * run;
+    // each tread sits on the block of stone below it, so the flight is solid
+    const riser = new THREE.Mesh(new THREE.BoxGeometry(0.1, y + 0.02, run), i % 2 ? stone : dark);
+    riser.position.set(jitter(0.003), (y + 0.02) / 2, z);
+    riser.rotation.y = jitter(0.04);
+    riser.castShadow = true;
+    g.add(riser);
+    // chipped edges along the nose of the tread
+    for (let k = 0; k < 3; k++) {
+      const chip = new THREE.Mesh(new THREE.DodecahedronGeometry(0.01, 0), stone);
+      chip.position.set((k - 1) * 0.033 + jitter(0.008), y + 0.016, z + run * 0.5);
+      chip.rotation.set(jitter(1), jitter(1), jitter(1));
+      g.add(chip);
+    }
+  }
+  // rough side walls following the slope
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < steps; i++) {
+      const y = 0.01 + i * rise;
+      const cheek = new THREE.Mesh(new THREE.BoxGeometry(0.014, y + 0.03, run), dark);
+      cheek.position.set(s * 0.055 + jitter(0.004), (y + 0.03) / 2, 0.15 - i * run);
+      g.add(cheek);
+    }
+  }
+  return g;
+}
+
+// A broken brick wall spilling its rubble across the ground.
+function buildBrokenWall(v = {}) {
+  const g = new THREE.Group();
+  const brick = craftMaterial(v.stone ?? "#7f8288", { rough: 0.98, flat: true });
+  const dark = craftMaterial(v.dark ?? "#666a70", { rough: 0.98, flat: true });
+  const cols = 8;
+  const rows = 5;
+  for (let c = 0; c < cols; c++) {
+    // the wall steps down as it goes: tall at the left, gone at the right
+    const hRows = Math.max(0, Math.round(rows - (c / (cols - 1)) * (rows + 0.6)));
+    for (let r = 0; r < hRows; r++) {
+      const b = new THREE.Mesh(
+        new THREE.BoxGeometry(0.042, 0.026, 0.036),
+        (c + r) % 2 ? brick : dark,
+      );
+      b.position.set(-0.16 + c * 0.045 + (r % 2 ? 0.008 : 0), 0.015 + r * 0.028, jitter(0.004));
+      b.rotation.y = jitter(0.06);
+      b.castShadow = true;
+      g.add(b);
+    }
+  }
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.15, 0.05), dark);
+  post.position.set(-0.185, 0.075, 0);
+  post.castShadow = true;
+  g.add(post);
+  // the collapsed half, scattered forward
+  for (let i = 0; i < 16; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.022, 0.03), i % 2 ? brick : dark);
+    b.position.set(0.02 + Math.random() * 0.16, 0.012 + Math.random() * 0.03, jitter(0.07));
+    b.rotation.set(jitter(0.8), Math.random() * Math.PI, jitter(0.8));
+    b.castShadow = true;
+    g.add(b);
+  }
+  return g;
+}
+
+// A ruined watchtower: a coursed round tower torn open down one side, with a
+// stair spiralling up the broken shell.
+function buildRuinedTower(v = {}) {
+  const g = new THREE.Group();
+  const stone = craftMaterial(v.stone ?? "#cfc9ab", { rough: 0.98, flat: true });
+  const dark = craftMaterial(v.dark ?? "#b0aa8e", { rough: 0.98, flat: true });
+  const rows = 12;
+  for (let r = 0; r < rows; r++) {
+    const y = 0.02 + r * 0.032;
+    const rad = 0.105 - r * 0.003;
+    const n = 16;
+    // each course loses more of its arc as the tower climbs — that missing
+    // wedge is the breach — and the last blocks of a course drop out at random
+    const gap = 0.9 + Math.pow(r / rows, 1.5) * 3.4;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      // the breach faces the same way as the door, so you always see into it
+      const off = Math.abs(Math.atan2(Math.sin(a - 1.9), Math.cos(a - 1.9)));
+      if (off < gap / 2) continue;
+      if (off < gap / 2 + 0.35 && Math.random() < 0.5) continue;
+      const block = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.028, 0.026), (i + r) % 2 ? stone : dark);
+      block.position.set(Math.cos(a) * rad, y, Math.sin(a) * rad);
+      block.rotation.y = -a;
+      block.castShadow = true;
+      g.add(block);
+    }
+  }
+  const door = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, 0.075, 0.03),
+    craftMaterial("#2a271f", { rough: 1.0 }),
+  );
+  door.position.set(0, 0.058, 0.1);
+  g.add(door);
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(0.033, 0.012, 6, 12, Math.PI), stone);
+  arch.position.set(0, 0.095, 0.1);
+  g.add(arch);
+  const win = new THREE.Mesh(
+    new THREE.BoxGeometry(0.028, 0.05, 0.03),
+    craftMaterial("#2a271f", { rough: 1.0 }),
+  );
+  win.position.set(-0.075, 0.24, 0.06);
+  win.rotation.y = -0.9;
+  g.add(win);
+  // the stair inside the breach
+  for (let i = 0; i < 7; i++) {
+    const a = 4.4 + i * 0.28;
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.012, 0.03), dark);
+    step.position.set(Math.cos(a) * 0.075, 0.2 + i * 0.028, Math.sin(a) * 0.075);
+    step.rotation.y = -a;
+    g.add(step);
+  }
+  rubble(g, dark, 12, 0.15, 0.032);
+  return g;
+}
+
+// The temple hall: a red timber hall on a plinth under black tiled roofs.
+// `tiers` gives it one or two storeys, `wall` walls the courtyard in.
+function buildTempleHall(v = {}) {
+  const g = new THREE.Group();
+  const body = craftMaterial(v.body ?? "#b8552f", { rough: 0.88 });
+  const tile = craftMaterial(v.tile ?? "#2e2c2a", { rough: 0.7, flat: true });
+  const stoneMat = craftMaterial(v.stone ?? "#d8d3c8", { rough: 0.95 });
+  const tiers = v.tiers ?? 2;
+  const W = 0.24;
+  const D = 0.18;
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(W * 1.25, 0.03, D * 1.3), stoneMat);
+  base.position.y = 0.015;
+  base.receiveShadow = true;
+  g.add(base);
+  let y = 0.03;
+  for (let t = 0; t < tiers; t++) {
+    const k = 1 - t * 0.16;
+    const h = 0.085;
+    const hall = new THREE.Mesh(new THREE.BoxGeometry(W * k, h, D * k), body);
+    hall.position.y = y + h / 2;
+    hall.castShadow = true;
+    g.add(hall);
+    // lattice windows and a dark doorway on the front
+    for (const x of [-W * k * 0.32, W * k * 0.32]) {
+      const lat = new THREE.Mesh(new THREE.BoxGeometry(W * k * 0.22, h * 0.5, 0.006), tile);
+      lat.position.set(x, y + h * 0.55, (D * k) / 2 + 0.002);
+      g.add(lat);
+    }
+    const way = new THREE.Mesh(
+      new THREE.BoxGeometry(W * k * 0.22, h * 0.7, 0.008),
+      craftMaterial("#241f1b", { rough: 0.9 }),
+    );
+    way.position.set(0, y + h * 0.35, (D * k) / 2 + 0.002);
+    g.add(way);
+    // corner posts, then the roof over this storey
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, h, 6), body);
+        post.position.set(sx * W * k * 0.5, y + h / 2, sz * D * k * 0.5);
+        g.add(post);
+      }
+    }
+    y += h;
+    const roof = flaredRoof(tile, W * k * 1.4, D * k * 1.45, 0.055);
+    roof.position.y = y;
+    g.add(roof);
+    y += 0.055 + 0.012;
+    if (t === 0 && tiers > 1) {
+      // the balcony rail that rings the upper storey
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(W * 0.92, 0.016, D * 0.95), body);
+      rail.position.y = y + 0.008;
+      g.add(rail);
+      y += 0.016;
+    }
+  }
+  // the entrance steps
+  for (let i = 0; i < 3; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.012, 0.02), stoneMat);
+    step.position.set(0, 0.026 - i * 0.011, D * 0.66 + i * 0.019);
+    g.add(step);
+  }
+  if (v.walled) {
+    // a low courtyard wall with a break at the front for the stair
+    for (const [w, d, x, z] of [
+      [W * 1.7, 0.016, 0, -D * 0.95],
+      [0.016, D * 1.9, -W * 0.85, 0],
+      [0.016, D * 1.9, W * 0.85, 0],
+      [W * 0.55, 0.016, -W * 0.58, D * 0.95],
+      [W * 0.55, 0.016, W * 0.58, D * 0.95],
+    ]) {
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), stoneMat);
+      seg.position.set(x, 0.045, z);
+      seg.castShadow = true;
+      g.add(seg);
+    }
+    const yard = new THREE.Mesh(new THREE.BoxGeometry(W * 1.7, 0.02, D * 1.9), stoneMat);
+    yard.position.y = 0.01;
+    g.add(yard);
+  }
+  return g;
+}
+
+// A garden pavilion: an open platform, columns, a railing and a flared roof —
+// with an optional second eave and a stone podium under it.
+function buildPavilion(v = {}) {
+  const g = new THREE.Group();
+  const body = craftMaterial(v.body ?? "#8e3a2c", { rough: 0.88 });
+  const tile = craftMaterial(v.tile ?? "#2e2c2a", { rough: 0.7, flat: true });
+  const stoneMat = craftMaterial(v.stone ?? "#ded8cc", { rough: 0.95 });
+  const S = v.size ?? 0.16;
+  let y = 0;
+  if (v.podium) {
+    const podium = new THREE.Mesh(new THREE.BoxGeometry(S * 1.9, 0.05, S * 1.9), stoneMat);
+    podium.position.y = 0.025;
+    podium.castShadow = true;
+    g.add(podium);
+    for (let i = 0; i < 4; i++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(S * 0.6, 0.012, 0.018), stoneMat);
+      step.position.set(0, 0.044 - i * 0.012, S * 0.95 + i * 0.017);
+      g.add(step);
+    }
+    y = 0.05;
+  }
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(S * 1.5, 0.022, S * 1.5), stoneMat);
+  deck.position.y = y + 0.011;
+  deck.castShadow = true;
+  g.add(deck);
+  y += 0.022;
+  const colH = S * 0.72;
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(S * 0.045, S * 0.05, colH, 8), body);
+      col.position.set(sx * S * 0.6, y + colH / 2, sz * S * 0.6);
+      col.castShadow = true;
+      g.add(col);
+    }
+  }
+  // balustrade between the columns, one side left open as the entrance
+  for (const [x, z, rot] of [
+    [0, -S * 0.6, 0],
+    [-S * 0.6, 0, Math.PI / 2],
+    [S * 0.6, 0, Math.PI / 2],
+  ]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(S * 1.2, 0.012, 0.012), body);
+    rail.position.set(x, y + colH * 0.42, z);
+    rail.rotation.y = rot;
+    g.add(rail);
+    for (let i = -2; i <= 2; i++) {
+      const baluster = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, colH * 0.4, 5), body);
+      const off = i * S * 0.26;
+      baluster.position.set(
+        x + (rot ? 0 : off),
+        y + colH * 0.22,
+        z + (rot ? off : 0),
+      );
+      g.add(baluster);
+    }
+  }
+  y += colH;
+  const roof = flaredRoof(tile, S * 1.9, S * 1.9, S * 0.42);
+  roof.position.y = y;
+  g.add(roof);
+  if (v.doubleEave) {
+    // a second, wider eave slung below the first
+    const lower = flaredRoof(tile, S * 2.2, S * 2.2, S * 0.3);
+    lower.position.y = y - colH * 0.42;
+    lower.scale.setScalar(0.86);
+    g.add(lower);
+  }
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(S * 0.05, 8, 8), tile);
+  finial.scale.y = 1.6;
+  finial.position.y = y + S * 0.47;
+  g.add(finial);
+  return g;
+}
+
+// A ship's anchor with rope wound round the shank — the nautical ornament.
+function buildAnchor(v = {}) {
+  const g = new THREE.Group();
+  const metal = craftMaterial(v.metal ?? "#c8a97e", { rough: 0.6 });
+  const ropeMat = craftMaterial(v.rope ?? "#b89a70", { rough: 0.95 });
+  const H = 0.34;
+  const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.015, H, 10), metal);
+  shank.position.y = H / 2;
+  shank.castShadow = true;
+  g.add(shank);
+  // the ring at the head, plus the two small stock rings
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.009, 7, 16), metal);
+  ring.position.y = H + 0.03;
+  ring.castShadow = true;
+  g.add(ring);
+  const stock = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.16, 8), metal);
+  stock.rotation.z = Math.PI / 2;
+  stock.position.y = H - 0.03;
+  g.add(stock);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.006, 6, 12), metal);
+    eye.position.set(s * 0.095, H - 0.03, 0);
+    eye.rotation.y = Math.PI / 2;
+    g.add(eye);
+  }
+  // the arms sweep up from the crown into barbed flukes
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Mesh(
+      new THREE.TubeGeometry(
+        new THREE.QuadraticBezierCurve3(
+          new THREE.Vector3(0, 0.02, 0),
+          new THREE.Vector3(s * 0.11, 0.0, 0),
+          new THREE.Vector3(s * 0.14, 0.1, 0),
+        ),
+        14,
+        0.012,
+        7,
+      ),
+      metal,
+    );
+    arm.castShadow = true;
+    g.add(arm);
+    const fluke = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.055, 4), metal);
+    fluke.position.set(s * 0.145, 0.125, 0);
+    fluke.rotation.z = s * -0.35;
+    fluke.scale.z = 0.4;
+    g.add(fluke);
+  }
+  // rope: a twist down the shank and a coil round the crown
+  const rope = new THREE.Mesh(
+    new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.02, H + 0.02, 0.02),
+        new THREE.Vector3(-0.03, H * 0.7, 0.02),
+        new THREE.Vector3(0.03, H * 0.42, -0.02),
+        new THREE.Vector3(-0.02, H * 0.16, 0.02),
+      ]),
+      20,
+      0.007,
+      6,
+    ),
+    ropeMat,
+  );
+  g.add(rope);
+  for (let i = 0; i < 2; i++) {
+    const coil = new THREE.Mesh(new THREE.TorusGeometry(0.04 + i * 0.012, 0.007, 6, 16), ropeMat);
+    coil.rotation.x = Math.PI / 2 + 0.15;
+    coil.position.set(-0.01, 0.03 + i * 0.012, 0.01);
+    g.add(coil);
   }
   return g;
 }
