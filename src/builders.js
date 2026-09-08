@@ -370,10 +370,63 @@ export function updateTerrainCap(mesh, state, baseY) {
 // Decorations
 // ---------------------------------------------------------------------------
 
+// Every builder below describes its shape as dozens of little meshes, because
+// that is the clearest way to write "a roof, then a chimney, then a door". The
+// renderer doesn't need them apart: one draw call is spent per mesh, so a
+// cottage costs forty. Bake collapses the meshes that share a material into a
+// single geometry once, at build time.
+//
+// Anything that has to stay addressable is left alone: lights, sprites,
+// instanced meshes, and meshes carrying `userData` (the terrain and layer
+// meshes animate through theirs). A merge that can't happen — mismatched
+// vertex attributes — quietly keeps the originals rather than dropping them.
+function bakeGroup(root) {
+  root.updateMatrixWorld(true);
+  const buckets = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh) return;
+    if (Array.isArray(o.material) || !o.material) return;
+    if (Object.keys(o.userData).length) return;
+    // Group by material *and* the shape of the geometry's data: merging needs
+    // every input to carry the same attributes and to agree on whether it is
+    // indexed, so a stray uv set or an unindexed ShapeGeometry buckets apart
+    // instead of failing the whole merge.
+    const sig = Object.keys(o.geometry.attributes).sort().join(",");
+    const key = `${o.material.uuid}|${sig}|${o.geometry.index ? "i" : "n"}`;
+    const bucket = buckets.get(key);
+    if (bucket) bucket.meshes.push(o);
+    else buckets.set(key, { material: o.material, meshes: [o] });
+  });
+  const _m = new THREE.Matrix4();
+  for (const { material, meshes } of buckets.values()) {
+    if (meshes.length < 2) continue;
+    const geos = meshes.map((m) =>
+      m.geometry.clone().applyMatrix4(_m.copy(m.matrixWorld)),
+    );
+    let merged = null;
+    try {
+      merged = mergeGeometries(geos);
+    } catch {
+      merged = null;
+    }
+    if (!merged) continue;
+    const baked = new THREE.Mesh(merged, material);
+    baked.castShadow = meshes.some((m) => m.castShadow);
+    baked.receiveShadow = meshes.some((m) => m.receiveShadow);
+    for (const m of meshes) m.parent?.remove(m);
+    root.add(baked);
+  }
+  return root;
+}
+
 // Return a fresh Object3D for a decoration kind. Every builder models around a
 // ~0.35 unit footprint and sits on y=0 (the caller lifts/rotates/scales it).
 // `v` is the catalog variant (colour/style overrides).
 export function buildDecoration(kind, v = {}) {
+  return bakeGroup(buildDecorationParts(kind, v));
+}
+
+function buildDecorationParts(kind, v = {}) {
   switch (kind) {
     case "moss":
       return buildMoss(v);
