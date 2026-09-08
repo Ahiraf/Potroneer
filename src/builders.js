@@ -564,6 +564,16 @@ export function buildDecoration(kind, v = {}) {
       return buildPavilion(v);
     case "anchor":
       return buildAnchor(v);
+    case "mantis":
+      return buildMantis(v);
+    case "snake":
+      return buildSnakeCoil(v);
+    case "wolf":
+      return buildWolf(v);
+    case "ibex":
+      return buildIbex(v);
+    case "elephant":
+      return buildElephant(v);
     default:
       return new THREE.Group();
   }
@@ -5635,5 +5645,305 @@ function buildAnchor(v = {}) {
     coil.position.set(-0.01, 0.03 + i * 0.012, 0.01);
     g.add(coil);
   }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Printed creature figurines
+// ---------------------------------------------------------------------------
+
+// A praying mantis reared up on four legs with its raptorial arms folded.
+function buildMantis(v = {}) {
+  const g = new THREE.Group();
+  const mat = craftMaterial(v.body ?? "#e8e6de", { rough: 0.7 });
+  const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 9), mat);
+  abdomen.scale.set(1.9, 0.7, 0.7);
+  abdomen.position.set(-0.05, 0.11, 0);
+  abdomen.rotation.z = 0.25;
+  abdomen.castShadow = true;
+  g.add(abdomen);
+  // the thorax rears up, carrying the head at the top
+  const thorax = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.02, 0.11, 8), mat);
+  thorax.position.set(0.035, 0.19, 0);
+  thorax.rotation.z = 0.45;
+  g.add(thorax);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 9), mat);
+  head.scale.set(1.1, 0.85, 0.8);
+  head.position.set(0.065, 0.25, 0);
+  head.castShadow = true;
+  g.add(head);
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 8), mat);
+    eye.position.set(0.078, 0.258, s * 0.019);
+    g.add(eye);
+    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.11, 4), mat);
+    ant.position.set(0.085, 0.31, s * 0.012);
+    ant.rotation.z = -0.35 + s * 0.05;
+    ant.rotation.x = s * 0.2;
+    g.add(ant);
+  }
+  // raptorial arms: elbow out and forward, forearm folded back under it with
+  // a row of teeth along the inside edge
+  for (const s of [-1, 1]) {
+    const shoulder = V(0.055, 0.215, s * 0.022);
+    const elbow = V(0.125, 0.145, s * 0.03);
+    const claw = V(0.075, 0.09, s * 0.032);
+    g.add(bone(mat, shoulder, elbow, 0.009));
+    g.add(bone(mat, elbow, claw, 0.008));
+    for (let i = 1; i < 6; i++) {
+      const p = elbow.clone().lerp(claw, i / 6);
+      const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.004, 0.012, 4), mat);
+      tooth.position.set(p.x, p.y, p.z);
+      tooth.rotation.z = -0.7;
+      g.add(tooth);
+    }
+  }
+  // wing case over the abdomen
+  const wing = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), mat);
+  wing.scale.set(1.8, 0.35, 0.55);
+  wing.position.set(-0.04, 0.14, 0);
+  wing.rotation.z = 0.28;
+  g.add(wing);
+  // four walking legs: hip up under the body, knee out high, foot on the ground
+  for (const s of [-1, 1]) {
+    for (const [hx, fx] of [[0.005, 0.075], [-0.06, -0.035]]) {
+      const hip = V(hx, 0.125, s * 0.03);
+      const knee = V(hx + 0.02, 0.185, s * 0.085);
+      const foot = V(fx, 0.006, s * 0.1);
+      g.add(bone(mat, hip, knee, 0.006));
+      g.add(bone(mat, knee, foot, 0.005));
+      const toe = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), mat);
+      toe.position.copy(foot);
+      g.add(toe);
+    }
+  }
+  return g;
+}
+
+// A snake coiled around a piece of driftwood on a round base.
+function buildSnakeCoil(v = {}) {
+  const g = new THREE.Group();
+  const skin = craftMaterial(v.body ?? "#b58a63", { rough: 0.85 });
+  const woodMat = craftMaterial(v.wood ?? "#a37c56", { rough: 0.95, flat: true });
+  g.add(plinth(craftMaterial(v.base ?? "#a8815b", { rough: 1.0 }), 0.17));
+  // the branch it is wrapped around, splintered at the top
+  const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.03, 0.28, 8), woodMat);
+  branch.position.set(0.02, 0.16, -0.01);
+  branch.rotation.z = -0.35;
+  branch.castShadow = true;
+  g.add(branch);
+  for (let i = 0; i < 5; i++) {
+    const splint = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.06, 4), woodMat);
+    splint.position.set(0.08 + jitter(0.02), 0.29 + jitter(0.02), -0.01 + jitter(0.02));
+    splint.rotation.set(jitter(0.4), 0, -0.5 + jitter(0.3));
+    g.add(splint);
+  }
+  // the body: a rising helix of segments, thinning towards the head
+  const segs = 46;
+  for (let i = 0; i < segs; i++) {
+    const t = i / (segs - 1);
+    const a = t * Math.PI * 4.6;
+    const r = 0.085 - t * 0.035;
+    const y = 0.03 + t * 0.2;
+    const seg = new THREE.Mesh(new THREE.SphereGeometry(0.022 - t * 0.009, 10, 8), skin);
+    seg.position.set(Math.cos(a) * r + t * 0.02, y, Math.sin(a) * r);
+    seg.scale.set(1, 0.85, 1);
+    seg.castShadow = true;
+    g.add(seg);
+  }
+  const a = Math.PI * 4.6;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 9), skin);
+  head.scale.set(1.4, 0.75, 0.9);
+  head.position.set(Math.cos(a) * 0.05 + 0.045, 0.235, Math.sin(a) * 0.05);
+  head.rotation.y = -a;
+  head.castShadow = true;
+  g.add(head);
+  return g;
+}
+
+// A wolf howling from a rock outcrop.
+function buildWolf(v = {}) {
+  const g = new THREE.Group();
+  const fur = craftMaterial(v.body ?? "#b9b6ae", { rough: 0.9 });
+  const rock = craftMaterial(v.stone ?? "#a9a69e", { rough: 1.0, flat: true });
+  // the outcrop: a few stacked slabs
+  for (let i = 0; i < 4; i++) {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(0.24 - i * 0.03, 0.035, 0.17 - i * 0.02), rock);
+    slab.position.set(jitter(0.015) - i * 0.012, 0.018 + i * 0.034, jitter(0.012));
+    slab.rotation.y = jitter(0.2);
+    slab.castShadow = true;
+    g.add(slab);
+  }
+  const y0 = 0.15;
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 9), fur);
+  torso.scale.set(2.35, 0.62, 0.6);
+  torso.position.set(-0.03, y0 + 0.075, 0);
+  torso.castShadow = true;
+  g.add(torso);
+  // shoulders and ruff, then a neck carrying the head back into the howl
+  const ruff = new THREE.Mesh(new THREE.SphereGeometry(0.044, 12, 9), fur);
+  ruff.scale.set(0.8, 1.15, 0.95);
+  ruff.position.set(0.055, y0 + 0.095, 0);
+  ruff.castShadow = true;
+  g.add(ruff);
+  g.add(bone(fur, V(0.055, y0 + 0.105, 0), V(0.092, y0 + 0.17, 0), 0.017));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.021, 12, 9), fur);
+  head.scale.set(1.15, 0.85, 0.8);
+  head.position.set(0.096, y0 + 0.178, 0);
+  head.castShadow = true;
+  g.add(head);
+  // the muzzle points up and forward — the whole pose is the howl
+  const muzzle = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.06, 8), fur);
+  muzzle.position.set(0.118, y0 + 0.203, 0);
+  muzzle.rotation.z = -0.65;
+  muzzle.castShadow = true;
+  g.add(muzzle);
+  for (const s of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.024, 5), fur);
+    ear.position.set(0.082, y0 + 0.192, s * 0.013);
+    ear.rotation.z = 0.1;
+    g.add(ear);
+  }
+  // legs braced on the rock, shoulder to paw
+  for (const s of [-1, 1]) {
+    for (const [hx, px] of [[0.03, 0.042], [-0.055, -0.062]]) {
+      g.add(bone(fur, V(hx, y0 + 0.062, s * 0.028), V(px, y0 - 0.005, s * 0.032), 0.008));
+      const paw = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), fur);
+      paw.position.set(px, y0 - 0.006, s * 0.034);
+      g.add(paw);
+    }
+  }
+  const tail = new THREE.Mesh(
+    new THREE.TubeGeometry(
+      new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(-0.1, y0 + 0.07, 0),
+        new THREE.Vector3(-0.16, y0 + 0.06, 0.01),
+        new THREE.Vector3(-0.185, y0 + 0.02, 0.02),
+      ),
+      10,
+      0.013,
+      6,
+    ),
+    fur,
+  );
+  tail.castShadow = true;
+  g.add(tail);
+  return g;
+}
+
+// An ibex rearing on a boulder, big ridged horns curving back over its spine.
+function buildIbex(v = {}) {
+  const g = new THREE.Group();
+  const coat = craftMaterial(v.body ?? "#7e7c78", { rough: 0.92, flat: true });
+  const rock = craftMaterial(v.stone ?? "#6e6c68", { rough: 1.0, flat: true });
+  const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.085, 0), rock);
+  boulder.scale.set(1.3, 0.7, 1.1);
+  boulder.position.y = 0.05;
+  boulder.castShadow = true;
+  g.add(boulder);
+  const y0 = 0.11;
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 9), coat);
+  torso.scale.set(1.15, 1.5, 1.0);
+  torso.position.set(0, y0 + 0.11, 0);
+  torso.rotation.z = 0.35;
+  torso.castShadow = true;
+  g.add(torso);
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), coat);
+  chest.scale.set(1.1, 1, 1);
+  chest.position.set(0.028, y0 + 0.16, 0);
+  g.add(chest);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.022, 0.07, 7), coat);
+  neck.position.set(0.035, y0 + 0.2, 0);
+  neck.rotation.z = -0.5;
+  g.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.023, 10, 8), coat);
+  head.scale.set(1.5, 0.8, 0.8);
+  head.position.set(0.075, y0 + 0.225, 0);
+  head.rotation.z = -0.25;
+  head.castShadow = true;
+  g.add(head);
+  // horns: ringed tubes sweeping up and back over the shoulders
+  for (const s of [-1, 1]) {
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0.062, y0 + 0.245, s * 0.014),
+      new THREE.Vector3(0.02, y0 + 0.34, s * 0.02),
+      new THREE.Vector3(-0.055, y0 + 0.3, s * 0.022),
+    );
+    const horn = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.008, 6), coat);
+    horn.castShadow = true;
+    g.add(horn);
+    for (let i = 0; i <= 8; i++) {
+      const ridge = new THREE.Mesh(new THREE.TorusGeometry(0.009, 0.0025, 4, 8), coat);
+      ridge.position.copy(curve.getPoint(i / 8));
+      ridge.lookAt(curve.getPoint(Math.min(1, i / 8 + 0.08)));
+      g.add(ridge);
+    }
+  }
+  // forelegs pawing the air, hindlegs folded down onto the boulder
+  for (const s of [-1, 1]) {
+    const shoulder = V(0.03, y0 + 0.15, s * 0.028);
+    g.add(bone(coat, shoulder, V(0.095, y0 + 0.115, s * 0.03), 0.008));
+    g.add(bone(coat, V(0.095, y0 + 0.115, s * 0.03), V(0.115, y0 + 0.05, s * 0.032), 0.006));
+    const hip = V(-0.03, y0 + 0.07, s * 0.03);
+    g.add(bone(coat, hip, V(-0.05, y0 + 0.005, s * 0.034), 0.009));
+    const hoof = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.012, 6), coat);
+    hoof.position.set(-0.05, y0 - 0.002, s * 0.034);
+    g.add(hoof);
+  }
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.03, 5), coat);
+  tail.position.set(-0.045, y0 + 0.19, 0);
+  tail.rotation.z = 1.6;
+  g.add(tail);
+  return g;
+}
+
+// A tiny faceted elephant — the fits-on-a-fingertip miniature.
+function buildElephant(v = {}) {
+  const g = new THREE.Group();
+  const hide = craftMaterial(v.body ?? "#5b5f66", { rough: 0.95, flat: true });
+  const tuskMat = craftMaterial(v.tusk ?? "#ded8cc", { rough: 0.7 });
+  const S = v.size ?? 0.13;
+  const body = new THREE.Mesh(new THREE.DodecahedronGeometry(S * 0.42, 0), hide);
+  body.scale.set(1.35, 0.95, 0.85);
+  body.position.set(-S * 0.06, S * 0.52, 0);
+  body.castShadow = true;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.DodecahedronGeometry(S * 0.25, 0), hide);
+  head.scale.set(1, 1.05, 0.85);
+  head.position.set(S * 0.42, S * 0.58, 0);
+  head.castShadow = true;
+  g.add(head);
+  for (const s of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.CircleGeometry(S * 0.2, 7), hide);
+    ear.position.set(S * 0.4, S * 0.6, s * S * 0.19);
+    ear.rotation.set(0, s * 1.1, 0.2);
+    ear.material.side = THREE.DoubleSide;
+    g.add(ear);
+  }
+  // trunk: shrinking segments curling down and under
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    const seg = new THREE.Mesh(new THREE.SphereGeometry(S * (0.08 - t * 0.035), 8, 6), hide);
+    seg.position.set(S * (0.6 + t * 0.1 - t * t * 0.06), S * (0.48 - t * 0.34), 0);
+    g.add(seg);
+  }
+  for (const s of [-1, 1]) {
+    const tusk = new THREE.Mesh(new THREE.ConeGeometry(S * 0.022, S * 0.2, 5), tuskMat);
+    tusk.position.set(S * 0.58, S * 0.4, s * S * 0.08);
+    tusk.rotation.set(0, 0, 1.9);
+    g.add(tusk);
+  }
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(S * 0.09, S * 0.1, S * 0.34, 6), hide);
+      leg.position.set(sx * S * 0.22 - S * 0.05, S * 0.17, sz * S * 0.16);
+      leg.castShadow = true;
+      g.add(leg);
+    }
+  }
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(S * 0.015, S * 0.02, S * 0.22, 5), hide);
+  tail.position.set(-S * 0.44, S * 0.42, 0);
+  tail.rotation.z = 0.35;
+  g.add(tail);
   return g;
 }

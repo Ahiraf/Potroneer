@@ -404,6 +404,28 @@ const EN = {
   "চীনা মন্দির": "Temple hall",
   "মণ্ডপ": "Pavilion",
   "নোঙর": "Anchor",
+  "ম্যান্টিস": "Mantis",
+  "সাপ": "Snake",
+  "নেকড়ে": "Wolf",
+  "আইবেক্স": "Ibex",
+  "হাতি": "Elephant",
+  // their variant suffixes
+  "সোজা": "Flat",
+  "খিলান": "Arched",
+  "কাঠের": "Timber",
+  "কুটির": "Cottage",
+  "দোতলা": "Two storey",
+  "একতলা": "Single storey",
+  "সরাইখানা": "Tavern",
+  "প্রাচীরঘেরা": "Walled",
+  "ছোট": "Small",
+  "দোতলা ছাউনি": "Double eave",
+  "পাথরের ভিত": "Stone podium",
+  "লাল ছাদ": "Red cap",
+  "বেলেপাথর": "Sandstone",
+  "শ্যাওলা": "Mossy",
+  "বালি": "Sand",
+  "পাথুরে": "Stone",
 };
 
 const LANG_KEY = "potroneer-lang";

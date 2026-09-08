@@ -558,6 +558,22 @@ add("anchor", "নোঙর", [
   ["ধূসর", { metal: "#9a958c", rope: "#b0a893" }],
 ]);
 
+// The printed figurines that come with the same sets.
+add("mantis", "ম্যান্টিস", [
+  ["সাদা", {}],
+  ["সবুজ", { body: "#7fa356" }],
+]);
+add("snake", "সাপ", [
+  ["বালি", {}],
+  ["গাঢ়", { body: "#6f5a44", wood: "#7d6046", base: "#7a5f45" }],
+]);
+add("wolf", "নেকড়ে", [
+  ["ধূসর", {}],
+  ["কালো", { body: "#5e5c58", stone: "#7a7772" }],
+]);
+add("ibex", "আইবেক্স", [["", {}]]);
+add("elephant", "হাতি", [["", {}]]);
+
 // Category assignment for the flyout panel (like the reference game's
 // Favorites / Mushrooms / Rocks / Structures / Pine / Wood / Plant list).
 const CAT_BY_KIND = {
@@ -662,6 +678,11 @@ const CAT_BY_KIND = {
   templehall: "structures",
   pavilion: "structures",
   anchor: "structures",
+  mantis: "animals",
+  snake: "animals",
+  wolf: "animals",
+  ibex: "animals",
+  elephant: "animals",
   driftwood: "wood",
   pinecone: "wood",
   log: "wood",
