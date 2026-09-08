@@ -63,6 +63,11 @@ export const PLANT_KINDS = new Set([
   "saguaro",
   "pricklypear",
   "pincushion",
+  // the closed-jar staples
+  "selaginella",
+  "peperomia",
+  "babytears",
+  "creepingfig",
 ]);
 
 // Items become available through play, while a small starter set keeps the
@@ -193,6 +198,8 @@ export const ACHIEVEMENTS = [
   { id: "visitor", title: "Garden Visitor", bn: "বাগান অতিথি", desc: "Visit another terrarium.", descBn: "অন্য একটি টেরারিয়াম ভিজিট করো।", icon: "🚪" },
   { id: "team-gardener", title: "Team Gardener", bn: "দলবদ্ধ মালী", desc: "Join a co-op garden.", descBn: "একটি কো-অপ বাগানে যোগ দাও।", icon: "🤝" },
   { id: "evolved", title: "Living Ecosystem", bn: "জীবন্ত বাস্তুতন্ত্র", desc: "Grow your terrarium to stage four.", descBn: "টেরারিয়ামকে চতুর্থ ধাপে বড় করো।", icon: "🌳" },
+  { id: "bioactive", title: "Bioactive", bn: "বায়োঅ্যাকটিভ", desc: "Add a clean-up crew — springtails or isopods.", descBn: "পরিচ্ছন্নতা দল যোগ করো — স্প্রিংটেইল বা আইসোপড।", icon: "🐛" },
+  { id: "mold-free", title: "Cleared the Mould", bn: "মোল্ডমুক্ত", desc: "Bring a mouldy terrarium back to clear.", descBn: "মোল্ড ধরা টেরারিয়ামকে আবার পরিষ্কার করো।", icon: "🍃" },
 ];
 
 const STARTER_KINDS = ["moss", "mossball", "leafy", "succulent", "airplant", "stone"];
@@ -236,6 +243,7 @@ function baseGameState() {
       soil: 0.32,
       health: 0.72,
       growth: 0,
+      mold: 0,
     },
     counters: { layer: 0, plant: 0, water: 0, mist: 0, light: 0, save: 0 },
     rewardAt: {},
@@ -390,16 +398,44 @@ export function simulateCare(game, metrics, now = Date.now()) {
   const soilTarget = metrics.hasSoil ? 0.7 : 0.28;
   care.soil = clamp(care.soil + (soilTarget - care.soil) * elapsedHours * 1.5);
 
+  // Mould is what actually kills a closed terrarium, and it kills it the same
+  // way every time: water goes in, nothing lets it out, and the still humid air
+  // over wet soil grows fur. So it is driven by *excess* — only water above the
+  // saturation line and humidity above the fogging line feed it — and a
+  // bioactive clean-up crew grazes it back, which is exactly what springtails
+  // and isopods are for. A jar that is merely damp never develops it.
+  const soaked = Math.max(0, care.water - 0.78) / 0.22;
+  const fogged = Math.max(0, care.humidity - 0.82) / 0.18;
+  const crew = Math.min(1, (metrics.crewCount ?? 0) / 2);
+  // The crew works both ends: they graze the bloom as it appears, and they eat
+  // back what is already there. They are not a licence to flood the jar — a
+  // fully crewed terrarium kept soaking still fouls, it just plateaus around
+  // two thirds instead of going under completely.
+  const moldGain =
+    (soaked * 0.55 + fogged * 0.3) * (metrics.hasSoil ? 1 : 0.4) * (1 - crew * 0.5);
+  const moldLoss = 0.06 + crew * 0.35 + (care.water < 0.55 ? 0.08 : 0);
+  care.mold = clamp(care.mold + (moldGain - moldLoss * care.mold) * elapsedHours);
+
   const waterBalance = 1 - Math.abs(care.water - 0.62) / 0.62;
   const humidityBalance = 1 - Math.abs(care.humidity - 0.58) / 0.58;
   const lightBalance = 1 - Math.abs(care.light - 0.68) / 0.68;
   const targetHealth = clamp(
-    0.15 + care.soil * 0.24 + waterBalance * 0.24 + humidityBalance * 0.18 + lightBalance * 0.19,
+    0.15 + care.soil * 0.24 + waterBalance * 0.24 + humidityBalance * 0.18 + lightBalance * 0.19
+      - care.mold * 0.45,
   );
   care.health = clamp(care.health + (targetHealth - care.health) * Math.min(1, elapsedHours * 2.5));
-  if (metrics.plantCount > 0 && care.health > 0.55) {
+  // Nothing grows while it is rotting.
+  if (metrics.plantCount > 0 && care.health > 0.55 && care.mold < 0.5) {
     care.growth = clamp(care.growth + (care.health - 0.5) * elapsedHours * 0.025);
   }
+  // Clearing a jar that really was mouldy is worth marking; a jar that never
+  // got there is not, so the badge needs both the peak and the recovery.
+  if (care.mold > 0.45) game.hadMold = true;
+  if (game.hadMold && care.mold < 0.08) {
+    unlockAchievement(game, "mold-free", now);
+    game.hadMold = false;
+  }
+  if ((metrics.crewCount ?? 0) > 0) unlockAchievement(game, "bioactive", now);
   game.ageDays = Math.max(0, (now - (game.createdAt || now)) / 86400000);
   game.evolutionStage = Math.min(4, Math.floor(care.growth * 4 + game.ageDays / 14));
   refreshChallenge(game, metrics);

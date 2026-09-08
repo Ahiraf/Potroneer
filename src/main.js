@@ -798,27 +798,34 @@ let autosaveTimer = null;
 let lastGameFrame = 0;
 let lastMistGameAction = 0;
 let lastWaterGameAction = 0;
+let moldWarned = false;
 
 function gameMetrics() {
   const plantCount = state.decorations.filter((rec) => PLANT_KINDS.has(rec.kind)).length;
   const mossCount = state.decorations.filter((rec) => MOSS_KINDS.has(rec.kind)).length;
+  // springtails and isopods are the only decorations the simulation reacts to
+  const crewCount = state.decorations.filter((rec) => CLEANUP_KINDS.has(rec.kind)).length;
   return {
     plantCount,
     mossCount,
+    crewCount,
     layerCount: state.layers.length,
     hasSoil: state.layers.some((layer) => layer.type === "soil"),
     lightOn: jarLight.on,
   };
 }
 
-function setCareMeter(id, value) {
+// `bad` flips the reading: for water or light a full bar is the goal, but for
+// mould a full bar is the problem, so the colour has to run the other way.
+function setCareMeter(id, value, bad = false) {
   const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
   const label = document.getElementById(`care-${id}`);
   const fill = document.getElementById(`care-${id}-fill`);
   if (label) label.textContent = `${gameLabel(id)} ${toUiDigits(pct)}%`;
   if (fill) {
     fill.style.width = `${pct}%`;
-    fill.style.background = pct < 30 ? "var(--danger)" : pct < 55 ? "#c9a95e" : "var(--green)";
+    const level = bad ? 100 - pct : pct;
+    fill.style.background = level < 30 ? "var(--danger)" : level < 55 ? "#c9a95e" : "var(--green)";
   }
 }
 
@@ -828,6 +835,7 @@ function gameLabel(id) {
     humidity: getLang() === "bn" ? "আর্দ্রতা" : "Humidity",
     light: getLang() === "bn" ? "আলো" : "Light",
     soil: getLang() === "bn" ? "মাটি" : "Soil",
+    mold: getLang() === "bn" ? "মোল্ড" : "Mould",
   };
   return labels[id] ?? id;
 }
@@ -1133,6 +1141,18 @@ function renderGameHud() {
   setCareMeter("humidity", game.care.humidity);
   setCareMeter("light", game.care.light);
   setCareMeter("soil", game.care.soil);
+  setCareMeter("mold", game.care.mold ?? 0, true);
+  // One nudge when mould first takes hold, not every frame after.
+  if ((game.care.mold ?? 0) > 0.45 && !moldWarned) {
+    moldWarned = true;
+    flashHint(
+      gameMetrics().crewCount
+        ? "মোল্ড ছড়াচ্ছে — কিছুদিন পানি কম দাও, দলটাকে কাজ করতে দাও।"
+        : "মোল্ড ছড়াচ্ছে — কম পানি দাও, আর স্প্রিংটেইল বা আইসোপড যোগ করো।",
+    );
+  } else if ((game.care.mold ?? 0) < 0.2) {
+    moldWarned = false;
+  }
 
   const tutorial = getTutorial(game);
   const tutorialTitle = document.getElementById("game-tutorial-title");

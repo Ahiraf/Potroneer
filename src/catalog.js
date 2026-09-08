@@ -487,6 +487,17 @@ add("shrimp", "চেরি চিংড়ি", [
   ["লাল", { body: "#c2402f" }],
   ["হলুদ", { body: "#d9b03a", legs: "#e8cf7a" }],
 ]);
+// The bioactive crew. These two are the only decorations with a job: the care
+// simulation counts them and they eat the mould back (see CLEANUP_KINDS).
+add("isopod", "আইসোপড", [
+  ["ধূসর", { shell: "#8a8378" }],
+  ["ডেইরি কাউ", { shell: "#e0dbd0", patch: "#3a3733" }],
+  ["কমলা", { shell: "#d08a3a", legs: "#e8c48a" }],
+]);
+add("springtails", "স্প্রিংটেইল", [
+  ["সাদা", {}],
+  ["গোলাপি", { body: "#e6cfd0" }],
+]);
 
 // ---------------------------------------------------------------------------
 // The printed hardscape set
@@ -638,6 +649,8 @@ const CAT_BY_KIND = {
   creepingfig: "plants",
   nerite: "animals",
   shrimp: "animals",
+  isopod: "animals",
+  springtails: "animals",
   bonsai: "plants",
   snakeplant: "plants",
   leafy: "plants",

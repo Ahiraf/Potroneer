@@ -582,6 +582,10 @@ function buildDecorationParts(kind, v = {}) {
       return buildNerite(v);
     case "shrimp":
       return buildShrimp(v);
+    case "isopod":
+      return buildIsopod(v);
+    case "springtails":
+      return buildSpringtails(v);
     // The printed hardscape set — miniature buildings, ruins and reptile hides.
     case "mushroombridge":
       return buildMushroomBridge(v);
@@ -5791,6 +5795,81 @@ function buildAnchor(v = {}) {
     coil.rotation.x = Math.PI / 2 + 0.15;
     coil.position.set(-0.01, 0.03 + i * 0.012, 0.01);
     g.add(coil);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// The clean-up crew
+// ---------------------------------------------------------------------------
+// A bioactive terrarium runs on these two: springtails graze the mould before
+// it spreads, isopods break down leaf litter. They are the only decorations
+// that do a job rather than sit there, so the care simulation counts them.
+
+// An isopod: a segmented armoured back, seven pairs of legs and two antennae.
+function buildIsopod(v = {}) {
+  const g = new THREE.Group();
+  const shell = craftMaterial(v.shell ?? "#8a8378", { rough: 0.65 });
+  const patch = v.patch ? craftMaterial(v.patch, { rough: 0.65 }) : null;
+  const legMat = craftMaterial(v.legs ?? "#c9c2b4", { rough: 0.8 });
+  const L = v.size ?? 0.1;
+  const segs = 7;
+  for (let i = 0; i < segs; i++) {
+    const t = i / (segs - 1);
+    // widest across the middle, tapering to head and tail
+    const w = L * (0.34 - Math.abs(t - 0.42) * 0.3);
+    const plate = new THREE.Mesh(
+      new THREE.SphereGeometry(w, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2),
+      patch && i % 2 ? patch : shell,
+    );
+    plate.scale.set(1, 0.55, 0.62);
+    plate.position.set((t - 0.5) * L, w * 0.3, 0);
+    plate.castShadow = true;
+    g.add(plate);
+    if (i < segs - 1) {
+      for (const s of [-1, 1]) {
+        const leg = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.0022, 0.0022, w * 0.9, 4),
+          legMat,
+        );
+        leg.position.set((t - 0.5) * L, w * 0.15, s * w * 0.55);
+        leg.rotation.x = s * 1.0;
+        g.add(leg);
+      }
+    }
+  }
+  for (const s of [-1, 1]) {
+    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, L * 0.34, 4), legMat);
+    ant.position.set(L * 0.5, L * 0.08, s * L * 0.06);
+    ant.rotation.set(s * 0.4, 0, 1.15);
+    g.add(ant);
+  }
+  return g;
+}
+
+// Springtails: too small to model one of, so the decoration is what you
+// actually see — a pale drift of them across the soil.
+function buildSpringtails(v = {}) {
+  const g = new THREE.Group();
+  const mat = craftMaterial(v.body ?? "#e6e2d6", { rough: 0.7 });
+  const spread = v.spread ?? 0.13;
+  const count = 26 + ((Math.random() * 10) | 0);
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.pow(Math.random(), 0.55) * spread;
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 5), mat);
+    body.scale.set(1.7, 0.8, 0.8);
+    body.position.set(Math.cos(a) * r, 0.006 + Math.random() * 0.012, Math.sin(a) * r);
+    body.rotation.y = Math.random() * Math.PI;
+    g.add(body);
+  }
+  // a few caught mid-jump, which is the only way you ever notice them
+  for (let i = 0; i < 4; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const hop = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 5), mat);
+    hop.scale.set(1.6, 0.8, 0.8);
+    hop.position.set(Math.cos(a) * spread * 0.7, 0.035 + Math.random() * 0.025, Math.sin(a) * spread * 0.7);
+    g.add(hop);
   }
   return g;
 }
