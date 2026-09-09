@@ -138,8 +138,16 @@ let seasonId = "spring";
 let weatherId = "clear";
 let cycleEnabled = true;
 let timeOfDay = 0.52;
+// The co-op room as { id, code }, or null. `coopRevision` is the highest
+// revision this client has sent or applied; `coopLocalBuild` is the solo jar
+// stashed on the way in, so leaving gives it back rather than stranding you in
+// somebody else's garden.
 let coopRoom = null;
 let coopApplying = false;
+let coopRevision = 0;
+let coopPersistTimer = null;
+let coopLocalBuild = null;
+let coopStatus = "disconnected";
 let coopTimer = null;
 const COMFORT_KEY = "potroneer-comfort";
 let savedComfort = {};
@@ -1077,10 +1085,74 @@ function applyCosmeticPack(id) {
   scheduleAutosave();
 }
 
+// Every committed change goes out to the other gardener, and periodically into
+// the room row so somebody joining late — or refreshing — opens into the jar as
+// it is now rather than an empty one.
+//
+// This rides on scheduleAutosave(), which already fires once per *committed*
+// action: a finished sculpt stroke, a placed decoration, a watering. Pointer
+// moves and animation frames never reach it, which is exactly the granularity
+// worth sending.
 function broadcastCoopSnapshot() {
   if (!coopRoom || coopApplying) return;
   clearTimeout(coopTimer);
-  coopTimer = setTimeout(() => social.broadcastCoop({ sender: socialUser?.id, build: currentBuildData(), game }), 250);
+  coopTimer = setTimeout(async () => {
+    coopRevision += 1;
+    const payload = {
+      sender: socialUser?.id,
+      revision: coopRevision,
+      build: currentBuildData(),
+      game,
+    };
+    try {
+      await social.broadcastCoop(payload);
+    } catch {
+      setCoopStatus("reconnecting");
+    }
+    // The durable copy is written on a slower clock than the broadcast: the
+    // broadcast is what makes it feel live, the row is only there for whoever
+    // arrives next, and a free-tier database does not need a write per brush
+    // stroke.
+    clearTimeout(coopPersistTimer);
+    coopPersistTimer = setTimeout(async () => {
+      if (!coopRoom) return;
+      try {
+        const saved = await social.saveCoopState(coopRoom.id, {
+          build: payload.build,
+          game: payload.game,
+          revision: coopRevision,
+        });
+        if (saved?.revision) coopRevision = Math.max(coopRevision, Number(saved.revision));
+      } catch (error) {
+        // Losing the durable copy costs a late joiner freshness, not the live
+        // session, so it is a status line rather than an interruption.
+        coopStatusLine(coopErrorText(error), true);
+      }
+    }, 4000);
+  }, 250);
+}
+
+/** A snapshot from the other gardener. */
+function applyCoopSnapshot(payload) {
+  if (!payload || !payload.build) return;
+  if (payload.sender && payload.sender === socialUser?.id) return; // our own echo
+  const incoming = Number(payload.revision ?? 0);
+  // Last committed write wins, but only if it is actually newer. Without this a
+  // snapshot delayed in flight can arrive after a fresher one and quietly undo
+  // work that is already on screen.
+  if (incoming && incoming <= coopRevision) return;
+  coopApplying = true; // stops the applied state bouncing straight back out
+  try {
+    if (payload.game) hydrateGameState(game, payload.game);
+    loadBuildData(payload.build, { history: false });
+    coopRevision = incoming || coopRevision + 1;
+    renderGameHud();
+  } finally {
+    coopApplying = false;
+  }
+  coopStatusLine(
+    socialMessage("সঙ্গীর সর্বশেষ পরিবর্তন এসেছে।", "Updated with your partner's latest change."),
+  );
 }
 
 function syncGameCare(now = Date.now()) {
@@ -3435,44 +3507,259 @@ document.getElementById("achievements-btn").addEventListener("click", () => { re
 document.getElementById("achievements-close").addEventListener("click", () => achievementsModal.classList.add("hidden"));
 
 const coopModal = document.getElementById("coop-modal");
-document.getElementById("coop-btn").addEventListener("click", () => coopModal.classList.remove("hidden"));
+document.getElementById("coop-btn").addEventListener("click", () => {
+  coopModal.classList.remove("hidden");
+  renderCoopPanel();
+  setCoopStatus(coopStatus);
+  if (!social.isCloud) coopStatusLine(coopErrorText({ code: "NO_SUPABASE" }), true);
+});
+// Closing the panel is not leaving the room. You close it to get at the jar,
+// which is the entire point of being in a room together.
 document.getElementById("coop-close").addEventListener("click", () => coopModal.classList.add("hidden"));
+document.getElementById("coop-create").addEventListener("click", createCoopRoom);
 document.getElementById("coop-join").addEventListener("click", joinCoopRoom);
-document.getElementById("coop-leave").addEventListener("click", leaveCoopRoom);
+document.getElementById("coop-leave").addEventListener("click", () => {
+  // Only worth a confirmation while someone else is actually in there with you;
+  // leaving an empty room is not a decision anyone needs protecting from.
+  const alone = document.getElementById("coop-partner")?.dataset.alone !== "false";
+  if (alone || window.confirm(socialMessage("ঘর ছেড়ে যাবে?", "Leave the room?"))) {
+    leaveCoopRoom();
+  }
+});
+document.getElementById("coop-copy-code").addEventListener("click", async () => {
+  if (!coopRoom) return;
+  await copyCoopText(coopRoom.code, socialMessage("কোড কপি হয়েছে।", "Room code copied."));
+});
+
+/** Clipboard access is refused in plenty of ordinary situations; showing the
+ *  text is more use than an apology. */
+async function copyCoopText(text, okMessage) {
+  try {
+    await navigator.clipboard.writeText(text);
+    coopStatusLine(okMessage);
+  } catch {
+    coopStatusLine(text);
+  }
+}
+
+// --- co-op session ---------------------------------------------------------
+
+const COOP_STATUS_TEXT = {
+  connecting: ["সংযোগ হচ্ছে…", "Connecting…"],
+  connected: ["সংযুক্ত", "Connected"],
+  reconnecting: ["আবার সংযোগ হচ্ছে…", "Reconnecting…"],
+  disconnected: ["সংযোগ নেই", "Disconnected"],
+};
+
+const COOP_ERROR_TEXT = {
+  NO_SUPABASE: [
+    "কো-অপের জন্য একটি যুক্ত Supabase প্রজেক্ট দরকার।",
+    "Co-op requires a connected Supabase project.",
+  ],
+  AUTH_REQUIRED: ["কো-অপে ঢুকতে সাইন ইন করতে হবে।", "You need to sign in to use co-op."],
+  SESSION_EXPIRED: [
+    "লগইনের মেয়াদ শেষ — আবার সাইন ইন করো।",
+    "Your login has expired — sign in again.",
+  ],
+  ROOM_NOT_FOUND: ["এই কোডে কোনো ঘর নেই।", "No room with that code."],
+  ROOM_FULL: ["ঘরটিতে ইতিমধ্যে দুজন আছে।", "That room already has two gardeners."],
+  NOT_A_MEMBER: ["এই ঘরে তোমার প্রবেশাধিকার নেই।", "You do not have access to that room."],
+  UNAUTHORIZED: ["এই ঘরে ঢোকার অনুমতি নেই।", "Not allowed to join that room."],
+  TIMEOUT: ["ঘরে পৌঁছানো গেল না — নেটওয়ার্ক দেখো।", "Could not reach the room — check your network."],
+  UNKNOWN: ["কো-অপে সমস্যা হয়েছে।", "Something went wrong with co-op."],
+};
+
+function coopErrorText(error) {
+  const entry = COOP_ERROR_TEXT[error?.code] ?? COOP_ERROR_TEXT.UNKNOWN;
+  return socialMessage(entry[0], entry[1]);
+}
+
+function coopStatusLine(text, isError = false) {
+  const el = document.getElementById("coop-status");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("is-error", !!isError);
+}
+
+function setCoopStatus(status) {
+  coopStatus = status;
+  const pill = document.getElementById("coop-connection");
+  if (pill) {
+    const entry = COOP_STATUS_TEXT[status] ?? COOP_STATUS_TEXT.disconnected;
+    pill.textContent = socialMessage(entry[0], entry[1]);
+    pill.dataset.state = status;
+  }
+  document.body.classList.toggle("coop-live", status === "connected");
+}
+
+function renderCoopPanel({ members = 0, names = [] } = {}) {
+  const inRoom = !!coopRoom;
+  document.getElementById("coop-room-view")?.classList.toggle("hidden", !inRoom);
+  document.getElementById("coop-join-view")?.classList.toggle("hidden", inRoom);
+  const me = document.getElementById("coop-me");
+  if (me) {
+    me.textContent = socialUser
+      ? socialUser.displayName ||
+        socialUser.user_metadata?.display_name ||
+        socialUser.email?.split("@")[0] ||
+        "Gardener"
+      : socialMessage("অতিথি", "Guest");
+  }
+  if (inRoom) {
+    document.getElementById("coop-code").textContent = coopRoom.code;
+    const count = document.getElementById("coop-members");
+    if (count) {
+      const n = Math.max(members, 1);
+      count.textContent =
+        getLang() === "bn"
+          ? `${toUiDigits(n)} জন যুক্ত`
+          : `${n} ${n === 1 ? "gardener" : "gardeners"} connected`;
+    }
+    const partner = document.getElementById("coop-partner");
+    if (partner) {
+      const others = names.filter((name) => name && name !== me?.textContent);
+      partner.textContent = others.length
+        ? others.join(", ")
+        : socialMessage("সঙ্গীর অপেক্ষায়…", "Waiting for your partner…");
+      // Read by the leave button to decide whether leaving needs confirming.
+      partner.dataset.alone = others.length ? "false" : "true";
+    }
+  }
+}
+
+/** Shared by "create" and "join": open the channel and wire it up. */
+async function enterCoopRoom(room, { seedFromRoom }) {
+  coopRoom = { id: room.id, code: room.code };
+  coopRevision = Number(room.revision ?? 0);
+  setCoopStatus("connecting");
+  renderCoopPanel();
+
+  // Joining somebody's room replaces what is on screen, so the solo jar is put
+  // aside first and handed back when you leave. Nothing a person built is ever
+  // simply gone.
+  if (!coopLocalBuild) coopLocalBuild = { build: currentBuildData(), game: structuredClone(game) };
+
+  try {
+    await social.openCoopChannel(room, {
+      onSnapshot: applyCoopSnapshot,
+      onPresence: (members, names) => renderCoopPanel({ members, names }),
+      onStatus: (status) => {
+        setCoopStatus(status);
+        if (status === "connected") {
+          // A reconnect can land after the room moved on, so ask the row what
+          // the truth is rather than trusting whatever was last on screen.
+          refreshCoopState();
+        }
+      },
+    });
+  } catch (error) {
+    coopRoom = null;
+    setCoopStatus("disconnected");
+    renderCoopPanel();
+    coopStatusLine(coopErrorText(error), true);
+    return false;
+  }
+
+  if (seedFromRoom && room.build && Object.keys(room.build).length) {
+    // Late joiner: open into the garden as it stands.
+    applyCoopSnapshot({ revision: coopRevision, build: room.build, game: room.game });
+  } else {
+    // Room creator: the room starts as whatever is in front of them.
+    broadcastCoopSnapshot();
+  }
+  unlockGameAchievement("team-gardener");
+  scheduleAutosave();
+  return true;
+}
+
+async function refreshCoopState() {
+  if (!coopRoom) return;
+  try {
+    const fresh = await social.fetchCoopState(coopRoom.id);
+    if (!fresh) return;
+    const revision = Number(fresh.revision ?? 0);
+    if (revision > coopRevision && fresh.build && Object.keys(fresh.build).length) {
+      applyCoopSnapshot({ revision, build: fresh.build, game: fresh.game });
+    }
+  } catch (error) {
+    coopStatusLine(coopErrorText(error), true);
+  }
+}
+
+/** Guard shared by both entry points: cloud configured, and signed in. */
+function coopPreflight(resume) {
+  if (!social.isCloud) {
+    coopStatusLine(coopErrorText({ code: "NO_SUPABASE" }), true);
+    return false;
+  }
+  if (needsAccount("coop", resume)) return false;
+  return true;
+}
+
+async function createCoopRoom() {
+  if (!coopPreflight(createCoopRoom)) return;
+  coopStatusLine(socialMessage("ঘর তৈরি হচ্ছে…", "Creating a room…"));
+  try {
+    const room = await social.createCoopRoom({ build: currentBuildData(), game });
+    await enterCoopRoom(room, { seedFromRoom: false });
+  } catch (error) {
+    coopStatusLine(coopErrorText(error), true);
+  }
+}
 
 async function joinCoopRoom() {
   const input = document.getElementById("coop-room");
-  const room = (input.value.trim() || Math.random().toString(36).slice(2, 8)).toUpperCase();
-  input.value = room;
-  // A shared room is other people's hands in your jar, so this is the one place
-  // an account is genuinely unavoidable. The gate names the room and comes
-  // straight back here afterwards — your terrarium is untouched throughout.
-  pendingRoomInvite = room;
-  document.getElementById("auth-room-code").textContent = room;
-  if (needsAccount("coop", joinCoopRoom)) return;
-  const status = document.getElementById("coop-status");
+  const code = (input?.value || pendingRoomInvite || "").trim().toUpperCase();
+  if (!code) {
+    coopStatusLine(socialMessage("রুম কোড দাও।", "Enter a room code."), true);
+    return;
+  }
+  pendingRoomInvite = code;
+  document.getElementById("auth-room-code").textContent = code;
+  if (!coopPreflight(joinCoopRoom)) return;
+  coopStatusLine(socialMessage("ঘরে ঢোকা হচ্ছে…", "Joining the room…"));
   try {
-    const result = await social.joinCoop(room, (payload) => {
-      if (!payload || payload.sender === socialUser?.id || !payload.build) return;
-      coopApplying = true;
-      if (payload.game) hydrateGameState(game, payload.game);
-      loadBuildData(payload.build, { history: false });
-      coopApplying = false;
-      renderGameHud();
-    }, (members) => { status.textContent = `${members} ${members === 1 ? "gardener" : "gardeners"} connected`; });
-    coopRoom = room;
-    status.textContent = result.demo ? `Demo room ${room} — sign in for live co-op` : `Room ${room} connected`;
-    unlockGameAchievement("team-gardener");
-    scheduleAutosave();
+    const room = await social.joinCoopRoomByCode(code);
+    await enterCoopRoom(room, { seedFromRoom: true });
   } catch (error) {
-    status.textContent = error.message;
+    coopStatusLine(coopErrorText(error), true);
   }
 }
+
 async function leaveCoopRoom() {
-  await social.leaveCoop();
+  const room = coopRoom;
   coopRoom = null;
-  document.getElementById("coop-status").textContent = "Co-op room closed";
+  clearTimeout(coopTimer);
+  clearTimeout(coopPersistTimer);
+  setCoopStatus("disconnected");
+  try {
+    await social.leaveCoop(room?.id);
+  } catch {
+    /* already disconnected */
+  }
+  // Give back the jar they walked in with.
+  if (coopLocalBuild) {
+    coopApplying = true;
+    try {
+      hydrateGameState(game, coopLocalBuild.game);
+      loadBuildData(coopLocalBuild.build, { history: false });
+      renderGameHud();
+    } finally {
+      coopApplying = false;
+    }
+    coopLocalBuild = null;
+  }
+  renderCoopPanel();
+  coopStatusLine(socialMessage("ঘর ছেড়ে এসেছো — নিজের বাগানে ফিরলে।", "Left the room — back in your own garden."));
+  scheduleAutosave();
 }
+
+// Closing the tab should not leave a ghost in the room. `untrack` on the way
+// out is what makes the other side's member count drop promptly instead of
+// waiting for a presence timeout.
+window.addEventListener("pagehide", () => {
+  if (coopRoom) social.closeCoopChannel?.();
+});
 
 const soundBtn = document.getElementById("sound");
 const volumeSlider = document.getElementById("volume");
@@ -4317,22 +4604,13 @@ onIntroDone(checkRoomInvite);
 // Copy a link that opens straight into this room. What the other person gets is
 // a preview of the room first — see openRoomInvite — not a login form.
 document.getElementById("coop-invite")?.addEventListener("click", async () => {
-  const code = (document.getElementById("coop-room").value.trim() || coopRoom || "").toUpperCase();
-  const status = document.getElementById("coop-status");
+  const code = coopRoom?.code || document.getElementById("coop-room").value.trim().toUpperCase();
   if (!code) {
-    status.textContent = socialMessage(
-      "আগে একটি রুম কোড দাও বা যোগ দাও।",
-      "Enter a room code or join one first.",
-    );
+    coopStatusLine(socialMessage("আগে একটি ঘর বানাও বা কোড দাও।", "Create a room or enter a code first."), true);
     return;
   }
-  const url = social.roomInviteUrl(code);
-  try {
-    await navigator.clipboard?.writeText(url);
-    status.textContent = socialMessage("আমন্ত্রণ লিঙ্ক কপি হয়েছে।", "Invite link copied.");
-  } catch {
-    // Clipboard access is refused in plenty of ordinary situations; showing the
-    // link is more use than an apology.
-    status.textContent = url;
-  }
+  await copyCoopText(
+    social.roomInviteUrl(code),
+    socialMessage("আমন্ত্রণ লিঙ্ক কপি হয়েছে।", "Invite link copied."),
+  );
 });

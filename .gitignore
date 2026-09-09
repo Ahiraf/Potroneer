@@ -4,6 +4,12 @@ dist
 *.log
 .vite
 
+# Local Supabase keys. .env.example is the committed template; the real values
+# belong in your shell and in Vercel's environment settings, never in the repo.
+.env
+.env.*
+!.env.example
+
 # Large 3D room-background scenes — kept local, too big for git (use Git LFS if
 # you need them versioned). The app loads them from /public at runtime.
 /public/cafe-misti.glb

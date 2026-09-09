@@ -295,44 +295,228 @@ export function createSocialClient() {
     return null;
   }
 
-  async function joinCoop(room, onSnapshot, onPresence) {
-    if (!remote || !supabase || !room) return { room, demo: true, members: 1 };
+  // --- co-op ----------------------------------------------------------------
+  // Two people, one jar, over a Supabase private channel. "Private" is the
+  // important word: the channel is authorized by RLS on realtime.messages
+  // against room membership, so knowing a room code is not enough to listen —
+  // you have to have been let in. See the co-op section of supabase/schema.sql.
+  //
+  // There is deliberately no demo co-op. A fake room that silently syncs with
+  // nobody is worse than being told the feature needs a project behind it.
+
+  /** Thrown with a stable `code` so the UI can say it in either language. */
+  class CoopError extends Error {
+    constructor(code, message) {
+      super(message || code);
+      this.code = code;
+    }
+  }
+
+  const RPC_ERRORS = {
+    ROOM_NOT_FOUND: "ROOM_NOT_FOUND",
+    ROOM_FULL: "ROOM_FULL",
+    AUTH_REQUIRED: "AUTH_REQUIRED",
+    NOT_A_MEMBER: "NOT_A_MEMBER",
+  };
+
+  function coopErrorFrom(error) {
+    const raw = error?.message || "";
+    for (const key of Object.keys(RPC_ERRORS)) {
+      if (raw.includes(key)) return new CoopError(key, raw);
+    }
+    if (/jwt|token|session/i.test(raw)) return new CoopError("SESSION_EXPIRED", raw);
+    return new CoopError("UNKNOWN", raw);
+  }
+
+  function requireCloud() {
+    if (!remote || !supabase) throw new CoopError("NO_SUPABASE");
+  }
+
+  async function requireCoopUser() {
     const user = await currentUser();
-    if (!user) throw new Error("Sign in before joining a co-op garden.");
-    if (coopChannel) await supabase.removeChannel(coopChannel);
-    coopChannel = supabase
-      .channel(`coop:${room}`, { config: { presence: { key: user.id } } })
+    if (!user) throw new CoopError("AUTH_REQUIRED");
+    return user;
+  }
+
+  async function createCoopRoom({ build = {}, game = {} } = {}) {
+    requireCloud();
+    await requireCoopUser();
+    const { data, error } = await supabase.rpc("create_coop_room", {
+      p_build: build,
+      p_game: game,
+    });
+    if (error) throw coopErrorFrom(error);
+    return Array.isArray(data) ? data[0] : data;
+  }
+
+  /**
+   * Turn a room code into membership. The check and the insert happen together
+   * inside one definer function, so there is no window where the client has
+   * been told a room exists but is not yet allowed into it.
+   */
+  async function joinCoopRoomByCode(code) {
+    requireCloud();
+    await requireCoopUser();
+    const { data, error } = await supabase.rpc("join_coop_room", {
+      p_code: String(code || "").trim().toUpperCase(),
+    });
+    if (error) throw coopErrorFrom(error);
+    const room = Array.isArray(data) ? data[0] : data;
+    if (!room) throw new CoopError("ROOM_NOT_FOUND");
+    return room;
+  }
+
+  /** The room as it stands right now — what a late joiner opens into. */
+  async function fetchCoopState(roomId) {
+    requireCloud();
+    const { data, error } = await supabase
+      .from("coop_rooms")
+      .select("id, code, build, game, revision, updated_at")
+      .eq("id", roomId)
+      .maybeSingle();
+    if (error) throw coopErrorFrom(error);
+    return data;
+  }
+
+  /**
+   * Commit state to the room. Goes through a definer function so the revision
+   * bump is atomic — two clients saving at once cannot both read revision 7 and
+   * both write revision 8.
+   */
+  async function saveCoopState(roomId, { build, game, revision }) {
+    requireCloud();
+    const { data, error } = await supabase.rpc("save_coop_state", {
+      p_room_id: roomId,
+      p_build: build ?? null,
+      p_game: game ?? null,
+      p_revision: revision ?? null,
+    });
+    if (error) throw coopErrorFrom(error);
+    return Array.isArray(data) ? data[0] : data;
+  }
+
+  /**
+   * Open the room's private channel.
+   *
+   * `onStatus` reports the connection honestly — connecting, connected,
+   * reconnecting, disconnected — because "is my friend still there" is the
+   * question this feature exists to answer, and a silent dead socket answers it
+   * wrongly. supabase-js retries on its own; this only surfaces what it is
+   * doing.
+   */
+  async function openCoopChannel(room, { onSnapshot, onPresence, onStatus } = {}) {
+    requireCloud();
+    const user = await requireCoopUser();
+    await closeCoopChannel();
+
+    // Private channels are authorized from the user's JWT, which Realtime only
+    // has if we hand it over.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new CoopError("SESSION_EXPIRED");
+    await supabase.realtime.setAuth(token);
+
+    let opened = false;
+    coopChannel = supabase.channel(`coop:${room.code}`, {
+      config: {
+        private: true,
+        presence: { key: user.id },
+      },
+    });
+
+    coopChannel
       .on("broadcast", { event: "snapshot" }, ({ payload }) => onSnapshot?.(payload))
       .on("presence", { event: "sync" }, () => {
-        const state = coopChannel.presenceState();
-        onPresence?.(Object.keys(state).length);
+        const state = coopChannel?.presenceState?.() ?? {};
+        onPresence?.(
+          Object.keys(state).length,
+          Object.values(state)
+            .flat()
+            .map((entry) => entry?.displayName)
+            .filter(Boolean),
+        );
       });
-    await new Promise((resolve, reject) => {
-      coopChannel.subscribe(async (status) => {
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (!opened) reject(new CoopError("TIMEOUT"));
+      }, 15000);
+
+      coopChannel.subscribe(async (status, error) => {
         if (status === "SUBSCRIBED") {
-          await coopChannel.track({ displayName: user.user_metadata?.display_name || user.email?.split("@")[0] || "Gardener" });
-          resolve();
+          clearTimeout(timeout);
+          opened = true;
+          onStatus?.("connected");
+          await coopChannel.track({
+            displayName:
+              user.user_metadata?.display_name || user.email?.split("@")[0] || "Gardener",
+          });
+          resolve({ room });
+          return;
         }
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(new Error("Co-op room could not be reached."));
+        if (status === "CHANNEL_ERROR") {
+          // After a successful subscribe this is a dropped connection that the
+          // client is already retrying; before one it is authorization saying no.
+          onStatus?.(opened ? "reconnecting" : "disconnected");
+          if (!opened) {
+            clearTimeout(timeout);
+            reject(coopErrorFrom(error) ?? new CoopError("UNAUTHORIZED"));
+          }
+          return;
+        }
+        if (status === "TIMED_OUT") {
+          onStatus?.(opened ? "reconnecting" : "disconnected");
+          if (!opened) {
+            clearTimeout(timeout);
+            reject(new CoopError("TIMEOUT"));
+          }
+          return;
+        }
+        if (status === "CLOSED") onStatus?.(opened ? "reconnecting" : "disconnected");
       });
     });
-    return { room, demo: false, members: 1 };
   }
 
   async function broadcastCoop(payload) {
     if (!coopChannel) return false;
-    await coopChannel.send({ type: "broadcast", event: "snapshot", payload });
-    return true;
+    const result = await coopChannel.send({ type: "broadcast", event: "snapshot", payload });
+    return result === "ok";
   }
 
-  async function leaveCoop() {
-    if (coopChannel && supabase) await supabase.removeChannel(coopChannel);
+  async function closeCoopChannel() {
+    if (coopChannel && supabase) {
+      try {
+        await coopChannel.untrack();
+      } catch {
+        /* already gone — nothing to stop announcing */
+      }
+      await supabase.removeChannel(coopChannel);
+    }
     coopChannel = null;
+  }
+
+  async function leaveCoop(roomId) {
+    await closeCoopChannel();
+    if (remote && supabase && roomId) {
+      // Best effort: a failed tidy-up must not keep someone in a room they have
+      // already left on screen.
+      try {
+        await supabase.rpc("leave_coop_room", { p_room_id: roomId });
+      } catch {
+        /* the membership row outlives the session; harmless */
+      }
+    }
   }
 
   return {
     roomInviteUrl,
     invitedRoom,
+    createCoopRoom,
+    joinCoopRoomByCode,
+    fetchCoopState,
+    saveCoopState,
+    openCoopChannel,
+    closeCoopChannel,
     mode: remote ? "cloud" : "demo",
     isCloud: remote,
     currentUser,
@@ -349,7 +533,6 @@ export function createSocialClient() {
     challengeParticipants,
     shareUrl,
     loadFromUrl,
-    joinCoop,
     broadcastCoop,
     leaveCoop,
   };

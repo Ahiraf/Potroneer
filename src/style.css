@@ -3863,6 +3863,11 @@ body.focus-tray-open .cam-zoom {
   .gallery,
   .social-shell,
   .more-menu {
+    /* Opaque, deliberately. These plates inherit --hud-strong, which the
+       comfort slider thins along with the rest of the chrome — fine for a
+       toolbar you look past, wrong for a sheet you are reading a room code off
+       while the tray shows through it. */
+    background: var(--hud-solid);
     position: fixed;
     inset-inline: 0;
     inset-block: auto 0;
@@ -4244,5 +4249,148 @@ body.focus-tray-open .cam-zoom {
   .toast:has(.toast-action) .toast-action {
     flex: 1 0 100%;
     margin-inline-start: 0;
+  }
+}
+
+/* ============================================================
+   Co-op panel
+   ============================================================ */
+.coop-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.coop-intro {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.5;
+}
+/* Connection state, said plainly. "Is my friend still there" is the question
+   this feature exists to answer, so it is a permanent line rather than
+   something you infer from edits arriving. */
+.coop-pill {
+  margin-inline-start: auto;
+  margin-inline-end: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: calc(11.5px * var(--text-scale));
+  font-weight: 600;
+  color: var(--ink-dim);
+  background: var(--hud-raised);
+  border: 1px solid var(--control-border);
+}
+.coop-pill[data-state="connected"] {
+  color: var(--accent-ink);
+  background: var(--accent-solid);
+  border-color: transparent;
+}
+.coop-pill[data-state="connecting"],
+.coop-pill[data-state="reconnecting"] {
+  color: var(--ink);
+}
+.coop-who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.coop-who strong {
+  font-size: calc(14px * var(--text-scale));
+}
+.coop-action {
+  min-height: 48px;
+  width: 100%;
+  font-size: calc(14px * var(--text-scale));
+  border-radius: var(--radius);
+  font-family: inherit;
+  cursor: pointer;
+}
+.coop-secondary {
+  color: var(--ink);
+  background: var(--hud-raised);
+  border: 1px solid var(--control-border);
+}
+.coop-leave {
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid var(--danger);
+}
+.coop-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-dim);
+  font-size: calc(12px * var(--text-scale));
+}
+.coop-or::before,
+.coop-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hud-border);
+}
+.coop-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  background: var(--hud-raised);
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+}
+/* The code gets read aloud down a phone line, so it is set wide and monospaced
+   enough that B and 8 cannot be confused. */
+.coop-code-row strong {
+  display: block;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: calc(20px * var(--text-scale));
+  letter-spacing: 0.18em;
+}
+.coop-copy {
+  min-height: 44px;
+  padding-inline: 14px;
+  color: var(--ink);
+  background: var(--hud-solid);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: calc(12.5px * var(--text-scale));
+  cursor: pointer;
+  white-space: nowrap;
+}
+.coop-members {
+  color: var(--ink-dim);
+  font-size: calc(12px * var(--text-scale));
+}
+#coop-join-view,
+#coop-room-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#coop-join-view.hidden,
+#coop-room-view.hidden {
+  display: none;
+}
+.social-status.is-error {
+  color: var(--danger);
+}
+/* The room code is the one field where a phone keyboard must not autocorrect,
+   and where 16px matters so focusing it does not zoom the page. */
+#coop-room {
+  min-height: 52px;
+  font-size: calc(16px * var(--text-scale));
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .coop-code-row {
+    flex-wrap: wrap;
+  }
+  .coop-copy {
+    width: 100%;
   }
 }

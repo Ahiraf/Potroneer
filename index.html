@@ -617,8 +617,54 @@
         </form>
       </div>
 
-      <div class="coop-modal hidden" id="coop-modal">
-        <div class="coop-card"><div class="cfg-head"><span data-i18n="কো-অপ বাগান">কো-অপ বাগান</span><button class="hud-btn" id="coop-close">✕</button></div><p data-i18n="একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।">একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।</p><div class="coop-row"><input id="coop-room" class="social-input" type="text" maxlength="12" placeholder="Room code" /><button id="coop-join" class="social-primary" data-i18n="যোগ দাও">যোগ দাও</button><button id="coop-leave" class="small-action" data-i18n="বের হও">বের হও</button><button id="coop-invite" class="small-action" type="button" data-i18n="আমন্ত্রণ লিঙ্ক">আমন্ত্রণ লিঙ্ক</button></div><span id="coop-status" class="social-status"></span></div>
+      <div class="coop-modal hidden" id="coop-modal" role="dialog" aria-modal="true" aria-labelledby="coop-title">
+        <div class="coop-card">
+          <div class="cfg-head">
+            <span id="coop-title" data-i18n="কো-অপ বাগান">কো-অপ বাগান</span>
+            <span class="coop-pill" id="coop-connection" data-state="disconnected" aria-live="polite">সংযোগ নেই</span>
+            <button class="hud-btn" id="coop-close" type="button" aria-label="বন্ধ করো">✕</button>
+          </div>
+
+          <p class="coop-intro" data-i18n="একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।">
+            একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।
+          </p>
+
+          <div class="coop-who">
+            <span class="game-label" data-i18n="তুমি">তুমি</span>
+            <strong id="coop-me">—</strong>
+          </div>
+
+          <!-- Not in a room yet -->
+          <div id="coop-join-view">
+            <button id="coop-create" class="social-primary coop-action" type="button" data-i18n="নতুন ঘর বানাও">নতুন ঘর বানাও</button>
+            <div class="coop-or" aria-hidden="true"><span data-i18n="অথবা">অথবা</span></div>
+            <label class="auth-field">
+              <span data-i18n="রুম কোড">রুম কোড</span>
+              <input id="coop-room" class="social-input" type="text" maxlength="8" inputmode="latin" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABC123" />
+            </label>
+            <button id="coop-join" class="coop-action coop-secondary" type="button" data-i18n="যোগ দাও">যোগ দাও</button>
+          </div>
+
+          <!-- In a room -->
+          <div id="coop-room-view" class="hidden">
+            <div class="coop-code-row">
+              <div>
+                <span class="game-label" data-i18n="রুম কোড">রুম কোড</span>
+                <strong id="coop-code">—</strong>
+              </div>
+              <button id="coop-copy-code" class="coop-copy" type="button" data-i18n="কোড কপি">কোড কপি</button>
+            </div>
+            <button id="coop-invite" class="coop-action coop-secondary" type="button" data-i18n="আমন্ত্রণ লিঙ্ক কপি">আমন্ত্রণ লিঙ্ক কপি</button>
+            <div class="coop-who">
+              <span class="game-label" data-i18n="সঙ্গী">সঙ্গী</span>
+              <strong id="coop-partner">—</strong>
+            </div>
+            <span class="coop-members" id="coop-members"></span>
+            <button id="coop-leave" class="coop-action coop-leave" type="button" data-i18n="ঘর ছাড়ো">ঘর ছাড়ো</button>
+          </div>
+
+          <span id="coop-status" class="social-status" role="status" aria-live="polite"></span>
+        </div>
       </div>
 
       <div
