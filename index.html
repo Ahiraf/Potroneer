@@ -2,7 +2,15 @@
 <html lang="bn">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real
+         numbers. Without it those insets are all 0, so every bit of
+         safe-area padding in style.css was quietly doing nothing and the
+         focus dock sat under the home indicator. No maximum-scale here on
+         purpose: pinch-zooming the page must stay available. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Potroneer — Virtual Terrarium Builder</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600&display=swap"
@@ -386,7 +394,17 @@
         <span class="focus-sep" aria-hidden="true"></span>
         <button id="focus-tray" class="focus-btn focus-btn--wide" type="button" data-i18n="ট্রে খোলো" title="ট্রে খোলো" aria-expanded="false" aria-controls="hud-bottom"><span class="focus-ico">🧺</span><span class="focus-text">ট্রে খোলো</span></button>
         <button id="focus-quick" class="focus-btn focus-btn--wide focus-quick" type="button" data-i18n="দ্রুত কাজ" title="দ্রুত কাজ"><span class="focus-ico">✳</span><span class="focus-text">দ্রুত কাজ</span></button>
+        <button id="focus-more" class="focus-btn focus-btn--wide" type="button" data-i18n="আরও" title="আরও" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu"><span class="focus-ico">···</span><span class="focus-text">আরও</span></button>
         <button id="focus-exit" class="focus-btn focus-btn--wide focus-exit" type="button" data-i18n="বের হও" title="বের হও"><span class="focus-ico">✕</span><span class="focus-text">বের হও</span></button>
+      </div>
+
+      <!-- Zoom, as buttons. Pinch still works and is the nicer gesture, but it
+           is a two-finger drag: WCAG 2.5.7 wants a single-pointer path to the
+           same thing, and a phone held one-handed has no second finger to
+           spare. Sits above the dock on the thumb side. -->
+      <div class="cam-zoom" id="cam-zoom" role="group" aria-label="জুম">
+        <button id="zoom-in" class="cam-zoom-btn" type="button" data-i18n-title="কাছে আনো" title="কাছে আনো" aria-label="কাছে আনো">＋</button>
+        <button id="zoom-out" class="cam-zoom-btn" type="button" data-i18n-title="দূরে নাও" title="দূরে নাও" aria-label="দূরে নাও">－</button>
       </div>
 
       <!-- A drawer pull on the left edge, for reaching the shelf without

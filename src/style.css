@@ -809,7 +809,7 @@ body.rail-hidden .game-panel {
   left: 50%;
   transform: translate(-50%, -50%);
   width: min(720px, 92vw);
-  max-height: 78vh;
+  max-height: 78dvh;
   display: flex;
   flex-direction: column;
   background: var(--hud-strong);
@@ -905,7 +905,7 @@ body.rail-hidden .game-panel {
   display: flex;
   flex-direction: column;
   width: min(860px, 94vw);
-  height: min(720px, 86vh);
+  height: min(720px, 86dvh);
   background: var(--hud-strong);
   border: 1px solid var(--hud-border);
   border-radius: 12px;
@@ -1218,7 +1218,7 @@ textarea.social-input {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   /* The spectrum sheets make this panel tall; on a short window it scrolls
      rather than running off the bottom of the screen. */
-  max-height: calc(100vh - 130px);
+  max-height: calc(100dvh - 130px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1418,7 +1418,7 @@ textarea.social-input {
 .achievements-modal.hidden,
 .coop-modal.hidden { display: none; }
 .achievements-card,
-.coop-card { width: min(500px, calc(100vw - 24px)); max-height: min(620px, 88vh); overflow: auto; padding: 14px; color: var(--ink); background: var(--hud-strong); border: 1px solid var(--hud-border); border-radius: 10px; box-shadow: 0 18px 60px rgba(0,0,0,.5); }
+.coop-card { width: min(500px, calc(100vw - 24px)); max-height: min(620px, 88dvh); overflow: auto; padding: 14px; color: var(--ink); background: var(--hud-strong); border: 1px solid var(--hud-border); border-radius: 10px; box-shadow: 0 18px 60px rgba(0,0,0,.5); }
 #achievements-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .achievement-card { display: flex; gap: 8px; padding: 9px; opacity: .48; background: rgba(255,255,255,.04); border: 1px solid var(--control-border); border-radius: 7px; }
 .achievement-card.is-unlocked { opacity: 1; border-color: var(--accent-line); }
@@ -2379,14 +2379,20 @@ body.focus-mode .hud-tools,
 body.focus-mode .sliders,
 body.focus-mode .game-panel,
 body.focus-mode .scene-panel,
-body.focus-mode .theme-panel,
 body.focus-mode #jar-panel,
 body.focus-mode #item-panel,
 /* The empty-jar call-to-action lands square in the middle of the glass. Folding
    the interface away already drops it (body.rail-hidden, above) and stepping
    into focus is the same promise: nothing paints over the jar. */
-body.focus-mode .empty-call,
-body.focus-mode .more-menu { display: none !important; }
+body.focus-mode .empty-call { display: none !important; }
+/* On a desktop, focus mode also folds away the panels you deliberately opened,
+   because the rail is one press away when you leave. On a phone focus mode *is*
+   the app — hiding these would make themes and settings unreachable — so there
+   they open as sheets over the jar instead. */
+body.focus-mode:not(.is-phone) .theme-panel,
+body.focus-mode:not(.is-phone) .more-menu { display: none !important; }
+body.focus-mode.is-phone .theme-panel.hidden,
+body.focus-mode.is-phone .more-menu.hidden { display: none !important; }
 body.focus-mode .rail { display: none; }
 body.focus-mode #calm-camera,
 body.focus-mode #more-btn { display: none; }
@@ -2412,7 +2418,7 @@ body.focus-mode .hint {
   .hud-bottom { width: var(--tray-w); }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
   .sliders {
     display: none;
   }
@@ -2491,7 +2497,11 @@ body.focus-mode .hint {
     right: 0;
     bottom: 0;
     width: auto;
-    height: min(46vh, 340px);
+    /* Grows with the type: at 200% the sheet's own header (build button,
+       category, search) is most of a 340px sheet and the shelf it exists to
+       show is a sliver. Capped against the viewport so the jar is still there
+       behind it. */
+    height: min(70dvh, calc(340px * var(--furniture-scale)));
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     border-right: none;
     border-top: 1px solid var(--hud-border);
@@ -2509,7 +2519,7 @@ body.focus-mode .hint {
   }
   body.focus-mode.focus-tray-open .focus-tray-edge {
     left: 50%;
-    bottom: min(46vh, 340px);
+    bottom: min(70dvh, calc(340px * var(--furniture-scale)));
     width: 96px;
     min-height: 44px;
     border: 1px solid var(--hud-border);
@@ -2524,7 +2534,7 @@ body.focus-mode .hint {
   #achievements-grid { grid-template-columns: 1fr; }
   .social-shell {
     width: 96vw;
-    height: 88vh;
+    height: 88dvh;
   }
   .social-content {
     padding: 12px 10px 16px;
@@ -3699,4 +3709,310 @@ body.pre-first-build .game-panel {
 }
 .comfort-group:first-of-type {
   margin-top: 6px;
+}
+
+/* ============================================================
+   Phone workspace
+   On a phone, Focus Build is the app: the jar owns the screen,
+   the shelf is a sheet you pull up, and everything else opens
+   over the top one at a time.
+   ============================================================ */
+
+/* Zoom buttons, thumb-side, floating clear of the dock. Only on touch layouts —
+   a mouse already has the wheel. */
+.cam-zoom {
+  position: fixed;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9;
+  inset-inline-end: calc(10px + env(safe-area-inset-right));
+  inset-block-end: calc(112px + env(safe-area-inset-bottom));
+}
+body.is-phone.focus-mode .cam-zoom {
+  display: flex;
+  /* Sits on top of the dock, whose height main.js measures — the bar wraps at
+     narrow widths and grows with the text scale, so a fixed offset puts the
+     bottom button behind it exactly on the phones that need it most. */
+  inset-block-end: calc(var(--dock-h, 96px) + 20px + env(safe-area-inset-bottom));
+}
+/* Centre and lock join the cluster on phones and take its shape *and* its
+   plate — the dock's buttons are translucent against the bar behind them, and
+   out here with nothing behind them they read as half-erased. */
+.cam-zoom .focus-btn {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 50%;
+  background: var(--hud-strong);
+  border: 1px solid var(--control-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
+}
+/* Their separators in the dock have nothing left to separate. */
+body.is-phone .focus-hud .focus-sep {
+  display: none;
+}
+/* While the shelf is up, the jar is behind a sheet — zooming it is pointless
+   and the buttons would sit on top of the sheet's own content. */
+body.focus-tray-open .cam-zoom {
+  display: none !important;
+}
+.cam-zoom-btn {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: var(--ink);
+  background: var(--hud-strong);
+  border: 1px solid var(--control-border);
+  border-radius: 50%;
+  font-family: inherit;
+  font-size: calc(20px * var(--text-scale));
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
+}
+.cam-zoom-btn:active {
+  transform: scale(0.94);
+}
+.cam-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* --- touch target floor ---------------------------------------------------
+   WCAG 2.2 asks for 24px; Apple and Material both land on 44–48 for something
+   you actually use, and a jar being decorated one-handed on a bus is the
+   argument for the larger number. The *visual* control keeps its size — only
+   the area that answers a finger grows, via a centred pseudo-element. These
+   controls sit in their own corners with room around them, so unlike the rail
+   buttons there is nothing adjacent for the padding to swallow. */
+@media (pointer: coarse) {
+  /* Panel close buttons sit alone in a corner with clear space around them, so
+     an invisible halo can grow past the glyph without landing on anything
+     else. */
+  .hud-btn,
+  .game-collapse,
+  .gal-close,
+  .social-close {
+    position: relative;
+  }
+  .hud-btn::after,
+  .game-collapse::after,
+  .gal-close::after,
+  .social-close::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  /* The chip's own corner buttons do NOT get a halo. They sit 3px from the top
+     edge of a chip in a stacked list, so a 44px circle centred on them reaches
+     into the chip above and answers taps meant for it. They grow for real
+     instead, and the chip itself — the thing you press to choose a material —
+     is the big target. */
+  .tray-btn,
+  .fav-btn {
+    width: 32px;
+    height: 32px;
+    font-size: calc(15px * var(--text-scale));
+  }
+  .item-chip {
+    min-height: 56px;
+    padding-block-start: 10px;
+  }
+  /* Anything you press repeatedly while building gets the full 48. */
+  .focus-btn,
+  .cat-btn,
+  .build-toggle,
+  .tray-show,
+  .tray-hide,
+  .radial-action,
+  .cam-zoom-btn {
+    min-height: 48px;
+  }
+  .comfort-row input[type="checkbox"],
+  .comfort-row input[type="range"] {
+    min-height: 32px;
+  }
+  .tab {
+    min-height: 44px;
+  }
+}
+
+/* --- one sheet pattern for every phone panel -------------------------------
+   On a desktop these are panels pinned near the control that opened them. On a
+   phone that reads as debris scattered over the jar, so they all become the
+   same thing: a sheet that rises from the bottom edge, capped so the terrarium
+   stays visible above it, scrolling inside itself, and clear of the home
+   indicator. One at a time, and the way out is always the same corner.
+
+   Heights are in dvh, not vh: mobile browser chrome grows and shrinks the
+   visible viewport, and a vh-sized sheet is measured against the *largest* of
+   those, so its bottom sits under the address bar exactly when it appears. */
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .theme-panel,
+  .photo-panel,
+  .cfg-panel,
+  .comfort-card,
+  .achievements-card,
+  .coop-card,
+  .gallery,
+  .social-shell,
+  .more-menu {
+    position: fixed;
+    inset-inline: 0;
+    inset-block: auto 0;
+    width: auto;
+    max-width: none;
+    height: auto;
+    max-height: min(82dvh, 680px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    /* overscroll stays inside the sheet instead of dragging the page behind it */
+    overscroll-behavior: contain;
+    padding-block-end: calc(18px + env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    border-inline: 0;
+    border-block-end: 0;
+    transform: none;
+    box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.5);
+  }
+  /* Backdrops stop centring their card and let it sit on the bottom edge. */
+  .comfort-modal,
+  .achievements-modal,
+  .coop-modal,
+  .publish-modal,
+  .social-modal {
+    place-items: end stretch;
+  }
+  /* A grab handle, so the sheet reads as something that came up from the edge
+     and can go back down. Drawn on the sheet rather than added to every panel's
+     markup. */
+  .theme-panel::before,
+  .photo-panel::before,
+  .comfort-card::before,
+  .achievements-card::before,
+  .coop-card::before,
+  .gallery::before,
+  .social-shell::before,
+  .more-menu::before {
+    content: "";
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin: 2px auto 12px;
+    background: var(--control-border);
+    border-radius: 2px;
+  }
+  /* The title row sticks, so the close button is reachable however far down the
+     content you have scrolled — otherwise the way out scrolls off the top. */
+  .theme-panel > .cfg-head,
+  .photo-panel > .cfg-head,
+  .comfort-card > .cfg-head,
+  .achievements-card > .cfg-head,
+  .coop-card > .cfg-head,
+  .gallery > .gal-head,
+  .social-shell > .social-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-block: 8px;
+    margin-block-start: -2px;
+    background: var(--hud-solid);
+  }
+  /* Two columns of achievements at 360px is two clipped columns. */
+  #achievements-grid {
+    grid-template-columns: 1fr;
+  }
+  .social-shell {
+    inset-block: auto 0;
+  }
+  .comfort-row input[type="range"] {
+    width: 45%;
+    min-width: 120px;
+  }
+}
+
+/* WCAG 2.2 2.4.11: a sticky dock must not be the reason you cannot see what you
+   have focused. Anything focused inside a sheet scrolls itself clear of the
+   dock's height rather than sitting behind it. */
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .theme-panel :focus-visible,
+  .photo-panel :focus-visible,
+  .comfort-card :focus-visible,
+  .achievements-card :focus-visible,
+  .coop-card :focus-visible,
+  .gallery :focus-visible,
+  .social-shell :focus-visible,
+  .more-menu :focus-visible {
+    scroll-margin-block: 72px calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
+/* With viewport-fit=cover the page now genuinely reaches under the notch and
+   the home indicator, so anything pinned to an edge has to say so. The canvas
+   *wants* to be full bleed; the controls do not. */
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .cam-exit,
+  .intro-skip {
+    inset-block-start: calc(10px + env(safe-area-inset-top));
+    inset-inline-end: calc(10px + env(safe-area-inset-right));
+  }
+  .hint {
+    padding-inline: calc(8px + env(safe-area-inset-left))
+      calc(8px + env(safe-area-inset-right));
+  }
+  /* The shelf sheet already pads its bottom; its sides need the same when the
+     phone is on its side and the notch is beside the screen. */
+  body.focus-mode.focus-tray-open .hud-bottom {
+    padding-inline: calc(12px + env(safe-area-inset-left))
+      calc(12px + env(safe-area-inset-right));
+  }
+}
+
+/* Short landscape: a phone on its side has ~390px of height, and a sheet capped
+   at 82dvh leaves almost nothing of the jar. The dock goes horizontal and tight
+   against the bottom, and sheets take a little over half the height. */
+@media (max-height: 460px) and (orientation: landscape) {
+  .theme-panel,
+  .photo-panel,
+  .cfg-panel,
+  .comfort-card,
+  .achievements-card,
+  .coop-card,
+  .gallery,
+  .social-shell,
+  .more-menu {
+    max-height: 92dvh;
+  }
+  body.focus-mode.focus-tray-open .hud-bottom {
+    height: min(62dvh, 260px);
+  }
+  body.focus-mode.focus-tray-open .focus-tray-edge {
+    bottom: min(62dvh, 260px);
+  }
+  .focus-hud {
+    flex-wrap: nowrap;
+    bottom: calc(6px + env(safe-area-inset-bottom));
+  }
+  /* The name of what you are holding goes back inline — there is no vertical
+     room to give it a line of its own. */
+  .focus-current {
+    flex: 0 1 auto;
+    max-width: 28vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cam-zoom {
+    inset-block-end: calc(66px + env(safe-area-inset-bottom));
+  }
+  .cam-zoom-btn {
+    width: 44px;
+    height: 44px;
+  }
 }

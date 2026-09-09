@@ -1183,6 +1183,19 @@ export function createStudio(canvas) {
     setAutoSpin: (on) => (autoSpin = !!on),
     isAutoSpin: () => autoSpin,
     setCameraLock: (on) => (camLocked = !!on),
+    // Zoom as a discrete step, so the pinch gesture is not the only way to get
+    // closer. A step of the full range's eighth is roughly one comfortable
+    // pinch, and it eases in through the same camDistT the wheel drives.
+    zoomStep: (direction) => {
+      camDistT = clamp(
+        camDistT + direction * (DIST_MAX - DIST_MIN) * 0.125,
+        DIST_MIN,
+        DIST_MAX,
+      );
+      return (camDistT - DIST_MIN) / (DIST_MAX - DIST_MIN);
+    },
+    canZoom: (direction) =>
+      direction < 0 ? camDistT > DIST_MIN + 0.01 : camDistT < DIST_MAX - 0.01,
     isCameraLocked: () => camLocked,
     setMood,
     setTheme,

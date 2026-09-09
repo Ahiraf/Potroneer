@@ -3536,7 +3536,18 @@ moreBtn.addEventListener("click", (event) => {
   moreMenu.classList.toggle("hidden");
 });
 document.getElementById("focus-btn").addEventListener("click", () => setFocusMode());
-document.getElementById("focus-exit").addEventListener("click", () => setFocusMode(false));
+document.getElementById("focus-exit").addEventListener("click", () => {
+  setFocusMode(false);
+  // On a phone, leaving is a decision — remember it rather than dropping them
+  // back into focus on the next load.
+  if (document.body.classList.contains("is-phone")) {
+    try {
+      localStorage.setItem(PHONE_CHOSE_KEY, "0");
+    } catch {
+      /* private mode — the phone default simply returns next session */
+    }
+  }
+});
 document.getElementById("focus-quick").addEventListener("click", openRadial);
 document.getElementById("focus-undo").addEventListener("click", undo);
 document.getElementById("focus-redo").addEventListener("click", redo);
@@ -3548,6 +3559,31 @@ document.getElementById("focus-lock").addEventListener("click", () => {
   setCameraLock(!cameraLocked);
   flashHint(cameraLocked ? "ক্যামেরা লক — জার আর ঘুরবে না।" : "ক্যামেরা খোলা — টেনে ঘোরাও।");
 });
+// Zoom without a second finger. The buttons disable themselves at the ends of
+// the range rather than going quietly dead, so the limit is visible.
+function syncZoomButtons() {
+  const inBtn = document.getElementById("zoom-in");
+  const outBtn = document.getElementById("zoom-out");
+  if (inBtn) inBtn.disabled = studio.canZoom ? !studio.canZoom(-1) : false;
+  if (outBtn) outBtn.disabled = studio.canZoom ? !studio.canZoom(1) : false;
+}
+for (const [id, direction] of [["zoom-in", -1], ["zoom-out", 1]]) {
+  document.getElementById(id)?.addEventListener("click", () => {
+    studio.zoomStep?.(direction);
+    studio.markInteraction();
+    syncZoomButtons();
+  });
+}
+syncZoomButtons();
+
+// The phone workspace hides the rail, so the More menu needs a door inside the
+// dock or themes, settings and the gallery become unreachable there.
+const focusMoreBtn = document.getElementById("focus-more");
+focusMoreBtn?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  document.getElementById("more-menu")?.classList.toggle("hidden");
+});
+
 // Two ways to the same drawer: the HUD button, and an edge pull for a thumb
 // that is already down by the glass.
 for (const id of ["focus-tray", "focus-tray-edge"]) {
@@ -3782,3 +3818,135 @@ wireDialogs([
   // so when the opener is gone, focus lands back on the button that reopens it.
 ], { fallbackFocus: "#more-btn" });
 wireTabs("#tabs");
+
+// --- phone workspace -------------------------------------------------------
+// A phone is not a small desktop. The desktop composition puts a 150px tray
+// down one side and a 148px rail down the other, which on a 390px screen leaves
+// the terrarium a corridor to live in. Focus Build already solves this — it is
+// the mode where the jar owns the screen and the shelf is a bottom sheet you
+// pull up when you want it — so on a phone that *is* the workspace rather than
+// a mode you have to discover.
+//
+// It is still a mode: "বের হও" leaves it, and the choice is remembered, so
+// nobody is locked into a layout they did not pick.
+// Matches style.css: narrow *or* short-and-sideways. A phone in landscape
+// is 844px wide, which sails past a width-only breakpoint while having
+// less vertical room than any phone in portrait.
+const PHONE_QUERY =
+  "(max-width: 700px), (max-height: 460px) and (orientation: landscape)";
+const PHONE_CHOSE_KEY = "potroneer-phone-focus";
+const phoneMedia = window.matchMedia?.(PHONE_QUERY);
+
+function syncPhoneClass() {
+  const phone = phoneMedia?.matches ?? false;
+  document.body.classList.toggle("is-phone", phone);
+  return phone;
+}
+
+function startPhoneWorkspace() {
+  const phone = syncPhoneClass();
+  if (!phone || focusMode) return;
+  let chosen = null;
+  try {
+    chosen = localStorage.getItem(PHONE_CHOSE_KEY);
+  } catch {
+    chosen = null;
+  }
+  // "0" means they left it on purpose last time; respect that.
+  if (chosen === "0") return;
+  setFocusMode(true);
+}
+
+phoneMedia?.addEventListener?.("change", () => {
+  const phone = syncPhoneClass();
+  placeCameraControls();
+  placeMoreMenu();
+  // Rotating a tablet or dragging a window narrow should not yank someone out
+  // of the layout they are working in, so this only ever opts *in*.
+  if (phone) startPhoneWorkspace();
+});
+
+syncPhoneClass();
+startPhoneWorkspace();
+
+// --- phone: camera controls move out of the dock ---------------------------
+// Eight controls in one bar wraps to two rows on a 390px phone and strands the
+// exit button alone on the second. Centre and lock are camera controls, not
+// build controls, so on a phone they join zoom in the cluster on the thumb side
+// and the dock keeps only the things you press while building. The buttons are
+// *moved*, not duplicated, so their existing listeners and state come along.
+const camCluster = document.getElementById("cam-zoom");
+const focusCenterBtn = document.getElementById("focus-center");
+const focusLockBtn = document.getElementById("focus-lock");
+const camHome = focusCenterBtn
+  ? { parent: focusCenterBtn.parentElement, before: focusCenterBtn.previousElementSibling }
+  : null;
+
+// The More menu lives inside the rail, and focus mode removes the rail from the
+// page entirely — so on a phone, where focus mode *is* the app, the menu was
+// unreachable no matter how the button toggled its class: its ancestor was
+// gone, so it rendered at zero height. It moves out to sit beside the dock.
+const moreMenuEl = document.getElementById("more-menu");
+const moreMenuHome = moreMenuEl?.parentElement ?? null;
+
+function placeMoreMenu() {
+  if (!moreMenuEl || !moreMenuHome) return;
+  const phone = document.body.classList.contains("is-phone");
+  const app = document.getElementById("app");
+  if (phone && app && moreMenuEl.parentElement !== app) app.appendChild(moreMenuEl);
+  else if (!phone && moreMenuEl.parentElement !== moreMenuHome) {
+    moreMenuHome.appendChild(moreMenuEl);
+  }
+}
+
+function placeCameraControls() {
+  if (!camCluster || !focusCenterBtn || !focusLockBtn || !camHome) return;
+  const phone = document.body.classList.contains("is-phone");
+  if (phone) {
+    if (focusCenterBtn.parentElement !== camCluster) {
+      camCluster.append(focusCenterBtn, focusLockBtn);
+    }
+  } else if (focusCenterBtn.parentElement === camCluster) {
+    // Back to where they started, after the separator they used to follow.
+    camHome.before?.after(focusCenterBtn, focusLockBtn) ??
+      camHome.parent.prepend(focusCenterBtn, focusLockBtn);
+  }
+}
+
+// The dock's height changes with wrapping, language and text scale, so the
+// cluster measures it rather than assuming a number and ending up underneath.
+const focusDock = document.getElementById("focus-hud");
+function syncDockHeight() {
+  if (!focusDock) return;
+  const h = focusDock.classList.contains("hidden")
+    ? 0
+    : Math.round(focusDock.getBoundingClientRect().height);
+  document.documentElement.style.setProperty("--dock-h", `${h}px`);
+}
+if (focusDock && window.ResizeObserver) {
+  new ResizeObserver(syncDockHeight).observe(focusDock);
+}
+window.addEventListener("resize", () => {
+  placeCameraControls();
+  placeMoreMenu();
+  syncDockHeight();
+});
+placeCameraControls();
+placeMoreMenu();
+syncDockHeight();
+
+// A tap on the jar closes the More menu too, via a listener that knows nothing
+// about the dock button — so the button reads its state off the menu rather
+// than remembering it, and cannot claim "expanded" over a closed sheet.
+if (focusMoreBtn && moreMenuEl) {
+  const syncMoreExpanded = () =>
+    focusMoreBtn.setAttribute(
+      "aria-expanded",
+      moreMenuEl.classList.contains("hidden") ? "false" : "true",
+    );
+  new MutationObserver(syncMoreExpanded).observe(moreMenuEl, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  syncMoreExpanded();
+}
