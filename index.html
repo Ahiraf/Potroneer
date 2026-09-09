@@ -170,7 +170,21 @@
     </script>
 
     <div id="app">
-      <canvas id="scene"></canvas>
+      <!-- The tab order starts with 30-odd tray chips. This lets a keyboard or
+           screen-reader user step straight past the palette to the jar. -->
+      <a class="skip-link" href="#tool-items" data-i18n="সরাসরি সরঞ্জামে যাও"
+        >সরাসরি সরঞ্জামে যাও</a
+      >
+      <!-- The scene is a canvas: there is nothing in it for a screen reader to
+           walk. It is labelled as an image with a description instead, and the
+           live region below narrates what changes inside it. -->
+      <canvas
+        id="scene"
+        role="img"
+        aria-label="তোমার টেরারিয়াম"
+        aria-describedby="scene-summary"
+      ></canvas>
+      <p id="scene-summary" class="sr-only" aria-live="polite"></p>
 
       <!-- top-center mode tabs, like the reference game -->
       <nav class="tabs" id="tabs">
@@ -527,14 +541,33 @@
         <div class="coop-card"><div class="cfg-head"><span data-i18n="কো-অপ বাগান">কো-অপ বাগান</span><button class="hud-btn" id="coop-close">✕</button></div><p data-i18n="একসঙ্গে একটি বাগান বানাও">বন্ধুর সঙ্গে একই বাগান বানাও।</p><div class="coop-row"><input id="coop-room" class="social-input" type="text" maxlength="12" placeholder="Room code" /><button id="coop-join" class="social-primary" data-i18n="যোগ দাও">যোগ দাও</button><button id="coop-leave" class="small-action" data-i18n="বের হও">বের হও</button></div><span id="coop-status" class="social-status"></span></div>
       </div>
 
-      <div class="comfort-modal hidden" id="comfort-modal">
+      <div
+        class="comfort-modal hidden"
+        id="comfort-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="comfort-title"
+      >
         <div class="comfort-card">
-          <div class="cfg-head"><span data-i18n="আরাম সেটিংস">আরাম সেটিংস</span><button class="hud-btn" id="comfort-close">✕</button></div>
+          <div class="cfg-head">
+            <span id="comfort-title" data-i18n="আরাম সেটিংস">আরাম সেটিংস</span>
+            <button class="hud-btn" id="comfort-close" aria-label="বন্ধ করো">✕</button>
+          </div>
           <p data-i18n="দৃশ্যকে তোমার মতো শান্ত করো">দৃশ্যকে তোমার মতো শান্ত করো।</p>
-          <label class="comfort-row"><span data-i18n="শান্ত UI">শান্ত UI</span><input id="comfort-soft" type="checkbox" checked /></label>
+
+          <div class="comfort-group" data-i18n="নড়াচড়া">নড়াচড়া</div>
           <label class="comfort-row"><span data-i18n="কম অ্যানিমেশন">কম অ্যানিমেশন</span><input id="comfort-motion" type="checkbox" /></label>
+
+          <div class="comfort-group" data-i18n="দেখা">দেখা</div>
+          <label class="comfort-row"><span data-i18n="শান্ত UI">শান্ত UI</span><input id="comfort-soft" type="checkbox" checked /></label>
+          <label class="comfort-row"><span data-i18n="কম স্বচ্ছতা">কম স্বচ্ছতা</span><input id="comfort-transparency" type="checkbox" /></label>
+          <label class="comfort-row"><span data-i18n="বেশি কনট্রাস্ট">বেশি কনট্রাস্ট</span><input id="comfort-contrast" type="checkbox" /></label>
           <label class="comfort-row"><span data-i18n="UI স্বচ্ছতা">UI স্বচ্ছতা</span><input id="comfort-opacity" type="range" min="55" max="100" value="88" /></label>
+          <label class="comfort-row"><span data-i18n="লেখার আকার">লেখার আকার</span><input id="comfort-text" type="range" min="100" max="200" step="10" value="100" /></label>
+
+          <div class="comfort-group" data-i18n="শব্দ">শব্দ</div>
           <label class="comfort-row"><span data-i18n="শব্দ">শব্দ</span><input id="comfort-sound" type="checkbox" /></label>
+
           <button id="comfort-camera" class="social-primary" data-i18n="ক্যামেরা শান্ত করো">ক্যামেরা শান্ত করো</button>
         </div>
       </div>

@@ -142,14 +142,47 @@ function rgba(hex, alpha) {
   const [r, g, b] = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
-/** Relative luminance, used to keep text contrast on the accent colour. */
-function luminance(hex) {
-  const [r, g, b] = hexToRgb(hex).map((v) => {
+/** Relative luminance of an [r,g,b] triple, per WCAG 2.2. */
+function relLum([r, g, b]) {
+  const c = (v) => {
     const s = v / 255;
     return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(b);
 }
+/** WCAG 2.2 contrast ratio between two [r,g,b] triples. */
+export function contrastRatio(a, b) {
+  const l1 = relLum(a);
+  const l2 = relLum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+/** A translucent colour resolved against an opaque background. */
+function over(hex, alpha, bg) {
+  return hexToRgb(hex).map((v, i) => v * alpha + bg[i] * (1 - alpha));
+}
+/**
+ * Walk `hex` toward `toward` in small steps until it clears `target` against
+ * `bg`, and return the first shade that does. This is what keeps a theme from
+ * being able to define unreadable chrome: the designer picks the direction,
+ * the contrast requirement picks the distance.
+ */
+function toContrast(hex, toward, bg, target) {
+  let out = hex;
+  for (let t = 0; t <= 1.0001; t += 0.04) {
+    out = mix(hex, toward, Math.min(1, t));
+    if (contrastRatio(hexToRgb(out), bg) >= target) break;
+  }
+  return out;
+}
+
+// Panels are translucent, so the worst background any HUD text can ever sit
+// over is a blown-out white photo shining through the plate. Every guarantee
+// below is solved against that case — pass here and you pass everywhere else.
+const WORST_BG = [255, 255, 255];
+const INK_TARGET = 5; // primary text, kept above the 4.5:1 floor for headroom
+const DIM_TARGET = 4.5; // WCAG 1.4.3, secondary text
+const CONTROL_TARGET = 3; // WCAG 1.4.11, the edge of an interactive control
+const ACCENT_TARGET = 4.5; // a label sitting on a filled accent button
 
 /**
  * The CSS custom properties that repaint every button, panel and pill for a
@@ -157,33 +190,76 @@ function luminance(hex) {
  * photo: the terrarium is the subject, and dark chrome keeps its glass and
  * greens readable no matter what is behind it. Only the accent, the tint and
  * the amount of glass change from theme to theme.
+ *
+ * Every text and control token here is *solved* rather than picked, so no
+ * theme — including ones added later — can define chrome that fails contrast.
+ * `npm run audit:themes` checks the whole matrix.
  */
 export function themeSkin(theme) {
   const accent = theme.accent || "#6d9e4f";
   const tone = theme.tone || "#1a1d1a";
+  const lum = typeof theme.lum === "number" ? theme.lum : 0.4;
   // Panel base: the picture's own colour pulled down toward black, so each
   // theme's chrome feels related to its backdrop without ever competing. How
-  // far down used to be 0.78, which pulled every world to nearly the same near
-  // black and made switching themes look like it only changed the wallpaper.
-  // At 0.70 the tone still reads — a moonlit blue room gets blue panels — and
-  // the chrome is still dark enough for the glass to stay the subject.
-  const panel = mix(tone, "#0e100e", 0.7);
-  const panelUp = mix(tone, "#12140f", 0.54);
-  const bright = luminance(accent) > 0.45;
+  // far down used to be a flat 0.78, which pulled every world to nearly the
+  // same near black and made switching themes look like it only changed the
+  // wallpaper. 0.70 lets the tone read — a moonlit blue room gets blue panels.
+  // Bright worlds sink further and sit more opaque: a white gallery wall
+  // shining through a 0.82 plate used to lift it until the text on top landed
+  // at 4.53:1, a rounding error away from failing.
+  const glare = Math.max(0, lum - 0.45);
+  const panel = mix(tone, "#0e100e", Math.min(0.9, 0.7 + glare * 0.34));
+  const panelUp = mix(tone, "#12140f", Math.min(0.76, 0.54 + glare * 0.34));
+  const hudA = Math.min(0.94, 0.82 + glare * 0.22);
+  const plate = over(panel, hudA, WORST_BG);
+
+  // Text: start from the themed tint, then walk back toward white until it
+  // clears the bar over that worst-case plate.
+  const ink = toContrast(mix("#ffffff", accent, 0.1), "#ffffff", plate, INK_TARGET);
+  const inkDim = toContrast(mix(ink, panel, 0.45), ink, plate, DIM_TARGET);
+  // Control edges get their own token: panel hairlines can stay decorative,
+  // but the outline of something you can click has to be seen.
+  const controlBorder = toContrast(mix(panel, "#ffffff", 0.28), "#ffffff", plate, CONTROL_TARGET);
+
+  // A filled accent button: pick whichever label colour the accent supports
+  // best, then nudge the fill itself until that label clears 4.5:1. The hue is
+  // preserved, so the theme still looks like itself.
+  const darkInk = "#15180f";
+  const lightInk = "#f5f6ef";
+  const accentRgb = hexToRgb(accent);
+  const accentInk =
+    contrastRatio(hexToRgb(darkInk), accentRgb) >= contrastRatio(hexToRgb(lightInk), accentRgb)
+      ? darkInk
+      : lightInk;
+  const accentSolid = toContrast(
+    accent,
+    accentInk === darkInk ? "#ffffff" : "#0f1109",
+    hexToRgb(accentInk),
+    ACCENT_TARGET,
+  );
+
   return {
     "--accent": accent,
+    // The fill for anything that puts --accent-ink on top of it. Same hue as
+    // --accent, lightened or darkened only as far as the label needs.
+    "--accent-solid": accentSolid,
     "--accent-soft": rgba(accent, 0.85),
     "--accent-dim": rgba(accent, 0.22),
     "--accent-line": rgba(accent, 0.42),
-    // Text that sits ON the accent (buttons): dark on light accents, light on dark.
-    "--accent-ink": bright ? "#15180f" : "#f5f6ef",
-    "--hud": rgba(panel, 0.82),
-    "--hud-strong": rgba(panel, 0.94),
+    "--accent-ink": accentInk,
+    // Channels + base alpha rather than a finished colour: style.css composes
+    // them with --hud-alpha so the comfort slider fades the *plate* and leaves
+    // the text alone. It used to fade the whole element, text included, which
+    // is why turning the HUD down made it progressively unreadable.
+    "--hud-rgb": hexToRgb(panel).join(" "),
+    "--hud-a": `${hudA}`,
+    "--hud-raised-rgb": hexToRgb(panelUp).join(" "),
     "--hud-solid": panel,
-    "--hud-raised": rgba(panelUp, 0.9),
     "--hud-border": rgba(mix(accent, "#ffffff", 0.45), 0.22),
-    "--ink": mix("#ffffff", accent, 0.1),
-    "--ink-dim": rgba(mix("#ffffff", accent, 0.25), 0.66),
+    "--control-border": controlBorder,
+    "--ink": ink,
+    "--ink-dim": inkDim,
+    "--focus": toContrast(mix(accent, "#ffffff", 0.5), "#ffffff", plate, CONTROL_TARGET),
     "--glow": rgba(accent, 0.3),
     // The picture's own average colour, for anything that wants to mix its own
     // shade rather than take a ready-made one — the page behind the canvas

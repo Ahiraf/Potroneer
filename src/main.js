@@ -85,6 +85,7 @@ import {
   applyThemeSkin,
 } from "./themes.js";
 import { TABLES, tableById } from "./tables.js";
+import { wireDialogs, wireTabs } from "./a11y.js";
 
 // Play the boot sequence right away — it hides the rest of this module's
 // start-up work behind the logo sting and trailer.
@@ -143,9 +144,17 @@ try {
 } catch {
   savedComfort = {};
 }
+// What the operating system already knows about this person. Someone who has
+// asked their OS for less motion has asked *us* too — they should not have to
+// find a checkbox in here before the jar stops spinning at them. The saved
+// object still wins, so an explicit in-app choice survives either way.
+const prefers = (q) => window.matchMedia?.(q).matches ?? false;
 const comfort = {
   softUi: true,
-  reducedMotion: false,
+  reducedMotion: prefers("(prefers-reduced-motion: reduce)"),
+  reducedTransparency: prefers("(prefers-reduced-transparency: reduce)"),
+  highContrast: prefers("(prefers-contrast: more)"),
+  textScale: 100,
   opacity: 88,
   sound: false,
   volume: 50,
@@ -1096,6 +1105,8 @@ function spawnXpFloat(amount) {
 
 function gameAction(type, value = null) {
   const result = recordGameAction(game, { type, value }, gameMetrics());
+  // The first thing you make is what earns the progress panel its place.
+  syncProgressVisibility();
   const achievementByAction = { plant: "first-leaf", water: "caregiver", mist: "mist-maker", light: "night-gardener" };
   if (achievementByAction[type]) unlockGameAchievement(achievementByAction[type]);
   if (result.xpEarned > 0) {
@@ -2016,18 +2027,39 @@ function persistComfort() {
 }
 
 function applyComfortSettings() {
-  document.body.classList.toggle("soft-ui", comfort.softUi);
+  document.body.classList.toggle("soft-ui", comfort.softUi && !comfort.reducedTransparency);
   document.body.classList.toggle("reduced-motion", comfort.reducedMotion);
-  document.documentElement.style.setProperty("--hud-alpha", `${Math.max(0.55, Math.min(1, comfort.opacity / 100))}`);
+  document.body.classList.toggle("reduced-transparency", comfort.reducedTransparency);
+  document.body.classList.toggle("high-contrast", comfort.highContrast);
+  // Reduced transparency means the plate stops being a dial: it goes solid and
+  // the opacity slider stops applying, because "see the world through the menu"
+  // is exactly what the person has asked us not to do.
+  const alpha = comfort.reducedTransparency
+    ? 1
+    : Math.max(0.55, Math.min(1, comfort.opacity / 100));
+  document.documentElement.style.setProperty("--hud-alpha", `${alpha}`);
+  document.documentElement.style.setProperty(
+    "--text-scale",
+    `${Math.max(0.9, Math.min(2, (comfort.textScale || 100) / 100))}`,
+  );
   if (worldEffects.root) worldEffects.root.visible = !comfort.reducedMotion;
   const soft = document.getElementById("comfort-soft");
   const motion = document.getElementById("comfort-motion");
   const opacity = document.getElementById("comfort-opacity");
   const sound = document.getElementById("comfort-sound");
+  const transparency = document.getElementById("comfort-transparency");
+  const contrastToggle = document.getElementById("comfort-contrast");
+  const textScale = document.getElementById("comfort-text");
   if (soft) soft.checked = comfort.softUi;
   if (motion) motion.checked = comfort.reducedMotion;
-  if (opacity) opacity.value = comfort.opacity;
+  if (opacity) {
+    opacity.value = comfort.opacity;
+    opacity.disabled = comfort.reducedTransparency;
+  }
   if (sound) sound.checked = comfort.sound;
+  if (transparency) transparency.checked = comfort.reducedTransparency;
+  if (contrastToggle) contrastToggle.checked = comfort.highContrast;
+  if (textScale) textScale.value = comfort.textScale || 100;
   if (typeof volumeSlider !== "undefined" && volumeSlider) {
     volumeSlider.value = comfort.volume;
     setVolume(comfort.volume / 100);
@@ -2899,6 +2931,34 @@ try {
   setProgressOpen(false);
 }
 
+// The progress layer — level, XP, care meters, the daily challenge — does not
+// exist until you have actually made something. On a first run the screen is a
+// jar and the things you can put in it; scoring a terrarium you have not built
+// yet reframes the whole app as something to manage rather than something to
+// make. Once you have put the first thing in, it appears and stays for good.
+const PROGRESS_SEEN_KEY = "potroneer-progress-seen";
+function hasBuiltSomething() {
+  return (state.layers?.length || 0) + (state.decorations?.length || 0) > 0;
+}
+function syncProgressVisibility() {
+  let seen = false;
+  try {
+    seen = localStorage.getItem(PROGRESS_SEEN_KEY) === "1";
+  } catch {
+    seen = false;
+  }
+  const earned = seen || hasBuiltSomething() || (game?.level || 1) > 1 || (game?.xp || 0) > 0;
+  document.body.classList.toggle("pre-first-build", !earned);
+  if (earned && !seen) {
+    try {
+      localStorage.setItem(PROGRESS_SEEN_KEY, "1");
+    } catch {
+      /* private mode — it reappears next session once something is in the jar */
+    }
+  }
+}
+syncProgressVisibility();
+
 // --- jar customiser (🎨) ----------------------------------------------------
 // Frame and glass are picked off a generated spectrum rather than a short list
 // of hexes: a neutral ramp across the top, then a hue-by-tone grid underneath.
@@ -3582,6 +3642,21 @@ document.getElementById("comfort-sound").addEventListener("change", (event) => {
   if (isPlaying() !== comfort.sound) syncSoundUi(toggleAmbience());
   persistComfort();
 });
+document.getElementById("comfort-transparency").addEventListener("change", (event) => {
+  comfort.reducedTransparency = event.target.checked;
+  applyComfortSettings();
+  persistComfort();
+});
+document.getElementById("comfort-contrast").addEventListener("change", (event) => {
+  comfort.highContrast = event.target.checked;
+  applyComfortSettings();
+  persistComfort();
+});
+document.getElementById("comfort-text").addEventListener("input", (event) => {
+  comfort.textScale = Number(event.target.value);
+  applyComfortSettings();
+  persistComfort();
+});
 document.getElementById("comfort-camera").addEventListener("click", () => {
   studio.resetView?.();
   comfortModal.classList.add("hidden");
@@ -3690,3 +3765,20 @@ document.getElementById("intro-replay")?.addEventListener("click", () => {
   replayIntro();
 });
 
+
+// Dialog and tab keyboard behaviour. These watch the DOM rather than hooking
+// each open/close call site, so every panel in the list gets focus trapping,
+// Escape and focus return without the code that opens it knowing about any of
+// that. See src/a11y.js.
+wireDialogs([
+  "comfort-modal",
+  "theme-panel",
+  "achievements-modal",
+  "gallery",
+  "publish-modal",
+  "social-modal",
+  "coop-modal",
+  // Most of these are launched from the More menu, which closes behind them —
+  // so when the opener is gone, focus lands back on the button that reopens it.
+], { fallbackFocus: "#more-btn" });
+wireTabs("#tabs");

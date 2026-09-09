@@ -10,14 +10,25 @@
   --accent-dim: var(--accent-dim);
   --accent-line: rgba(109, 158, 79, 0.42);
   --accent-ink: #15180f;
+  --accent-solid: #6d9e4f;
   --glow: rgba(109, 158, 79, 0.3);
-  --hud: rgba(24, 27, 24, 0.82);
-  --hud-strong: rgba(24, 27, 24, 0.94);
+  /* Panel plates are composed here, not handed over finished, so one dial
+     (--hud-alpha, from the comfort slider) can thin the plate without touching
+     the text sitting on it. themes.js supplies the channels and the base alpha;
+     everything translucent in the HUD derives from this pair. */
+  --hud-rgb: 24 27 24;
+  --hud-raised-rgb: 38 43 37;
+  --hud-a: 0.82;
+  --hud-alpha: 1;
+  --hud: rgb(var(--hud-rgb) / calc(var(--hud-a) * var(--hud-alpha)));
+  --hud-strong: rgb(var(--hud-rgb) / calc(min(1, var(--hud-a) + 0.12) * var(--hud-alpha)));
   --hud-solid: #1f231f;
-  --hud-raised: rgba(38, 43, 37, 0.9);
+  --hud-raised: rgb(var(--hud-raised-rgb) / calc(0.9 * var(--hud-alpha)));
   --hud-border: rgba(255, 255, 255, 0.12);
+  --control-border: #6f7a6c;
   --ink: #eceadf;
-  --ink-dim: rgba(236, 234, 223, 0.66);
+  --ink-dim: #b9bcb2;
+  --focus: #b6d69a;
   --danger: #c95f4a;
   --radius: 8px;
   /* legacy aliases — existing rules keep working and now follow the theme */
@@ -98,7 +109,7 @@ body {
   border: 1px solid transparent;
   border-radius: 7px;
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--text-scale));
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s ease;
@@ -107,7 +118,7 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 .tab.is-active {
-  background: var(--accent);
+  background: var(--accent-solid);
   color: var(--accent-ink);
   border-color: var(--accent);
 }
@@ -140,7 +151,7 @@ body {
 .sp-label {
   width: 56px;
   padding-top: 5px;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   color: var(--ink-dim);
 }
 .sp-moods {
@@ -153,10 +164,10 @@ body {
   padding: 5px 10px;
   background: transparent;
   color: var(--ink);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 5px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
   transition: background 0.1s ease;
 }
@@ -189,10 +200,10 @@ body {
   width: 148px;
   height: 26px;
   background: var(--hud);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius);
   overflow: hidden;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   user-select: none;
 }
 .slider-chip .s-fill {
@@ -238,7 +249,7 @@ body {
   place-items: center;
   width: 28px;
   height: 24px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   background: transparent;
   color: var(--ink);
   border: none;
@@ -254,7 +265,7 @@ body {
 }
 .hud-btn--danger {
   color: #f0b2a3;
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
 }
 .hud-btn--danger:hover {
   background: rgba(201, 95, 74, 0.3);
@@ -302,7 +313,7 @@ body.rail-hidden .rail {
   gap: 6px;
   padding: 9px;
   background: var(--hud-strong);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 16px;
   box-shadow:
     0 12px 28px rgba(0, 0, 0, 0.42),
@@ -316,19 +327,19 @@ body.rail-hidden .rail {
   padding: 9px 8px;
 }
 .rail-brand {
-  font-size: 15.5px;
+  font-size: calc(15.5px * min(1.2, var(--text-scale)));
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--accent);
 }
 .rail-brand-sub {
-  font-size: 10.5px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.3;
   color: var(--ink-dim);
 }
 .rail-title {
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -342,7 +353,7 @@ body.rail-hidden .rail {
 .rail-show {
   font-family: var(--font-game);
   background: var(--hud-raised);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   box-shadow: 0 3px 0 var(--key-lip), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.14s ease;
 }
@@ -366,7 +377,7 @@ body.rail-hidden .rail {
 .rail .nav-btn {
   justify-content: center;
   padding: 8px 6px;
-  font-size: 11.5px;
+  font-size: calc(12px * var(--text-scale));
 }
 .rail .nav-btn--wide {
   width: 100%;
@@ -392,11 +403,11 @@ body.rail-hidden .rail {
   padding: 0;
   color: var(--ink);
   border-radius: 9px;
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   cursor: pointer;
 }
 .sound-toggle[aria-pressed="true"] {
-  background: var(--accent);
+  background: var(--accent-solid);
   color: var(--accent-ink);
 }
 .sound-toggle[aria-pressed="false"] {
@@ -418,7 +429,7 @@ body.rail-hidden .rail {
     var(--accent) 0 var(--fill, 50%),
     rgba(255, 255, 255, 0.1) var(--fill, 50%) 100%
   );
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
 }
 .fader::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -438,7 +449,7 @@ body.rail-hidden .rail {
 .fader::-moz-range-progress {
   height: 12px;
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--accent-solid);
 }
 .fader::-moz-range-thumb {
   width: 14px;
@@ -465,7 +476,7 @@ body.rail-hidden .rail {
   padding: 0;
   color: var(--ink-dim);
   border-radius: 10px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   line-height: 1;
   cursor: pointer;
 }
@@ -482,7 +493,7 @@ body.rail-hidden .rail {
   z-index: 8;
   color: var(--ink);
   border-radius: 13px;
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -535,14 +546,14 @@ body.rail-hidden .game-panel {
   border: 1px solid transparent;
   border-radius: 9px;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 .nav-ico {
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   line-height: 1;
 }
 .nav-btn:hover {
@@ -551,7 +562,7 @@ body.rail-hidden .game-panel {
 }
 .nav-btn.is-active,
 .nav-btn[aria-expanded="true"] {
-  background: var(--accent);
+  background: var(--accent-solid);
   color: var(--accent-ink);
   border-color: var(--accent);
 }
@@ -607,7 +618,7 @@ body.rail-hidden .game-panel {
 }
 .game-panel.is-collapsed .game-panel-head strong {
   margin: 0;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   white-space: nowrap;
 }
 .game-panel-head,
@@ -622,12 +633,12 @@ body.rail-hidden .game-panel {
 .game-panel-head strong {
   display: block;
   margin-top: 1px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .game-kicker {
   display: block;
   color: var(--green);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 600;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -635,7 +646,7 @@ body.rail-hidden .game-panel {
 .game-collapse {
   width: 24px;
   height: 22px;
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 5px;
   background: transparent;
   color: var(--ink-dim);
@@ -671,7 +682,7 @@ body.rail-hidden .game-panel {
 .game-challenge > span:last-child {
   flex: none;
   color: var(--ink-dim);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-variant-numeric: tabular-nums;
 }
 .care-grid {
@@ -690,7 +701,7 @@ body.rail-hidden .game-panel {
   border-radius: 5px;
 }
 .care-meter > span {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .care-meter > div {
   min-width: 0;
@@ -700,7 +711,7 @@ body.rail-hidden .game-panel {
   display: block;
   overflow: hidden;
   color: var(--ink-dim);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 500;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -729,7 +740,7 @@ body.rail-hidden .game-panel {
 .game-label {
   display: block;
   color: var(--green);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -738,24 +749,24 @@ body.rail-hidden .game-panel {
 .game-challenge strong {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .game-objective p,
 .game-challenge p {
   margin: 2px 0 5px;
   color: var(--ink-dim);
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.35;
 }
 .game-check {
   display: block;
   color: var(--ink-dim);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   text-align: right;
 }
 .game-challenge-head #game-challenge-reward {
   color: #e4c779;
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 600;
 }
 .game-challenge-head .game-label {
@@ -778,10 +789,10 @@ body.rail-hidden .game-panel {
   padding: 4px 7px;
   background: transparent;
   color: var(--ink-dim);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   font: inherit;
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .restore-btn.is-hidden {
@@ -789,7 +800,7 @@ body.rail-hidden .game-panel {
 }
 #autosave-status {
   color: var(--ink-dim);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
 }
 
 .gallery {
@@ -815,7 +826,7 @@ body.rail-hidden .game-panel {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 600;
   border-bottom: 1px solid var(--hud-border);
 }
@@ -830,11 +841,11 @@ body.rail-hidden .game-panel {
   grid-column: 1 / -1;
   text-align: center;
   color: var(--ink-dim);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   padding: 30px 0;
 }
 .gal-card {
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.04);
@@ -850,7 +861,7 @@ body.rail-hidden .game-panel {
   align-items: center;
   justify-content: space-between;
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   color: var(--ink-dim);
 }
 .gal-actions {
@@ -864,7 +875,7 @@ body.rail-hidden .game-panel {
   border-radius: 4px;
   padding: 3px 10px;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .gal-actions .gal-load {
@@ -911,7 +922,7 @@ body.rail-hidden .game-panel {
 .social-head strong {
   display: block;
   margin-top: 2px;
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
 }
 .social-head-actions {
   display: flex;
@@ -923,13 +934,13 @@ body.rail-hidden .game-panel {
   color: #d7bd79;
   border: 1px solid rgba(215, 189, 121, 0.35);
   border-radius: 999px;
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
 }
 .social-tabs {
   display: flex;
   gap: 5px;
   padding: 9px 16px 0;
-  border-bottom: 1px solid var(--hud-border);
+  border-bottom: 1px solid var(--control-border);
 }
 .social-tab,
 .auth-mode {
@@ -939,7 +950,7 @@ body.rail-hidden .game-panel {
   border: none;
   border-bottom: 2px solid transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .social-tab.is-active,
@@ -974,7 +985,7 @@ body.rail-hidden .game-panel {
 .auth-card strong {
   display: block;
   margin-top: 3px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 .community-challenge-card p,
 .publish-card p,
@@ -983,12 +994,12 @@ body.rail-hidden .game-panel {
 .social-note {
   margin: 3px 0 0;
   color: var(--ink-dim);
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
 }
 .community-challenge-card > span {
   flex: none;
   color: #dfc47a;
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
   white-space: nowrap;
 }
 .social-view-head {
@@ -997,7 +1008,7 @@ body.rail-hidden .game-panel {
   justify-content: space-between;
   margin: 18px 1px 8px;
   color: var(--ink);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .small-action {
   min-width: 27px;
@@ -1005,10 +1016,10 @@ body.rail-hidden .game-panel {
   padding: 3px 8px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--ink-dim);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 5px;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .small-action:hover {
@@ -1024,13 +1035,13 @@ body.rail-hidden .game-panel {
   grid-column: 1 / -1;
   padding: 42px 0;
   color: var(--ink-dim);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   text-align: center;
 }
 .social-card {
   overflow: hidden;
   background: rgba(255, 255, 255, 0.045);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
 }
 .social-card img {
@@ -1046,7 +1057,7 @@ body.rail-hidden .game-panel {
 .social-card-title {
   overflow: hidden;
   color: var(--ink);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1057,7 +1068,7 @@ body.rail-hidden .game-panel {
   gap: 6px;
   margin-top: 2px;
   color: var(--ink-dim);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
 }
 .social-card-actions {
   display: flex;
@@ -1070,10 +1081,10 @@ body.rail-hidden .game-panel {
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.07);
   color: var(--ink);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 5px;
   font: inherit;
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .social-card-actions button:hover {
@@ -1101,7 +1112,7 @@ body.rail-hidden .game-panel {
   min-height: 25px;
   padding: 5px 17px 8px;
   color: var(--ink-dim);
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
 }
 .publish-card {
   margin-bottom: 14px;
@@ -1119,7 +1130,7 @@ body.rail-hidden .game-panel {
 .auth-switch {
   display: flex;
   margin: -2px 0 12px;
-  border-bottom: 1px solid var(--hud-border);
+  border-bottom: 1px solid var(--control-border);
 }
 .social-input {
   display: block;
@@ -1128,11 +1139,11 @@ body.rail-hidden .game-panel {
   padding: 9px 10px;
   background: rgba(0, 0, 0, 0.22);
   color: var(--ink);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 5px;
   outline: none;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .social-input:focus {
   border-color: var(--green);
@@ -1162,7 +1173,7 @@ textarea.social-input {
   place-items: center;
   background: var(--accent-soft);
   border-radius: 50%;
-  font-size: 21px;
+  font-size: calc(21px * var(--text-scale));
 }
 .profile-card > div {
   flex: 1;
@@ -1184,7 +1195,7 @@ textarea.social-input {
   gap: 6px;
   margin: 8px 0;
   color: var(--ink-dim);
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
 }
 .publish-check input {
   accent-color: var(--green);
@@ -1251,7 +1262,7 @@ textarea.social-input {
   border: 1px solid transparent;
   border-radius: 999px;
   font: inherit;
-  font-size: 11.5px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
   transition: background 0.14s ease, color 0.14s ease;
 }
@@ -1261,7 +1272,7 @@ textarea.social-input {
 }
 .theme-group.is-active {
   color: var(--accent-ink);
-  background: var(--accent);
+  background: var(--accent-solid);
   border-color: var(--accent);
 }
 
@@ -1284,10 +1295,10 @@ textarea.social-input {
   overflow: hidden;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 10px;
   font: inherit;
-  font-size: 11.5px;
+  font-size: calc(12px * var(--text-scale));
   text-align: left;
   cursor: pointer;
   transition: transform 0.14s ease, border-color 0.14s ease;
@@ -1310,9 +1321,9 @@ textarea.social-input {
   width: 20px;
   height: 20px;
   color: #12150f;
-  background: var(--card-accent, var(--accent));
+  background: var(--card-accent, var(--accent-solid));
   border-radius: 50%;
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
 }
 .theme-thumb {
   display: block;
@@ -1349,33 +1360,33 @@ textarea.social-input {
   gap: 10px;
   margin-top: 10px;
   color: var(--ink-dim);
-  font-size: 11.5px;
+  font-size: calc(12px * var(--text-scale));
   white-space: nowrap;
 }
 .backdrop-calm input[type="range"] { flex: 1; min-width: 0; }
 .theme-more { margin-top: 12px; border-top: 1px solid var(--hud-border); padding-top: 8px; }
-.theme-more summary { color: var(--ink-dim); font-size: 11.5px; cursor: pointer; list-style: none; }
+.theme-more summary { color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); cursor: pointer; list-style: none; }
 .theme-more summary::marker, .theme-more summary::-webkit-details-marker { display: none; }
 .theme-more summary::before { content: "▸ "; color: var(--accent); }
 .theme-more[open] summary::before { content: "▾ "; }
 .theme-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.theme-controls label { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--ink-dim); font-size: 11px; }
-.theme-controls select { min-width: 0; padding: 5px; color: var(--ink); background: var(--hud-solid); border: 1px solid var(--hud-border); border-radius: 4px; font: inherit; }
+.theme-controls label { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); }
+.theme-controls select { min-width: 0; padding: 5px; color: var(--ink); background: var(--hud-solid); border: 1px solid var(--control-border); border-radius: 4px; font: inherit; }
 .theme-controls .cycle-toggle { grid-column: 1 / -1; justify-content: flex-start; }
 .theme-controls input[type="range"] { grid-column: 1 / -1; width: 100%; }
 /* The table row: each chip is a small sample of the surface it offers, so the
    choice is made by looking rather than by reading Bengali furniture nouns. */
-.table-row { margin-top: 12px; color: var(--ink-dim); font-size: 11px; }
+.table-row { margin-top: 12px; color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); }
 #table-styles { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .table-chip {
   padding: 5px 9px 5px 22px;
   position: relative;
   color: var(--ink);
   background: rgba(255,255,255,.05);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 999px;
   font: inherit;
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .table-chip::before {
@@ -1394,13 +1405,13 @@ textarea.social-input {
 }
 .table-chip.is-active { border-color: var(--accent); background: var(--accent-dim); }
 
-.pack-row { margin-top: 12px; color: var(--ink-dim); font-size: 11px; }
+.pack-row { margin-top: 12px; color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); }
 #cosmetic-packs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.pack-chip { padding: 5px 7px; color: var(--ink); background: color-mix(in srgb, var(--pack-color) 26%, transparent); border: 1px solid color-mix(in srgb, var(--pack-color) 60%, transparent); border-radius: 999px; font: inherit; font-size: 10px; cursor: pointer; }
+.pack-chip { padding: 5px 7px; color: var(--ink); background: color-mix(in srgb, var(--pack-color) 26%, transparent); border: 1px solid color-mix(in srgb, var(--pack-color) 60%, transparent); border-radius: 999px; font: inherit; font-size: calc(12px * var(--text-scale)); cursor: pointer; }
 .pack-chip.is-active { background: var(--pack-color); color: #fff; }
 .photo-panel { width: min(320px, calc(100vw - 24px)); }
 .photo-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
-.photo-filter { padding: 7px 4px; color: var(--ink); background: rgba(255,255,255,.05); border: 1px solid var(--hud-border); border-radius: 5px; font: inherit; font-size: 10px; cursor: pointer; }
+.photo-filter { padding: 7px 4px; color: var(--ink); background: rgba(255,255,255,.05); border: 1px solid var(--control-border); border-radius: 5px; font: inherit; font-size: calc(12px * var(--text-scale)); cursor: pointer; }
 .photo-filter.is-active { border-color: var(--green); background: var(--accent-dim); }
 .achievements-modal,
 .coop-modal { position: absolute; inset: 0; display: grid; place-items: center; z-index: 20; background: rgba(0,0,0,.38); }
@@ -1409,12 +1420,12 @@ textarea.social-input {
 .achievements-card,
 .coop-card { width: min(500px, calc(100vw - 24px)); max-height: min(620px, 88vh); overflow: auto; padding: 14px; color: var(--ink); background: var(--hud-strong); border: 1px solid var(--hud-border); border-radius: 10px; box-shadow: 0 18px 60px rgba(0,0,0,.5); }
 #achievements-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.achievement-card { display: flex; gap: 8px; padding: 9px; opacity: .48; background: rgba(255,255,255,.04); border: 1px solid var(--hud-border); border-radius: 7px; }
+.achievement-card { display: flex; gap: 8px; padding: 9px; opacity: .48; background: rgba(255,255,255,.04); border: 1px solid var(--control-border); border-radius: 7px; }
 .achievement-card.is-unlocked { opacity: 1; border-color: var(--accent-line); }
-.achievement-icon { font-size: 23px; }
-.achievement-card strong { font-size: 12px; }
-.achievement-card p { margin: 3px 0 0; color: var(--ink-dim); font-size: 10px; line-height: 1.35; }
-.coop-card p { color: var(--ink-dim); font-size: 12px; }
+.achievement-icon { font-size: calc(23px * var(--text-scale)); }
+.achievement-card strong { font-size: calc(12px * var(--text-scale)); }
+.achievement-card p { margin: 3px 0 0; color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); line-height: 1.35; }
+.coop-card p { color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); }
 .coop-row { display: flex; gap: 6px; align-items: center; }
 .coop-row .social-input { flex: 1; min-width: 0; }
 #coop-status { display: block; margin-top: 8px; }
@@ -1422,7 +1433,7 @@ textarea.social-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   font-weight: 600;
 }
 .cfg-row {
@@ -1433,7 +1444,7 @@ textarea.social-input {
 .cfg-label {
   width: 62px;
   flex: none;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   color: var(--ink-dim);
 }
 .cfg-row input[type="range"] {
@@ -1486,7 +1497,7 @@ textarea.social-input {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   letter-spacing: 0.04em;
   color: var(--ink-dim);
   text-transform: uppercase;
@@ -1551,10 +1562,10 @@ textarea.social-input {
   padding: 4px 14px;
   background: transparent;
   color: var(--ink-dim);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 5px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
   transition: background 0.12s ease;
 }
@@ -1577,7 +1588,7 @@ textarea.social-input {
   border-radius: 5px;
   padding: 6px 12px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .cfg-del:hover {
@@ -1602,14 +1613,16 @@ textarea.social-input {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 132px;
+  /* Widens with the type: at a fixed 132px the label rides over its own icon
+     as soon as the text is scaled up. */
+  width: calc(132px * var(--furniture-scale));
   padding: 5px 8px;
   background: transparent;
   color: var(--ink);
   border: none;
   border-radius: 3px;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   font-weight: 500;
   cursor: pointer;
   transition: background 0.1s ease;
@@ -1623,14 +1636,14 @@ textarea.social-input {
   color: #fff;
 }
 .tool-row .t-icon {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   width: 16px;
 }
 .tool-row .t-label {
   flex: 1;
 }
 .tool-row .t-key {
-  font-size: 10.5px;
+  font-size: calc(12px * var(--text-scale));
   color: var(--ink-dim);
 }
 .tool-row.is-active .t-key {
@@ -1663,7 +1676,7 @@ textarea.social-input {
 }
 .hint p {
   margin: 0;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   line-height: 1.4;
   color: var(--ink);
 }
@@ -1677,7 +1690,7 @@ textarea.social-input {
   background: var(--danger);
   color: #fff;
   font-weight: 600;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .hint.is-flash {
   opacity: 1;
@@ -1721,10 +1734,10 @@ body.tray-hidden .cat-flyout {
   padding: 0;
   background: var(--hud-strong);
   color: var(--ink-dim);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 9px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   line-height: 1;
   cursor: pointer;
 }
@@ -1757,7 +1770,7 @@ body.tray-hidden .cat-flyout {
   width: 20px;
   height: 74px;
   z-index: 7;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   border-left: none;
   border-radius: 0 9px 9px 0;
   opacity: 0;
@@ -1784,10 +1797,10 @@ body.focus-mode .tray-show {
   padding: 0 12px;
   background: var(--hud-solid);
   color: var(--ink);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -1796,7 +1809,7 @@ body.focus-mode .tray-show {
   background: rgba(255, 255, 255, 0.08);
 }
 .cat-caret {
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   color: var(--ink-dim);
 }
 
@@ -1828,7 +1841,7 @@ body.focus-mode .tray-show {
   border: none;
   border-radius: 5px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   font-weight: 500;
   cursor: pointer;
   text-align: left;
@@ -1843,7 +1856,7 @@ body.focus-mode .tray-show {
 }
 .cat-row .c-icon {
   width: 20px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 
 .hud-search {
@@ -1857,7 +1870,7 @@ body.focus-mode .tray-show {
   border-radius: var(--radius);
 }
 .hud-search span {
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
   opacity: 0.6;
 }
 .hud-search input {
@@ -1869,7 +1882,7 @@ body.focus-mode .tray-show {
   outline: none;
   color: var(--ink);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
 }
 .hud-search input::placeholder {
   color: var(--ink-dim);
@@ -1897,7 +1910,7 @@ body.focus-mode .tray-show {
   width: 100%;
   padding: 6px 8px 6px 22px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 7px;
   cursor: pointer;
   font-family: inherit;
@@ -1922,7 +1935,7 @@ body.focus-mode .tray-show {
   position: absolute;
   right: 6px;
   bottom: 5px;
-  font-size: 11px;
+  font-size: calc(12px * var(--text-scale));
   pointer-events: none;
 }
 
@@ -1932,7 +1945,7 @@ body.focus-mode .tray-show {
   position: absolute;
   left: 6px;
   bottom: 5px;
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   opacity: 0.75;
   pointer-events: none;
 }
@@ -1956,7 +1969,7 @@ body.focus-mode .tray-show {
   background: none;
   border: none;
   padding: 2px;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1;
   color: var(--ink-dim);
   cursor: pointer;
@@ -1984,7 +1997,7 @@ body.focus-mode .tray-show {
   border: none;
   border-radius: 4px;
   padding: 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1;
   color: var(--ink);
   cursor: pointer;
@@ -2006,10 +2019,10 @@ body.focus-mode .tray-show {
   padding: 0 12px;
   background: var(--hud-solid);
   color: var(--ink);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius);
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--text-scale));
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -2041,7 +2054,7 @@ body.focus-mode .tray-show {
   flex: 1;
   min-width: 0;
   padding-right: 20px; /* clear the top-right favourite heart */
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 500;
   color: var(--ink);
   white-space: nowrap;
@@ -2050,33 +2063,19 @@ body.focus-mode .tray-show {
 }
 
 /* ============ calm editor layer ============ */
-/* Only the comfort slider's opacity lives here now — the colour tokens are all
-   defined once at the top of this file and rewritten per theme by JS. */
-:root {
-  --hud-alpha: 1;
-}
 /* The comfort panel's "UI opacity" fades the chrome back so the terrarium can
-   breathe; whatever you point at comes back to full strength. */
-/* Menus and panels you deliberately opened stay at full strength — only the
-   always-on chrome fades. */
-/* (.hint is deliberately absent: it owns its own opacity, and is invisible
-   unless it is flashing something you need to know right now.) */
+   breathe. It rides on --hud-alpha, which is folded into the *plate* colours at
+   the top of this file — turning the HUD down thins the glass behind the words
+   and leaves the words themselves at full strength. Fading the whole element
+   (what this used to do) took the text down with it, so the setting that was
+   supposed to make the app calmer quietly made it unreadable. */
 .tabs,
 .nav-primary,
 .game-panel,
 .hud-bottom,
 .hud-tools,
 .sliders {
-  opacity: var(--hud-alpha, 1);
-  transition: opacity 0.2s ease;
-}
-.tabs:hover,
-.nav-primary:hover,
-.game-panel:hover,
-.hud-bottom:hover,
-.hud-tools:hover,
-.sliders:hover {
-  opacity: 1;
+  transition: background-color 0.2s ease;
 }
 body.soft-ui .nav-primary,
 body.soft-ui .game-panel,
@@ -2110,7 +2109,7 @@ body.reduced-motion *::after {
   grid-column: 1 / -1;
 }
 .nav-btn--focus.is-active {
-  background: var(--accent);
+  background: var(--accent-solid);
   color: var(--accent-ink);
 }
 
@@ -2135,12 +2134,12 @@ body.reduced-motion *::after {
 .more-row .nav-btn {
   padding: 6px 9px;
   background: rgba(255, 255, 255, 0.05);
-  border-color: var(--hud-border);
-  font-size: 12px;
+  border-color: var(--control-border);
+  font-size: calc(12px * var(--text-scale));
 }
 .more-menu-title {
   color: var(--accent);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2181,7 +2180,7 @@ body.reduced-motion *::after {
   border: 0;
   border-radius: 999px;
   font: inherit;
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .tutorial-cta:hover { filter: brightness(1.1); }
@@ -2190,7 +2189,7 @@ body.reduced-motion *::after {
   display: block;
   margin-top: 2px;
   color: var(--ink-dim);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 400;
 }
 
@@ -2226,7 +2225,7 @@ body.reduced-motion *::after {
   padding: 0 10px;
   overflow: hidden;
   color: var(--accent);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 600;
   line-height: 44px;
   white-space: nowrap;
@@ -2250,19 +2249,19 @@ body.reduced-motion *::after {
   padding: 0 10px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.07);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 999px;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .focus-btn:hover { background: rgba(255, 255, 255, 0.14); }
-.focus-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.focus-btn.is-active { background: var(--accent); color: var(--accent-ink); }
+.focus-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.focus-btn.is-active { background: var(--accent-solid); color: var(--accent-ink); }
 .focus-btn.is-disabled { opacity: 0.4; pointer-events: none; }
 .focus-btn--wide { padding: 0 14px; }
-.focus-ico { font-size: 15px; line-height: 1; }
+.focus-ico { font-size: calc(15px * var(--text-scale)); line-height: 1; }
 .focus-quick { background: var(--green); color: #fff; border-color: transparent; }
 .focus-quick:hover { background: var(--green); filter: brightness(1.12); }
 .focus-exit { color: var(--ink); }
@@ -2286,14 +2285,14 @@ body.reduced-motion *::after {
   border: 1px solid var(--hud-border);
   border-left: none;
   border-radius: 0 12px 12px 0;
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
   cursor: pointer;
   z-index: 19;
   transition: left 0.22s ease, background 0.12s ease;
 }
 body.focus-mode .focus-tray-edge { display: flex; }
 .focus-tray-edge:hover { color: var(--ink); background: rgba(255, 255, 255, 0.1); }
-.focus-tray-edge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.focus-tray-edge:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 body.focus-mode.focus-tray-open .focus-tray-edge { left: var(--tray-w); }
 
 /* The temporary tray: the *same* column, the same cards, the same selection
@@ -2338,11 +2337,11 @@ body.focus-mode.focus-tray-open .focus-hud {
   backdrop-filter: blur(16px);
 }
 .radial-menu.hidden { display: none; }
-.radial-action { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 68px; min-height: 58px; color: var(--ink); background: rgba(255,255,255,.06); border: 1px solid var(--hud-border); border-radius: 14px; font: inherit; cursor: pointer; }
+.radial-action { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 68px; min-height: 58px; color: var(--ink); background: rgba(255,255,255,.06); border: 1px solid var(--control-border); border-radius: 14px; font: inherit; cursor: pointer; }
 .radial-action:hover { background: var(--green); color: #fff; transform: scale(1.05); }
-.radial-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.radial-action span { font-size: 21px; line-height: 1; }
-.radial-action small { margin-top: 3px; font-size: 10px; }
+.radial-action:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.radial-action span { font-size: calc(21px * var(--text-scale)); line-height: 1; }
+.radial-action small { margin-top: 3px; font-size: calc(12px * var(--text-scale)); }
 .radial-action--plant { grid-area: plant; }
 .radial-action--water { grid-area: water; }
 .radial-action--decor { grid-area: decor; }
@@ -2358,7 +2357,7 @@ body.focus-mode .radial-current {
   padding: 4px;
   overflow: hidden;
   color: var(--accent);
-  font-size: 10.5px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 600;
   line-height: 1.25;
   text-align: center;
@@ -2368,8 +2367,8 @@ body.focus-mode .radial-current {
 .comfort-modal { position: absolute; inset: 0; display: grid; place-items: center; z-index: 31; background: rgba(20, 31, 23, 0.34); backdrop-filter: blur(5px); }
 .comfort-modal.hidden { display: none; }
 .comfort-card { width: min(360px, calc(100vw - 24px)); padding: 16px; background: rgba(31,40,33,.97); border: 1px solid var(--hud-border); border-radius: 12px; box-shadow: 0 22px 80px rgba(0,0,0,.32); }
-.comfort-card > p { margin: 5px 0 12px; color: var(--ink-dim); font-size: 11px; }
-.comfort-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; color: var(--ink); border-bottom: 1px solid rgba(213,231,205,.08); font-size: 12px; }
+.comfort-card > p { margin: 5px 0 12px; color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); }
+.comfort-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; color: var(--ink); border-bottom: 1px solid rgba(213,231,205,.08); font-size: calc(12px * var(--text-scale)); }
 .comfort-row input[type="range"] { width: 150px; accent-color: var(--green); }
 .comfort-row input[type="checkbox"] { accent-color: var(--green); }
 .comfort-card .social-primary { width: 100%; margin-top: 14px; }
@@ -2427,7 +2426,7 @@ body.focus-mode .hint {
     right: 8px;
     justify-content: space-between;
   }
-  .tab { flex: 1; text-align: center; padding: 7px 6px; font-size: 12px; }
+  .tab { flex: 1; text-align: center; padding: 7px 6px; font-size: calc(12px * var(--text-scale)); }
   .hud-tools { top: 104px; }
   .hint { bottom: 12px; max-width: calc(100vw - var(--tray-x) - 12px); }
   .game-panel {
@@ -2441,7 +2440,7 @@ body.focus-mode .hint {
   }
   .game-objective p,
   .game-challenge p {
-    font-size: 10px;
+    font-size: calc(12px * var(--text-scale));
   }
   .rail {
     top: 8px;
@@ -2451,7 +2450,7 @@ body.focus-mode .hint {
   .more-menu { position: fixed; top: 54px; right: 8px; width: min(280px, calc(100vw - 16px)); z-index: 20; }
   .nav-btn {
     padding: 6px 8px;
-    font-size: 11px;
+    font-size: calc(12px * var(--text-scale));
   }
   .scene-panel, .cfg-panel, .theme-panel, .photo-panel { top: 104px; right: 6px; left: 6px; width: auto; }
   /* Phones: the seven controls drop to glyphs and fill the row, and the name of
@@ -2474,7 +2473,7 @@ body.focus-mode .hint {
     flex: 1 0 100%;
     max-width: none;
     padding: 0 6px;
-    font-size: 11.5px;
+    font-size: calc(12px * var(--text-scale));
     line-height: 20px;
     text-align: center;
   }
@@ -2539,7 +2538,7 @@ body.focus-mode .hint {
   }
   .social-card-actions button {
     padding: 5px 4px;
-    font-size: 10px;
+    font-size: calc(12px * var(--text-scale));
   }
   .community-challenge-card,
   .publish-card {
@@ -2578,7 +2577,7 @@ body.focus-mode .hint {
   border-radius: 999px;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.34);
   color: var(--ink);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 600;
   opacity: 0;
   backdrop-filter: blur(12px) saturate(1.05);
@@ -2593,7 +2592,7 @@ body.focus-mode .hint {
   height: 26px;
   border-radius: 50%;
   background: var(--accent-dim);
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
 }
 .toast--level { border-color: rgba(240, 195, 106, 0.6); }
 .toast--level .toast-icon { background: rgba(240, 195, 106, 0.3); }
@@ -2606,7 +2605,7 @@ body.focus-mode .hint {
 .float-text {
   position: absolute;
   transform: translate(-50%, 0);
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   font-weight: 700;
   color: #f0c36a;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
@@ -2715,7 +2714,7 @@ body.focus-mode .hint {
 .item-chip:focus-visible,
 .hud-btn:focus-visible,
 .social-primary:focus-visible {
-  outline: 2px solid var(--green);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -2870,7 +2869,7 @@ body.intro-open {
   align-items: center;
   gap: 0.16em;
   margin: 6px 0 0;
-  font-size: 34px;
+  font-size: calc(34px * var(--text-scale));
 }
 .wordmark-word {
   display: flex;
@@ -2988,7 +2987,7 @@ body.intro-open {
 }
 .intro-studio {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   letter-spacing: 0.12em;
   color: var(--ink-dim);
   opacity: 0;
@@ -3008,13 +3007,13 @@ body.intro-open {
 }
 .beat-line {
   margin: 0;
-  font-size: 27px;
+  font-size: calc(27px * var(--text-scale));
   font-weight: 600;
   line-height: 1.3;
 }
 .beat-sub {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   color: var(--ink-dim);
 }
 
@@ -3025,7 +3024,7 @@ body.intro-open {
   place-items: center;
   width: 42px;
   height: 42px;
-  font-size: 21px;
+  font-size: calc(21px * var(--text-scale));
   font-style: normal;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.07);
@@ -3104,7 +3103,7 @@ body.intro-open {
   left: 50%;
   bottom: 48px;
   margin-left: -14px;
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
   font-style: normal;
   opacity: 0;
 }
@@ -3176,7 +3175,7 @@ body.intro-open {
 }
 .intro-tagline {
   margin: 0 0 6px;
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
   color: var(--ink-dim);
   opacity: 0;
   animation: intro-rise 0.8s 0.35s ease forwards;
@@ -3185,7 +3184,7 @@ body.intro-open {
   margin-top: 14px;
   padding: 12px 30px;
   font: inherit;
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
   font-weight: 600;
   color: #12150f;
   background: var(--green);
@@ -3211,7 +3210,7 @@ body.intro-open {
 }
 .intro-loading {
   margin: 10px 0 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   letter-spacing: 0.08em;
   color: var(--ink-dim);
   transition: opacity 0.3s ease;
@@ -3226,7 +3225,7 @@ body.intro-open {
   position: absolute;
   top: 18px;
   font: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   color: var(--ink-dim);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--hud-border);
@@ -3339,7 +3338,7 @@ body.reduced-motion .wordmark-rule {
 .strip-head {
   padding: 6px 2px 2px;
   color: var(--ink-dim);
-  font-size: 9.5px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -3366,7 +3365,7 @@ body.reduced-motion .wordmark-rule {
 }
 .empty-call.hidden { display: none; }
 .empty-call-mark {
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
   line-height: 1;
   color: var(--accent);
   opacity: 0.9;
@@ -3374,7 +3373,7 @@ body.reduced-motion .wordmark-rule {
 .empty-call p {
   margin: 0;
   max-width: 15ch;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 600;
   line-height: 1.35;
   color: var(--ink);
@@ -3414,7 +3413,7 @@ body.reduced-motion .empty-call { animation: none; }
   left: 0;
   color: rgba(255, 255, 255, 0.7);
   font-family: var(--font-game);
-  font-size: 10px;
+  font-size: calc(12px * var(--text-scale));
   letter-spacing: 0.16em;
 }
 .cam-bar {
@@ -3442,10 +3441,10 @@ body.reduced-motion .empty-call { animation: none; }
   padding: 8px 14px;
   background: var(--hud-strong);
   color: var(--ink);
-  border: 1px solid var(--hud-border);
+  border: 1px solid var(--control-border);
   border-radius: 999px;
   font-family: var(--font-game);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   cursor: pointer;
 }
 .shot-stack {
@@ -3480,4 +3479,224 @@ body.reduced-motion .empty-call { animation: none; }
 @keyframes cam-flash {
   from { opacity: 0.85; }
   to { opacity: 0; }
+}
+
+/* ============================================================
+   Accessibility layer
+   Everything here is a guarantee rather than a style: it is the
+   floor the rest of the sheet is not allowed to fall through.
+   ============================================================ */
+
+/* One focus ring for everything, in a colour themes.js has already solved for
+   3:1 against the panel it lands on. Two-tone, because a single ring that
+   reads on a dark plate disappears on a pale one and vice versa: the dark
+   outer ring is drawn by box-shadow just outside the light outline. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(12, 16, 12, 0.55);
+  border-radius: inherit;
+}
+/* Never trade the ring for a prettier button. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* WCAG 2.2 2.5.8: a control has to be at least 24×24 to be aimed at. Icon
+   buttons that were 20–22px tall keep their visual size and grow an invisible
+   hit area instead, so the HUD does not get chunkier to satisfy this. */
+.nav-btn,
+.hud-btn,
+.tab,
+.mood-btn,
+.cat-btn,
+.tray-hide,
+.tray-show,
+.rail-hide,
+.rail-show,
+.game-collapse,
+.small-action,
+.sound-toggle,
+.table-chip,
+.slider-chip {
+  position: relative;
+  min-height: 24px;
+  min-width: 24px;
+}
+/* (An earlier pass grew these to 44px hit areas with a ::after overlay. On a
+   rail where the buttons sit 26px apart the overlays overlapped each other and
+   the topmost one swallowed its neighbour's clicks — 2.5.8 is satisfied by the
+   24px minimum above, and the spacing exception covers the rest.) */
+
+/* Reduced motion, honoured before a single line of JS has run. The in-app
+   toggle adds body.reduced-motion for the same effect; this covers the boot
+   frames and anyone who never opens the comfort panel. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* Confetti, floaters and the item that flies into the tray are decoration with
+   no message of their own — under reduced motion they simply do not appear,
+   rather than appearing instantly and flashing. */
+body.reduced-motion .confetti,
+body.reduced-motion .fly-ghost,
+body.reduced-motion .float-text {
+  display: none !important;
+}
+
+/* Reduced transparency: the plate stops being glass. No blur to see through,
+   no world showing past the words. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --hud-alpha: 1;
+  }
+}
+body.reduced-transparency .nav-primary,
+body.reduced-transparency .game-panel,
+body.reduced-transparency .hud-bottom,
+body.reduced-transparency .hud-tools,
+body.reduced-transparency .scene-panel,
+body.reduced-transparency .cfg-panel,
+body.reduced-transparency .theme-panel,
+body.reduced-transparency .photo-panel,
+body.reduced-transparency .more-menu,
+body.reduced-transparency .tabs {
+  backdrop-filter: none !important;
+  background: var(--hud-solid);
+}
+
+/* High contrast: borders become real edges and secondary text stops being
+   secondary. Requested by the OS or by the comfort panel. */
+@media (prefers-contrast: more) {
+  :root {
+    --ink-dim: var(--ink);
+    --hud-border: var(--control-border);
+  }
+}
+body.high-contrast {
+  --ink-dim: var(--ink);
+  --hud-border: var(--control-border);
+}
+body.high-contrast .nav-btn,
+body.high-contrast .hud-btn,
+body.high-contrast .item-chip,
+body.high-contrast .tab {
+  border-width: 2px;
+}
+
+/* WCAG 1.4.4: text has to survive being doubled. The comfort panel's text-size
+   control drives --text-scale, which every font-size in this sheet multiplies
+   by, so the whole HUD scales together instead of one label overflowing. */
+:root {
+  --text-scale: 1;
+}
+
+/* WCAG 1.4.12: the layout must not break when a reader forces its own spacing.
+   Labels wrap instead of being clipped, and nothing that holds text is allowed
+   to be a fixed-height box. */
+.nav-btn,
+.tab,
+.item-chip,
+.cat-btn,
+.mood-btn,
+.small-action {
+  overflow-wrap: anywhere;
+}
+
+/* A skip link, because the first thing in the tab order should not be 30 tray
+   chips when what you want is the jar. */
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 999;
+  padding: 10px 16px;
+  color: var(--accent-ink);
+  background: var(--accent-solid);
+  border-radius: var(--radius);
+  font-size: calc(14px * var(--text-scale));
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible {
+  transform: none;
+}
+
+/* Only what a mouse can see is hidden — a screen reader still reads it. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Before the first thing goes in the jar there is no score to show, so the
+   progress panel is not on screen at all. src/main.js drops this class the
+   moment something is built, and never puts it back. */
+body.pre-first-build .game-panel {
+  display: none;
+}
+
+/* --- text scaling: the containers have to move too ------------------------
+   Doubling the type inside fixed-width furniture just truncates it, and a
+   truncated label is lost content, which is exactly what WCAG 1.4.4 is about.
+   The tray and rail widen with the text — capped, so that at 200% they take
+   more room without swallowing the terrarium — and any label that still does
+   not fit is allowed a second line instead of an ellipsis. */
+:root {
+  --furniture-scale: min(1.5, var(--text-scale));
+  --tray-w: calc(244px * var(--furniture-scale));
+  --tray-x: calc(266px * var(--furniture-scale));
+  --tray-fx: calc(256px * var(--furniture-scale));
+}
+.rail {
+  width: calc(190px * var(--furniture-scale));
+}
+/* Tray chips stop clipping their names and wrap instead. */
+.item-chip .chip-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  line-height: 1.35;
+}
+/* Bengali sits taller than Latin at the same size — conjuncts and the vowel
+   marks above and below the base line need the extra leading or successive
+   rows visually collide. */
+.item-chip .chip-label,
+.nav-btn,
+.tab,
+.cat-btn {
+  line-height: 1.4;
+}
+/* The wordmark is decoration, not content: it scales far more gently than the
+   text around it rather than overflowing the rail it sits in. */
+.rail-brand,
+.rail-brand-sub {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Section headings inside the comfort panel. Grouping the settings by what
+   they affect — motion, seeing, sound — is what turns a list of four
+   checkboxes into somewhere you can find the one you need. */
+.comfort-group {
+  margin: 12px 0 4px;
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+.comfort-group:first-of-type {
+  margin-top: 6px;
 }

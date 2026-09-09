@@ -1496,9 +1496,9 @@ function jitter2(a) {
 function drawStudio(ctx) {
   const lin = ctx.createLinearGradient(0, 0, 0, 512);
   lin.addColorStop(0, "#f4f6f8");
-  lin.addColorStop(0.62, "#e7eaee");
-  lin.addColorStop(0.78, "#d3d7dc"); // soft horizon where wall meets floor
-  lin.addColorStop(1, "#c4c8ce");
+  lin.addColorStop(0.62, "#e5e8ed");
+  lin.addColorStop(0.78, "#ccd1d7"); // soft horizon where wall meets floor
+  lin.addColorStop(1, "#b6bcc4");
   ctx.fillStyle = lin;
   ctx.fillRect(0, 0, 1024, 512);
 
@@ -1509,10 +1509,22 @@ function drawStudio(ctx) {
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, 1024, 512);
 
+  // The jar is transmissive glass. On a seamless near-white sweep it refracts
+  // white against white, and on the default theme the whole vessel could take a
+  // second to find — the app opened on something that looked empty. A soft pool
+  // of shade behind where it stands gives the glass a darker field to bend, so
+  // the silhouette reads on the first frame without the glass itself changing.
+  const pool = ctx.createRadialGradient(512, 320, 50, 512, 350, 430);
+  pool.addColorStop(0, "rgba(72,84,99,0.28)");
+  pool.addColorStop(0.55, "rgba(72,84,99,0.13)");
+  pool.addColorStop(1, "rgba(72,84,99,0)");
+  ctx.fillStyle = pool;
+  ctx.fillRect(0, 0, 1024, 512);
+
   // faint cool vignette to keep the corners from feeling flat
   const vig = ctx.createRadialGradient(512, 250, 300, 512, 250, 720);
   vig.addColorStop(0, "rgba(60,70,84,0)");
-  vig.addColorStop(1, "rgba(60,70,84,0.16)");
+  vig.addColorStop(1, "rgba(60,70,84,0.2)");
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, 1024, 512);
 }
