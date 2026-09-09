@@ -240,6 +240,11 @@ add("pagoda", "প্যাগোডা", [
 add("fence", "বেড়া", [
   ["সাদা", { wood: false }],
   ["কাঠ", { wood: true }],
+  // the printed white picket set: round-topped, packed tight, and clipping
+  // together into a corner or a whole pen
+  ["পিকেট", { round: true }],
+  ["পিকেট কোণা", { round: true, corner: true }],
+  ["পিকেট ঘের", { round: true, pen: true }],
 ]);
 add("well", "কুয়া", [
   ["লাল", { roof: "#9c4636" }],
@@ -590,6 +595,46 @@ add("anchor", "নোঙর", [
   ["ধূসর", { metal: "#9a958c", rope: "#b0a893" }],
 ]);
 
+// The printed garden set: the crossings, seating, paving and stilt huts that
+// go around the buildings, plus the battery lanterns sold with them.
+add("taikobashi", "লাল খিলান সেতু", [
+  ["সিঁদুরে", {}],
+  ["ছোট", { span: 0.34, rise: 0.1 }],
+  ["কাঠের", { lacquer: "#a5703f", deck: "#d8cbb0", finial: "#4a4038" }],
+]);
+add("brickwell", "ইটের কুয়া", [
+  ["ধূসর ইট", {}],
+  ["লাল ইট", { brick: "#b0674a", mortar: "#96543c" }],
+]);
+add("parkbench", "পার্ক বেঞ্চ", [
+  ["কাঠ ও লোহা", {}],
+  ["সবুজ লোহা", { iron: "#3c5a44" }],
+  ["সাদা", { wood: "#e2dac8", iron: "#8f8a80" }],
+]);
+add("stilthouse", "মাচা ঘর", [
+  ["পাহারা ঘর", {}],
+  ["কুটির", { cottage: true, wood: "#d0a63f", dark: "#b58e30" }],
+  ["ছোট মাচা", { platform: true }],
+]);
+add("brickpile", "ইটের স্তূপ", [
+  ["লাল", {}],
+  ["ধূসর", { brick: "#a29c94", hole: "#6b665f" }],
+]);
+add("stonepath", "পাথরের পথ", [
+  ["বাঁকা", {}],
+  ["ধূসর", { stone: "#a8a49c", dark: "#8d8981" }],
+  ["সোজা", { straight: true }],
+]);
+add("oillamp", "হারিকেন", [
+  ["সাদা", {}],
+  ["লাল", { shell: "#e04a2c" }],
+  ["ক্যাম্প", { caged: true, shell: "#3a3733" }],
+]);
+add("moroccanlantern", "মরক্কোন লণ্ঠন", [
+  ["সাদা", {}],
+  ["লাল", { shell: "#e04a2c" }],
+]);
+
 // The printed figurines that come with the same sets.
 add("mantis", "ম্যান্টিস", [
   ["সাদা", {}],
@@ -716,6 +761,14 @@ const CAT_BY_KIND = {
   templehall: "structures",
   pavilion: "structures",
   anchor: "structures",
+  taikobashi: "structures",
+  brickwell: "structures",
+  parkbench: "structures",
+  stilthouse: "structures",
+  brickpile: "structures",
+  stonepath: "structures",
+  oillamp: "structures",
+  moroccanlantern: "structures",
   mantis: "animals",
   snake: "animals",
   wolf: "animals",
