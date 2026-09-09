@@ -555,8 +555,70 @@
         <div class="achievements-card"><div class="cfg-head"><span data-i18n="অর্জন">অর্জন</span><strong id="achievement-count">০ / ১২</strong><button class="hud-btn" id="achievements-close">✕</button></div><div id="achievements-grid"></div></div>
       </div>
 
+      <!-- The account gate. Potroneer is playable start to finish without an
+           account; this appears only when you reach for something that genuinely
+           needs one — publishing, favouriting, remixing, a shared room, or
+           carrying the jar to another device. It says which, so it never reads
+           as a wall that appeared for no reason, and "continue as guest" is a
+           real button rather than a link in the corner. -->
+      <div
+        class="auth-gate hidden"
+        id="auth-gate"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-gate-title"
+      >
+        <form class="auth-gate-card" id="auth-gate-form">
+          <div class="cfg-head">
+            <span id="auth-gate-title" data-i18n="অ্যাকাউন্ট">অ্যাকাউন্ট</span>
+            <button class="hud-btn" id="auth-gate-close" type="button" aria-label="বন্ধ করো">✕</button>
+          </div>
+
+          <!-- Room invites replace this with the room being joined. -->
+          <div class="auth-room-preview hidden" id="auth-room-preview">
+            <span class="auth-room-orb" aria-hidden="true">🫙</span>
+            <div>
+              <span class="game-label" data-i18n="কো-অপ ঘর">কো-অপ ঘর</span>
+              <strong id="auth-room-code">—</strong>
+              <p id="auth-room-note" data-i18n="একসঙ্গে একটি বাগান বানাতে ডাকা হয়েছে।">একসঙ্গে একটি বাগান বানাতে ডাকা হয়েছে।</p>
+            </div>
+          </div>
+
+          <p class="auth-gate-why" id="auth-gate-why">
+            একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।
+          </p>
+
+          <div class="auth-switch" role="tablist" aria-label="অ্যাকাউন্ট">
+            <button class="auth-mode is-active" type="button" data-gate-mode="signup" role="tab" aria-selected="true" data-i18n="অ্যাকাউন্ট খোলো">অ্যাকাউন্ট খোলো</button>
+            <button class="auth-mode" type="button" data-gate-mode="signin" role="tab" aria-selected="false" data-i18n="সাইন ইন">সাইন ইন</button>
+          </div>
+
+          <label class="auth-field" id="auth-gate-name-field">
+            <span data-i18n="নাম">নাম</span>
+            <input id="auth-gate-name" class="social-input" type="text" autocomplete="name" />
+          </label>
+          <label class="auth-field">
+            <span data-i18n="ইমেইল">ইমেইল</span>
+            <input id="auth-gate-email" class="social-input" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" required />
+          </label>
+          <label class="auth-field">
+            <span data-i18n="পাসওয়ার্ড">পাসওয়ার্ড</span>
+            <span class="auth-password">
+              <input id="auth-gate-password" class="social-input" type="password" autocomplete="new-password" minlength="6" required />
+              <button class="auth-reveal" id="auth-gate-reveal" type="button" aria-pressed="false" data-i18n-title="পাসওয়ার্ড দেখাও" title="পাসওয়ার্ড দেখাও" aria-label="পাসওয়ার্ড দেখাও">👁</button>
+            </span>
+          </label>
+
+          <p class="auth-gate-error" id="auth-gate-error" role="alert" aria-live="assertive"></p>
+
+          <button class="social-primary auth-gate-submit" id="auth-gate-submit" type="submit" data-i18n="অ্যাকাউন্ট খোলো">অ্যাকাউন্ট খোলো</button>
+          <button class="auth-guest" id="auth-gate-guest" type="button" data-i18n="অতিথি হিসেবে চালিয়ে যাও">অতিথি হিসেবে চালিয়ে যাও</button>
+          <p class="auth-gate-note" data-i18n="তোমার এখনকার বাগান যেমন আছে তেমনই থাকবে।">তোমার এখনকার বাগান যেমন আছে তেমনই থাকবে।</p>
+        </form>
+      </div>
+
       <div class="coop-modal hidden" id="coop-modal">
-        <div class="coop-card"><div class="cfg-head"><span data-i18n="কো-অপ বাগান">কো-অপ বাগান</span><button class="hud-btn" id="coop-close">✕</button></div><p data-i18n="একসঙ্গে একটি বাগান বানাও">বন্ধুর সঙ্গে একই বাগান বানাও।</p><div class="coop-row"><input id="coop-room" class="social-input" type="text" maxlength="12" placeholder="Room code" /><button id="coop-join" class="social-primary" data-i18n="যোগ দাও">যোগ দাও</button><button id="coop-leave" class="small-action" data-i18n="বের হও">বের হও</button></div><span id="coop-status" class="social-status"></span></div>
+        <div class="coop-card"><div class="cfg-head"><span data-i18n="কো-অপ বাগান">কো-অপ বাগান</span><button class="hud-btn" id="coop-close">✕</button></div><p data-i18n="একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।">একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।</p><div class="coop-row"><input id="coop-room" class="social-input" type="text" maxlength="12" placeholder="Room code" /><button id="coop-join" class="social-primary" data-i18n="যোগ দাও">যোগ দাও</button><button id="coop-leave" class="small-action" data-i18n="বের হও">বের হও</button><button id="coop-invite" class="small-action" type="button" data-i18n="আমন্ত্রণ লিঙ্ক">আমন্ত্রণ লিঙ্ক</button></div><span id="coop-status" class="social-status"></span></div>
       </div>
 
       <div

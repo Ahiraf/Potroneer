@@ -270,6 +270,17 @@ export function createSocialClient() {
     return count || 0;
   }
 
+  /** A link that drops someone straight into a shared room. */
+  function roomInviteUrl(room) {
+    return `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(room)}`;
+  }
+
+  /** The room an invite link is pointing at, if this page was opened from one. */
+  function invitedRoom() {
+    const room = new URLSearchParams(window.location.search).get("room");
+    return room ? room.trim().toUpperCase().slice(0, 12) : null;
+  }
+
   async function shareUrl(record) {
     if (remote && record.id) return `${window.location.origin}${window.location.pathname}?terrarium=${encodeURIComponent(record.id)}`;
     return `${window.location.origin}${window.location.pathname}?share=${encodeBase64Url({ title: record.title, data: record.data })}`;
@@ -320,6 +331,8 @@ export function createSocialClient() {
   }
 
   return {
+    roomInviteUrl,
+    invitedRoom,
     mode: remote ? "cloud" : "demo",
     isCloud: remote,
     currentUser,

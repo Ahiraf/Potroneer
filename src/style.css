@@ -4016,3 +4016,233 @@ body.focus-tray-open .cam-zoom {
     height: 44px;
   }
 }
+
+/* ============================================================
+   Account gate
+   Shown only when something genuinely needs an account. Fields
+   are deliberately large: this is the one form in Potroneer and
+   it is usually being filled in one-handed on a phone.
+   ============================================================ */
+.auth-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 32;
+  display: grid;
+  place-items: center;
+  background: rgba(16, 24, 18, 0.5);
+  backdrop-filter: blur(6px);
+}
+.auth-gate.hidden {
+  display: none;
+}
+.auth-gate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(88dvh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px;
+  color: var(--ink);
+  background: var(--hud-solid);
+  border: 1px solid var(--hud-border);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+/* The one line that says why this appeared. */
+.auth-gate-why {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.5;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: calc(12.5px * var(--text-scale));
+  color: var(--ink-dim);
+}
+.auth-field .social-input {
+  /* 16px is the line below which iOS Safari zooms the page on focus — which
+     reads as the app lurching sideways the moment you tap a field. */
+  min-height: 52px;
+  padding-inline: 14px;
+  font-size: calc(16px * var(--text-scale));
+  color: var(--ink);
+}
+.auth-field.hidden {
+  display: none;
+}
+.auth-password {
+  position: relative;
+  display: block;
+}
+.auth-password .social-input {
+  width: 100%;
+  padding-inline-end: 56px;
+}
+/* Password visibility. Typing a password you cannot see, on a phone keyboard,
+   is the most common reason a sign-in fails twice and gets abandoned. */
+.auth-reveal {
+  position: absolute;
+  inset-block: 50% auto;
+  inset-inline-end: 4px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: var(--ink-dim);
+  background: none;
+  border: 0;
+  border-radius: 12px;
+  font-size: calc(17px * var(--text-scale));
+  cursor: pointer;
+}
+.auth-reveal[aria-pressed="true"] {
+  color: var(--accent);
+}
+.auth-gate-error {
+  margin: 0;
+  min-height: 0;
+  color: var(--danger);
+  font-size: calc(12.5px * var(--text-scale));
+  line-height: 1.45;
+}
+.auth-gate-error:empty {
+  display: none;
+}
+.auth-gate-submit {
+  min-height: 52px;
+  font-size: calc(15px * var(--text-scale));
+}
+/* Continuing as a guest is a real, full-width choice — not a link hiding in a
+   corner hoping you will not take it. */
+.auth-guest {
+  min-height: 48px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: calc(14px * var(--text-scale));
+  cursor: pointer;
+}
+.auth-guest:hover {
+  background: var(--hud-raised);
+}
+.auth-gate-note {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: calc(12px * var(--text-scale));
+  text-align: center;
+}
+/* Invite preview: what room you are being asked to join, before you are asked
+   for anything at all. */
+.auth-room-preview {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: var(--hud-raised);
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+}
+.auth-room-preview.hidden {
+  display: none;
+}
+.auth-room-orb {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background: var(--accent-dim);
+  border-radius: 50%;
+  font-size: calc(22px * var(--text-scale));
+}
+.auth-room-preview strong {
+  display: block;
+  font-size: calc(17px * var(--text-scale));
+  letter-spacing: 0.08em;
+}
+.auth-room-preview p {
+  margin: 2px 0 0;
+  color: var(--ink-dim);
+  font-size: calc(12px * var(--text-scale));
+}
+
+/* On a phone it is a sheet like everything else. */
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .auth-gate {
+    place-items: end stretch;
+  }
+  .auth-gate-card {
+    width: auto;
+    max-width: none;
+    max-height: min(88dvh, 760px);
+    padding-block-end: calc(18px + env(safe-area-inset-bottom));
+    border-radius: 20px 20px 0 0;
+    border-inline: 0;
+    border-block-end: 0;
+  }
+  .auth-gate-card > .cfg-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-block: 8px;
+    background: var(--hud-solid);
+  }
+}
+
+/* A toast that carries an offer needs to be clickable — the juice layer above
+   it is pointer-events:none precisely so confetti cannot eat your taps, so the
+   button opts itself (and only itself) back in. */
+.toast-action {
+  margin-inline-start: 10px;
+  min-height: 36px;
+  padding-inline: 14px;
+  color: var(--accent-ink);
+  background: var(--accent-solid);
+  border: 0;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: calc(13px * var(--text-scale));
+  font-weight: 600;
+  cursor: pointer;
+  pointer-events: auto;
+}
+@media (pointer: coarse) {
+  .toast-action {
+    min-height: 44px;
+    padding-inline: 18px;
+  }
+}
+
+/* A toast carrying an action needs room for a sentence *and* a button. As a
+   fixed-width pill the sentence wrapped into a three-word column with the
+   button jammed beside it, so an offer gets a rounded rectangle instead and,
+   on a narrow screen, puts its button on its own line. */
+.toast:has(.toast-action) {
+  max-width: min(94vw, 460px);
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+.toast:has(.toast-action) .toast-text {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 520px) {
+  .toast:has(.toast-action) {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .toast:has(.toast-action) .toast-text {
+    flex: 1 1 calc(100% - 34px);
+  }
+  .toast:has(.toast-action) .toast-action {
+    flex: 1 0 100%;
+    margin-inline-start: 0;
+  }
+}

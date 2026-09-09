@@ -19,19 +19,38 @@ function calm() {
 
 // A small badge that slides in from the top-centre for level-ups, challenges,
 // achievements — the "something good happened" beat.
-export function toast(text, { icon = "✨", tone = "default", duration = 2600 } = {}) {
+export function toast(text, { icon = "✨", tone = "default", duration = 2600, action = null } = {}) {
   const el = document.createElement("div");
   el.className = `toast toast--${tone}`;
   el.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text"></span>`;
   el.querySelector(".toast-text").textContent = text;
+  let dismiss = null;
+  // An optional button, for the rare toast that is an offer rather than a
+  // notification. It has to be reachable by keyboard and it has to stay long
+  // enough to be pressed, so taking it dismisses the toast itself.
+  if (action?.label) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "toast-action";
+    button.textContent = action.label;
+    button.addEventListener("click", () => {
+      action.onClick?.();
+      dismiss?.();
+    });
+    el.appendChild(button);
+  }
   layer().appendChild(el);
   requestAnimationFrame(() => el.classList.add("is-in"));
   const life = calm() ? Math.min(duration, 1800) : duration;
-  setTimeout(() => {
+  let gone = false;
+  dismiss = () => {
+    if (gone) return;
+    gone = true;
     el.classList.remove("is-in");
     el.classList.add("is-out");
     setTimeout(() => el.remove(), 420);
-  }, life);
+  };
+  setTimeout(dismiss, life);
   return el;
 }
 

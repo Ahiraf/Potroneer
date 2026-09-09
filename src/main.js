@@ -56,6 +56,7 @@ import {
   UNLOCKS,
   getChallenge,
   getTutorial,
+  isTutorialComplete,
   hydrateGameState,
   isKindUnlocked,
   loadAutosave,
@@ -127,6 +128,9 @@ let socialAuthMode = "signin";
 let socialRecords = [];
 let socialMineRecords = [];
 let pendingRemixOf = null;
+// The co-op room an invite link or the join box is pointing at, so the account
+// gate can show which room it is asking you to join.
+let pendingRoomInvite = null;
 // A photo world by default: the studio sweep is still one tap away in থিম ▸ আঁকা.
 let currentThemeId = "sunlit-adobe-room";
 let tableStyleId = "oak";
@@ -1107,6 +1111,7 @@ function gameAction(type, value = null) {
   const result = recordGameAction(game, { type, value }, gameMetrics());
   // The first thing you make is what earns the progress panel its place.
   syncProgressVisibility();
+  maybeOfferCloudKeep();
   const achievementByAction = { plant: "first-leaf", water: "caregiver", mist: "mist-maker", light: "night-gardener" };
   if (achievementByAction[type]) unlockGameAchievement(achievementByAction[type]);
   if (result.xpEarned > 0) {
@@ -1287,7 +1292,10 @@ function renderSocialGrid(container, records, mine = false) {
     visit.addEventListener("click", () => visitSocialRecord(record, false));
     const remix = document.createElement("button");
     remix.textContent = socialMessage("রিমিক্স", "Remix");
-    remix.addEventListener("click", () => visitSocialRecord(record, true));
+    // Visiting is free; keeping the remix you make is what needs the account.
+    remix.addEventListener("click", () =>
+      requireAccount("remix", () => visitSocialRecord(record, true)),
+    );
     const like = document.createElement("button");
     like.classList.toggle("is-active", record.liked);
     like.textContent = `${record.liked ? "♥" : "♡"} ${socialMessage("লাইক", "Like")}`;
@@ -1303,14 +1311,17 @@ function renderSocialGrid(container, records, mine = false) {
     const favorite = document.createElement("button");
     favorite.classList.toggle("is-active", record.favorited);
     favorite.textContent = `${record.favorited ? "★" : "☆"} ${socialMessage("সংরক্ষণ", "Save")}`;
-    favorite.addEventListener("click", async () => {
-      try {
-        const updated = await social.toggleFavorite(record);
-        Object.assign(record, updated);
-        renderSocialGrid(container, records, mine);
-      } catch (error) {
-        socialStatus(error.message, true);
-      }
+    favorite.addEventListener("click", () => {
+      // A favourite is a thing kept *somewhere*, so it needs somewhere to live.
+      requireAccount("favorite", async () => {
+        try {
+          const updated = await social.toggleFavorite(record);
+          Object.assign(record, updated);
+          renderSocialGrid(container, records, mine);
+        } catch (error) {
+          socialStatus(error.message, true);
+        }
+      });
     });
     const share = document.createElement("button");
     share.textContent = socialMessage("শেয়ার", "Share");
@@ -1391,11 +1402,10 @@ async function visitSocialRecord(record, remix) {
 }
 
 function openPublish() {
-  if (!socialUser) {
-    selectSocialTab("account");
-    socialStatus(socialMessage("প্রকাশ করতে আগে সাইন ইন করো।", "Sign in before publishing."));
-    return;
-  }
+  // Used to dump you on the account tab with a note and leave you to work out
+  // what you had been doing. Now the gate remembers, and publishing carries on
+  // by itself once there is an account to publish to.
+  if (needsAccount("publish", openPublish)) return;
   document.getElementById("publish-title").value = `Potroneer's garden`;
   document.getElementById("publish-description").value = "";
   document.getElementById("publish-modal").classList.remove("hidden");
@@ -3434,6 +3444,12 @@ async function joinCoopRoom() {
   const input = document.getElementById("coop-room");
   const room = (input.value.trim() || Math.random().toString(36).slice(2, 8)).toUpperCase();
   input.value = room;
+  // A shared room is other people's hands in your jar, so this is the one place
+  // an account is genuinely unavoidable. The gate names the room and comes
+  // straight back here afterwards — your terrarium is untouched throughout.
+  pendingRoomInvite = room;
+  document.getElementById("auth-room-code").textContent = room;
+  if (needsAccount("coop", joinCoopRoom)) return;
   const status = document.getElementById("coop-status");
   try {
     const result = await social.joinCoop(room, (payload) => {
@@ -3950,3 +3966,373 @@ if (focusMoreBtn && moreMenuEl) {
   });
   syncMoreExpanded();
 }
+
+// ---------------------------------------------------------------------------
+// The account gate
+// ---------------------------------------------------------------------------
+// Potroneer is a guest-first app: you can build, care for, decorate, theme and
+// keep a terrarium forever without ever telling us who you are, because all of
+// it lives in localStorage. An account buys exactly three things — other
+// people's eyes on your jar, other people's hands in it, and the same jar on
+// another device — so the gate only appears when you reach for one of those,
+// and it says which one.
+//
+// Nothing here ever discards local work. `requireAccount` resumes the action
+// you were taking; signing in migrates what you already built rather than
+// replacing it.
+
+const AUTH_REASONS = {
+  publish: {
+    bn: "প্রকাশ করতে অ্যাকাউন্ট লাগবে — তোমার বাগান তখন অন্যরাও দেখতে পাবে।",
+    en: "Publishing needs an account, so other gardeners can find your jar.",
+  },
+  favorite: {
+    bn: "পছন্দ জমা রাখতে অ্যাকাউন্ট লাগবে।",
+    en: "Saving a favourite needs an account to keep it in.",
+  },
+  remix: {
+    bn: "রিমিক্স সেভ করতে অ্যাকাউন্ট লাগবে।",
+    en: "Saving a remix needs an account to keep it in.",
+  },
+  coop: {
+    bn: "একসঙ্গে বানাতে আর সব ডিভাইসে তোমার ঘর রাখতে অ্যাকাউন্ট খোলো।",
+    en: "Create an account to build together and keep your room across devices.",
+  },
+  sync: {
+    bn: "সব ডিভাইসে এই বাগান রাখতে অ্যাকাউন্ট খোলো।",
+    en: "Create an account to keep this garden across devices.",
+  },
+};
+
+const authGate = document.getElementById("auth-gate");
+const authGateForm = document.getElementById("auth-gate-form");
+const authGateError = document.getElementById("auth-gate-error");
+const authGateSubmit = document.getElementById("auth-gate-submit");
+const authGateName = document.getElementById("auth-gate-name-field");
+let authGateMode = "signup";
+let authGateResume = null;
+
+function setAuthGateMode(mode) {
+  authGateMode = mode === "signin" ? "signin" : "signup";
+  for (const button of authGate.querySelectorAll("[data-gate-mode]")) {
+    const active = button.dataset.gateMode === authGateMode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  // A name is something we ask for once, when the account is made.
+  authGateName.classList.toggle("hidden", authGateMode !== "signup");
+  const label = authGateMode === "signup" ? "অ্যাকাউন্ট খোলো" : "সাইন ইন";
+  authGateSubmit.dataset.i18n = label;
+  authGateSubmit.textContent = t(label);
+  document.getElementById("auth-gate-password").autocomplete =
+    authGateMode === "signup" ? "new-password" : "current-password";
+  authGateError.textContent = "";
+}
+
+/**
+ * Open the gate, remembering what to do afterwards. Returns true if it opened —
+ * i.e. if the caller should stop and let the resume finish the job.
+ *
+ * This is the guard for a function that re-runs *itself* after auth:
+ *
+ *     function openPublish() {
+ *       if (needsAccount("publish", openPublish)) return;
+ *       ...
+ *
+ * Note it does not invoke `resume` when there is already an account. Having it
+ * do that — one call that both guards and runs — read nicely right up until the
+ * resume was the calling function itself, at which point it called itself,
+ * which called itself, until the stack ran out.
+ */
+function needsAccount(reason, resume) {
+  if (socialUser) return false;
+  openAuthGate(reason, resume);
+  return true;
+}
+
+/**
+ * Run `action` now if there is an account, or ask for one first and then run
+ * it. For a one-off action that is not the function doing the asking.
+ */
+function requireAccount(reason, action) {
+  if (socialUser) {
+    action?.();
+    return true;
+  }
+  openAuthGate(reason, action);
+  return false;
+}
+
+function openAuthGate(reason, action) {
+  authGateResume = action ?? null;
+  const copy = AUTH_REASONS[reason] ?? AUTH_REASONS.sync;
+  document.getElementById("auth-gate-why").textContent = socialMessage(copy.bn, copy.en);
+  document.getElementById("auth-room-preview").classList.toggle(
+    "hidden",
+    reason !== "coop" || !pendingRoomInvite,
+  );
+  setAuthGateMode("signup");
+  authGate.classList.remove("hidden");
+}
+
+function closeAuthGate({ resume = false } = {}) {
+  authGate.classList.add("hidden");
+  const action = authGateResume;
+  authGateResume = null;
+  if (resume && action) action();
+}
+
+// Supabase speaks in API errors. People do not.
+function friendlyAuthError(error) {
+  const raw = (error?.message || "").toLowerCase();
+  if (raw.includes("already registered") || raw.includes("already been registered")) {
+    return socialMessage(
+      "এই ইমেইলে অ্যাকাউন্ট আছে — সাইন ইন করো।",
+      "There is already an account with this email — sign in instead.",
+    );
+  }
+  // Local demo mode raises its own wording for the same situation.
+  if (raw.includes("no demo account") || raw.includes("no account")) {
+    return socialMessage(
+      "এই ইমেইলে কোনো অ্যাকাউন্ট নেই — উপরে \"অ্যাকাউন্ট খোলো\" বেছে নাও।",
+      'No account with that email yet — pick "Create account" above.',
+    );
+  }
+  if (raw.includes("invalid login")) {
+    return socialMessage(
+      "ইমেইল বা পাসওয়ার্ড মিলছে না। আবার দেখো।",
+      "That email and password do not match. Have another look.",
+    );
+  }
+  if (raw.includes("password") && raw.includes("6")) {
+    return socialMessage(
+      "পাসওয়ার্ড অন্তত ৬ অক্ষরের হতে হবে।",
+      "Passwords need to be at least 6 characters.",
+    );
+  }
+  if (raw.includes("email") && raw.includes("valid")) {
+    return socialMessage("ইমেইলটা ঠিক দেখাচ্ছে না।", "That email address does not look right.");
+  }
+  if (raw.includes("network") || raw.includes("fetch")) {
+    return socialMessage(
+      "নেটওয়ার্কে পৌঁছানো যাচ্ছে না। তোমার বাগান নিরাপদে আছে — পরে আবার চেষ্টা করো।",
+      "Could not reach the network. Your garden is safe here — try again in a moment.",
+    );
+  }
+  return error?.message || socialMessage("কিছু একটা ভুল হয়েছে।", "Something went wrong.");
+}
+
+authGate.querySelectorAll("[data-gate-mode]").forEach((button) => {
+  button.addEventListener("click", () => setAuthGateMode(button.dataset.gateMode));
+});
+document.getElementById("auth-gate-close").addEventListener("click", () => closeAuthGate());
+document.getElementById("auth-gate-guest").addEventListener("click", () => {
+  closeAuthGate();
+  flashHint(
+    socialMessage(
+      "ঠিক আছে — অতিথি হিসেবেই চলুক। বাগান এই ডিভাইসে সেভ থাকছে।",
+      "Fine by us — carry on as a guest. Your garden stays saved on this device.",
+    ),
+  );
+});
+document.getElementById("auth-gate-reveal").addEventListener("click", (event) => {
+  const field = document.getElementById("auth-gate-password");
+  const shown = field.type === "text";
+  field.type = shown ? "password" : "text";
+  event.currentTarget.setAttribute("aria-pressed", shown ? "false" : "true");
+  field.focus();
+});
+
+authGateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  authGateError.textContent = "";
+  authGateSubmit.disabled = true;
+  const email = document.getElementById("auth-gate-email").value.trim();
+  const password = document.getElementById("auth-gate-password").value;
+  try {
+    if (authGateMode === "signup") {
+      const result = await social.signUp({
+        email,
+        password,
+        displayName: document.getElementById("auth-gate-name").value.trim(),
+      });
+      if (result.needsVerification) {
+        authGateError.textContent = socialMessage(
+          "ইমেইলে পাঠানো লিঙ্কে ক্লিক করে ফিরে এসে সাইন ইন করো।",
+          "Check your email for the confirmation link, then come back and sign in.",
+        );
+        authGateSubmit.disabled = false;
+        return;
+      }
+    } else {
+      await social.signIn({ email, password });
+    }
+    await renderSocialAccount();
+    await migrateGuestWork();
+    await refreshSocialFeed();
+    closeAuthGate({ resume: true });
+  } catch (error) {
+    authGateError.textContent = friendlyAuthError(error);
+  } finally {
+    authGateSubmit.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Carrying a guest's work onto their new account
+// ---------------------------------------------------------------------------
+// Signing up must never feel like starting over. Everything a guest built is
+// already in localStorage and stays exactly where it is — this only *adds* a
+// private cloud copy so the same jar can be opened on another device, and
+// carries the level and achievements up with it.
+//
+// Deliberately private (isPublic: false): keeping your garden and showing it to
+// strangers are different decisions, and only one of them was made here.
+const MIGRATED_KEY = "potroneer-migrated";
+
+function hasSomethingToMigrate() {
+  return (state.layers?.length || 0) + (state.decorations?.length || 0) > 0;
+}
+
+async function migrateGuestWork() {
+  if (!socialUser || !hasSomethingToMigrate()) return;
+  let done = [];
+  try {
+    done = JSON.parse(localStorage.getItem(MIGRATED_KEY) || "[]");
+  } catch {
+    done = [];
+  }
+  // Once per account. Signing out and back in should not litter the gallery
+  // with copies of the same jar.
+  if (done.includes(socialUser.id)) return;
+  try {
+    await social.saveTerrarium({
+      title: socialMessage("আমার বাগান", "My garden"),
+      description: socialMessage(
+        "এই ডিভাইসে বানানো, অ্যাকাউন্টে নেওয়া হয়েছে।",
+        "Built on this device, carried over to this account.",
+      ),
+      data: autosavePayload(),
+      thumbnail: await makeThumbnail(),
+      isPublic: false,
+    });
+    done.push(socialUser.id);
+    localStorage.setItem(MIGRATED_KEY, JSON.stringify(done));
+    toast(
+      socialMessage("তোমার বাগান অ্যাকাউন্টে নেওয়া হয়েছে।", "Your garden is on your account now."),
+      { icon: "🌿", duration: 3200 },
+    );
+  } catch (error) {
+    // A failed upload is not a failed sign-in, and it certainly is not a reason
+    // to lose anything: the local copy is still the real one.
+    flashHint(
+      socialMessage(
+        "অ্যাকাউন্টে তোলা যায়নি, তবে বাগান এই ডিভাইসে নিরাপদে আছে।",
+        "Could not copy it up just now — your garden is safe on this device.",
+      ),
+    );
+    console.warn("[potroneer] guest migration failed", error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The one time we bring it up unprompted
+// ---------------------------------------------------------------------------
+// A guest who has just finished their first terrarium is the one person for
+// whom "keep this across devices" is a useful sentence rather than an
+// interruption — they have something worth keeping and have just found out they
+// like this. So: once, after the tutorial arc completes, as a toast that goes
+// away on its own. Never a modal, never twice, never for someone already signed
+// in, and taking it opens the same gate everything else does.
+const KEEP_PROMPT_KEY = "potroneer-keep-prompt";
+
+function maybeOfferCloudKeep() {
+  if (socialUser) return;
+  if (!isTutorialComplete(game) || !hasSomethingToMigrate()) return;
+  try {
+    if (localStorage.getItem(KEEP_PROMPT_KEY) === "1") return;
+    localStorage.setItem(KEEP_PROMPT_KEY, "1");
+  } catch {
+    return; // private mode: better silent than every single session
+  }
+  toast(
+    socialMessage("এই বাগান সব ডিভাইসে রাখতে চাও?", "Keep this garden across devices?"),
+    {
+      icon: "🌿",
+      duration: 7000,
+      action: {
+        label: socialMessage("রাখো", "Keep it"),
+        onClick: () => requireAccount("sync", null),
+      },
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Arriving from an invite link
+// ---------------------------------------------------------------------------
+// A link like ?room=MOSS4U is someone saying "come and garden with me". Meeting
+// that with a bare login form gives no clue what you are signing up *for*, so
+// the room is shown first — its code, and what a shared room actually is — and
+// only then are you asked for an account. Continuing as a guest from here is a
+// real option: it keeps you in the app, on your own jar, with the invite
+// waiting in the co-op panel whenever you want it.
+//
+// The terrarium already on this device is never touched by any of this.
+function openRoomInvite(room) {
+  pendingRoomInvite = room;
+  document.getElementById("auth-room-code").textContent = room;
+  document.getElementById("coop-room").value = room;
+  requireAccount("coop", () => {
+    document.getElementById("coop-modal")?.classList.remove("hidden");
+    joinCoopRoom();
+  });
+  document.getElementById("auth-room-preview").classList.remove("hidden");
+}
+
+function checkRoomInvite() {
+  const room = social.invitedRoom?.();
+  if (!room) return;
+  // Take the code out of the address bar so a refresh — or a shared screenshot
+  // of the URL — does not keep re-triggering the invite.
+  const url = new URL(window.location.href);
+  url.searchParams.delete("room");
+  window.history.replaceState({}, "", url);
+  if (socialUser) {
+    document.getElementById("coop-room").value = room;
+    document.getElementById("coop-modal")?.classList.remove("hidden");
+    flashHint(
+      socialMessage(`ঘর ${room}-এ যোগ দিতে "যোগ দাও" চাপো।`, `Press Join to enter room ${room}.`),
+    );
+    return;
+  }
+  openRoomInvite(room);
+}
+
+// Wait for the intro to finish before an invite takes over the screen.
+// (onIntroDone fires straight away if the intro is already gone, and
+// introReady() is the *setter* that marks it ready — not a question.)
+onIntroDone(checkRoomInvite);
+
+// Copy a link that opens straight into this room. What the other person gets is
+// a preview of the room first — see openRoomInvite — not a login form.
+document.getElementById("coop-invite")?.addEventListener("click", async () => {
+  const code = (document.getElementById("coop-room").value.trim() || coopRoom || "").toUpperCase();
+  const status = document.getElementById("coop-status");
+  if (!code) {
+    status.textContent = socialMessage(
+      "আগে একটি রুম কোড দাও বা যোগ দাও।",
+      "Enter a room code or join one first.",
+    );
+    return;
+  }
+  const url = social.roomInviteUrl(code);
+  try {
+    await navigator.clipboard?.writeText(url);
+    status.textContent = socialMessage("আমন্ত্রণ লিঙ্ক কপি হয়েছে।", "Invite link copied.");
+  } catch {
+    // Clipboard access is refused in plenty of ordinary situations; showing the
+    // link is more use than an apology.
+    status.textContent = url;
+  }
+});
