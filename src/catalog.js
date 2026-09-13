@@ -426,6 +426,9 @@ add("waterwisteria", "ওয়াটার উইস্টেরিয়া", 
 // Creeping and floating round leaves.
 add("hydrocotyle", "হাইড্রোকোটাইল", [
   ["ট্রাইপার্টিটা", { leaf: "#6fba4a", stem: "#7a9a46", r: 0.038, pads: 20 }],
+  // Pennywort: the same runner habit with much bigger coins, and a marsh plant
+  // rather than a submerged one — it wants a wet bank.
+  ["আমব্রেলাটা", { leaf: "#5fb03a", stem: "#6f9a3e", r: 0.062, pads: 14 }],
 ]);
 add("waterpoppy", "ওয়াটার পপি", [
   ["", { leaf: "#5faa48", stem: "#6f8f46", r: 0.06, pads: 10, bloom: "#f0e08a" }],
@@ -481,6 +484,81 @@ add("babytears", "বেবি টিয়ার্স", [
 add("creepingfig", "ক্রিপিং ফিগ", [
   ["সবুজ", { leaf: "#3d6b33", stem: "#7a6a45", leafScale: 0.55, vines: 5, reach: 0.24 }],
   ["ভ্যারিগেটেড", { leaf: "#5f8a4a", stem: "#8a7a55", leafScale: 0.55, vines: 5, reach: 0.24 }],
+]);
+
+// ---------------------------------------------------------------------------
+// The flowering garden pack
+// ---------------------------------------------------------------------------
+// The nursery-bench flowers from the reference photos. Worth saying plainly:
+// almost none of these are closed-terrarium plants. Rain lilies, crowns of
+// thorns, amaryllis, ruellia, lantana, butterfly pea and the creeping daisy are
+// full-sun garden plants that rot in a sealed humid jar — they are marked
+// `open` below so the tray chip says so. The three that genuinely do belong
+// under glass (purple shamrock, coleus, and pennywort on a wet bank) are marked
+// accordingly.
+
+// Zephyranthes. Fourteen cultivars of one plant, which is exactly how they are
+// sold — the clump of grassy leaves is identical and the tepals do all the
+// telling apart.
+add("rainlily", "রেইন লিলি", [
+  ["সাদা", { tepal: "#f4f2e8", throat: "#d8e08a", stamen: "#e8c04a", rise: 0.45 }],
+  ["আইভরি", { tepal: "#f6f4ec", throat: "#efe6c8", stamen: "#e8a83a", len: 0.065, rise: 0.35 }],
+  ["হলুদ", { tepal: "#f0c832", throat: "#e0a828", stamen: "#d8b83a" }],
+  ["সানশাইন", { tepal: "#f2d466", throat: "#e8c04a", stamen: "#d8c05a", rise: 0.6 }],
+  ["কিং র‍্যানসম", { tepal: "#f4dc2a", edge: "#d98a3a", throat: "#4a7a34", stamen: "#d9a83a" }],
+  ["লামদুয়ান রেড", { tepal: "#c81e4a", throat: "#e8d83a", stamen: "#e8c04a", style: "#5f9a3a" }],
+  ["রেড জয়", { tepal: "#d81e28", throat: "#b03a6a", stamen: "#e8c83a", rise: 0.4 }],
+  ["রাস্টিক রে", { tepal: "#e06a2a", stripe: "#f2c83a", throat: "#d8b83a", stamen: "#e8c04a" }],
+  ["পিংক ফেয়ারি", { tepal: "#f0d8e0", throat: "#e8e0a0", stamen: "#e8a83a", rise: 0.4 }],
+  ["সুইট হার্ট", { tepal: "#e8a8c8", stripe: "#f6ecf0", throat: "#eee8c0", stamen: "#e8a83a" }],
+  ["হার্ট থ্রব", { tepal: "#e06a9c", stripe: "#f6e8f0", throat: "#f2ead0", stamen: "#e8c04a" }],
+  ["জোডিয়াক সারপ্রাইজ", { tepal: "#e88ab0", stripe: "#f8eef2", throat: "#e8e8a8", stamen: "#e8c04a" }],
+  ["ক্যাপ্রিকর্ন", { tepal: "#e89ab8", stripe: "#f6eedc", throat: "#dce88a", stamen: "#e8c83a", rise: 0.4 }],
+  ["লাবুফেরোসা", { tepal: "#e07aa8", stripe: "#fbf4f6", throat: "#e8e08a", stamen: "#e8c04a" }],
+  ["স্মল হাইব্রিড", { tepal: "#e8829c", stripe: "#f2dc6a", throat: "#e8d05a", stamen: "#e8c04a", len: 0.062 }],
+]);
+
+// Euphorbia milii. The paired bracts are the colour; the thorns are optional,
+// because the thornless cultivar is the one on the bench.
+add("crownofthorns", "কাঁটামুকুট", [
+  ["লাল", { bract: "#d9384f", eye: "#e8b23a" }],
+  ["কাঁটাবিহীন লাল", { bract: "#e0384a", eye: "#e8c04a", thorns: false, leaf: "#7fa08a" }],
+  ["গোলাপি", { bract: "#e85088", eye: "#e05a2a", leaf: "#4a8a44" }],
+  ["হরিদ্রা মুকুট", { bract: "#eef0b8", eye: "#d94a28", leaf: "#3f7a3c" }],
+  ["ফাল্গুনী", { bract: "#f0e4c0", eye: "#e8a83a", leaf: "#4a7a40" }],
+  ["সাঁঝবাতি মুকুট", { bract: "#f0b09a", eye: "#c98a3a", leaf: "#3f7a3c" }],
+]);
+
+add("ruellia", "রুয়েলিয়া", [
+  ["বেগুনি", { petal: "#8f6ad1", throat: "#5a2f9c" }],
+  ["সাদা", { petal: "#f4f2ea", throat: "#d8dcc0", leaf: "#4a8a3e" }],
+]);
+add("amaryllis", "অ্যামারিলিস", [
+  ["পিচ", { tepal: "#f0a882", stripe: "#f6d0b8", throat: "#a8c06a", stamen: "#e0a89a" }],
+]);
+add("butterflypea", "অপরাজিতা", [
+  ["নীল", { petal: "#4a35b0", flash: "#eef0c0" }],
+]);
+add("lantana", "ল্যান্টানা", [
+  ["বেগুনি", { bloom: "#9a3ec0", bloomEdge: "#c46ad8" }],
+]);
+add("wedelia", "ওয়েডেলিয়া", [
+  ["হলুদ", { petals: ["#f2c81e", "#e8bc18"], center: "#c98a28", foliage: "#3f6b33", petalR: 0.02 }],
+]);
+
+// Grown for the leaves, not the bloom — these three sit with the plants.
+add("coleus", "কলিয়াস", [
+  ["মেজেন্টা", { leaf: "#a51e63", margin: "#d8d84a", vein: "#d88ab0" }],
+  ["লালচে", { leaf: "#8a2a30", margin: "#c8d05a", vein: "#d09a8a", stem: "#8a5a4a" }],
+]);
+add("drimiopsis", "ড্রিমিওপসিস", [
+  ["ছোপ পাতা", { leaf: "#b8c9a0", spot: "#3f6b34" }],
+]);
+add("kalanchoe", "ক্যালানচো", [
+  ["ভ্যারিগেটেড", { leaf: "#9ab08a", edge: "#d98a8a", bloom: "#e0452a" }],
+]);
+add("oxalis", "অক্সালিস", [
+  ["বেগুনি", { leaf: "#6e3d66", petal: "#f0d8e8" }],
 ]);
 
 // The clean-up crew.
@@ -583,6 +661,9 @@ add("templehall", "চীনা মন্দির", [
   ["একতলা", { tiers: 1 }],
   ["প্রাচীরঘেরা", { tiers: 2, walled: true }],
   ["কাঠের", { tiers: 1, body: "#8a6a4a", tile: "#3a3733" }],
+  // the two-tier hall inside a railed courtyard, slate-blue tiles over a
+  // terracotta frame
+  ["জাপানি", { tiers: 2, walled: true, body: "#c08a68", tile: "#9fb2bf", stone: "#c08a68" }],
 ]);
 add("pavilion", "মণ্ডপ", [
   ["ছোট", { size: 0.12 }],
@@ -633,6 +714,40 @@ add("oillamp", "হারিকেন", [
 add("moroccanlantern", "মরক্কোন লণ্ঠন", [
   ["সাদা", {}],
   ["লাল", { shell: "#e04a2c" }],
+]);
+
+// The second wave of printed miniatures: the terracotta branch bench, the
+// covered wagon, the winch well, the pagoda watchtower, the porched cottage,
+// the fairy tower — and the chanterelle troop that goes with the moss. Each is
+// offered in the colours the sets actually ship in (raw terracotta, bone-white
+// resin, sandstone).
+add("branchbench", "ডাল বেঞ্চ", [
+  ["টেরাকোটা", {}],
+  ["সাদা", { wood: "#e4ded2", dark: "#c9c2b4" }],
+]);
+add("coveredwagon", "ঢাকা গাড়ি", [
+  ["টেরাকোটা", {}],
+  ["ক্যানভাস", { canvas: "#e0d8c4", wood: "#a8794f", dark: "#8a6039" }],
+]);
+add("wheelwell", "চাকা কুয়া", [
+  ["টেরাকোটা", {}],
+  ["কাঠের", { wood: "#a8845a", dark: "#8a6a45" }],
+]);
+add("pagodatower", "প্যাগোডা টাওয়ার", [
+  ["বেলেপাথর", {}],
+  ["ধূসর", { stone: "#b0aca2", dark: "#949086" }],
+]);
+add("porchcottage", "বারান্দা কুটির", [
+  ["সাদা", {}],
+  ["বাদামি", { wall: "#d8c8a8", roof: "#a8815a", trim: "#c2ab86", shade: "#7a6247" }],
+]);
+add("fairytower", "পরি টাওয়ার", [
+  ["সাদা", {}],
+  ["ধূসর ছাদ", { roof: "#a8b0b8", trim: "#c4c8cc" }],
+]);
+add("chanterelle", "শ্যান্টারেল", [
+  ["কমলা", {}],
+  ["ফ্যাকাশে", { cap: "#e8c47a", gill: "#d0a85c", stem: "#a8845a" }],
 ]);
 
 // The printed figurines that come with the same sets.
@@ -704,7 +819,21 @@ const CAT_BY_KIND = {
   succulent: "plants",
   airplant: "plants",
   cactus: "plants",
-  flowers: "plants",
+  // the flowering pack gets its own section — a flower is what people come
+  // looking for, and hunting for it among sixty foliage plants is no fun
+  flowers: "flowers",
+  rainlily: "flowers",
+  crownofthorns: "flowers",
+  ruellia: "flowers",
+  amaryllis: "flowers",
+  butterflypea: "flowers",
+  lantana: "flowers",
+  wedelia: "flowers",
+  // grown for the leaves, so they stay with the plants
+  coleus: "plants",
+  drimiopsis: "plants",
+  kalanchoe: "plants",
+  oxalis: "plants",
   pilea: "plants",
   pothos: "plants",
   calathea: "plants",
@@ -769,6 +898,13 @@ const CAT_BY_KIND = {
   stonepath: "structures",
   oillamp: "structures",
   moroccanlantern: "structures",
+  branchbench: "structures",
+  coveredwagon: "structures",
+  wheelwell: "structures",
+  pagodatower: "structures",
+  porchcottage: "structures",
+  fairytower: "structures",
+  chanterelle: "mushroom",
   mantis: "animals",
   snake: "animals",
   wolf: "animals",
@@ -809,6 +945,13 @@ const HABITAT_BY_KIND = {
   succulent: "open", cactus: "open", saguaro: "open", pricklypear: "open",
   pincushion: "open", haworthia: "open", airplant: "open", snakeplant: "open",
   bonsai: "open", flowers: "open",
+  // the flowering pack: sun, airflow and a dry spell between waterings. A
+  // sealed jar kills every one of these, so say it on the chip.
+  rainlily: "open", crownofthorns: "open", ruellia: "open", amaryllis: "open",
+  butterflypea: "open", lantana: "open", wedelia: "open", kalanchoe: "open",
+  drimiopsis: "open",
+  // the two that really are shade-and-humidity plants
+  oxalis: "closed", coleus: "closed",
   // aquarium species: submerged or emersed on a wet bank
   rotala: "aquatic", ludwigia: "aquatic", bacopa: "aquatic",
   hygrophila: "aquatic", persicaria: "aquatic", lindernia: "aquatic",
@@ -832,6 +975,7 @@ export const CATEGORIES = [
   { id: "jar", label: "জার", icon: "🫙" },
   { id: "base", label: "বেস স্তর", icon: "🟤" },
   { id: "plants", label: "গাছপালা", icon: "🌿" },
+  { id: "flowers", label: "ফুলগাছ", icon: "🌸" },
   { id: "moss", label: "মস", icon: "🌱" },
   { id: "aquatic", label: "জলজ গাছ", icon: "🌊" },
   { id: "mushroom", label: "মাশরুম", icon: "🍄" },

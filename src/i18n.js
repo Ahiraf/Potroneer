@@ -481,6 +481,63 @@ const EN = {
   "শ্যাওলা": "Mossy",
   "বালি": "Sand",
   "পাথুরে": "Stone",
+
+  // --- the flowering garden pack -------------------------------------------
+  "ফুলগাছ": "Flowers",
+  "রেইন লিলি": "Rain lily",
+  "কাঁটামুকুট": "Crown of thorns",
+  "রুয়েলিয়া": "Ruellia",
+  "অ্যামারিলিস": "Amaryllis",
+  "অপরাজিতা": "Butterfly pea",
+  "ল্যান্টানা": "Lantana",
+  "ওয়েডেলিয়া": "Creeping daisy",
+  "কলিয়াস": "Coleus",
+  "ড্রিমিওপসিস": "Drimiopsis",
+  "ক্যালানচো": "Kalanchoe",
+  "অক্সালিস": "Purple shamrock",
+  // rain lily cultivars
+  "আইভরি": "Ivory",
+  "সানশাইন": "Sunshine",
+  "কিং র‍্যানসম": "King Ransom",
+  "লামদুয়ান রেড": "Lamduan Red",
+  "রেড জয়": "Red Joy",
+  "রাস্টিক রে": "Rustic Ray",
+  "পিংক ফেয়ারি": "Pink Fairy",
+  "সুইট হার্ট": "Sweet Heart",
+  "হার্ট থ্রব": "Heart Throb",
+  "জোডিয়াক সারপ্রাইজ": "Zodiac Surprise",
+  "ক্যাপ্রিকর্ন": "Capricorn",
+  "লাবুফেরোসা": "Labuferossa",
+  "স্মল হাইব্রিড": "Small hybrid",
+  // the other variant suffixes in the pack
+  "কাঁটাবিহীন লাল": "Thornless red",
+  "হরিদ্রা মুকুট": "Haridra",
+  "ফাল্গুনী": "Falguni",
+  "সাঁঝবাতি মুকুট": "Sanjhbati",
+  "পিচ": "Peach",
+  "মেজেন্টা": "Magenta",
+  "ছোপ পাতা": "Spotted leaf",
+  "আমব্রেলাটা": "Umbellata",
+
+  // --- printed miniatures, second wave -------------------------------------
+  "ডাল বেঞ্চ": "Branch bench",
+  "ঢাকা গাড়ি": "Covered wagon",
+  "চাকা কুয়া": "Winch well",
+  "প্যাগোডা টাওয়ার": "Pagoda tower",
+  "বারান্দা কুটির": "Porch cottage",
+  "পরি টাওয়ার": "Fairy tower",
+  "শ্যান্টারেল": "Chanterelle",
+  "টেরাকোটা": "Terracotta",
+  "ক্যানভাস": "Canvas",
+  "ধূসর ছাদ": "Grey roof",
+  "জাপানি": "Japanese",
+
+  // --- open vessels --------------------------------------------------------
+  "টেরাকোটা টব": "Terracotta pot",
+  "ডিশ গার্ডেন": "Dish garden",
+  "পাথরের আর্ন": "Stone urn",
+  "কাঠের ট্রাফ": "Wooden trough",
+  "খোলা পাত্র: বাতাস চলে, বদ্ধ হয় না": "Open vessel: air moves, nothing seals in",
 };
 
 const LANG_KEY = "potroneer-lang";

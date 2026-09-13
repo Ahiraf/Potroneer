@@ -2709,6 +2709,18 @@ function renderStrip() {
         badge.title = t(h.hint);
         card.appendChild(badge);
       }
+      // The other half of that conversation: which vessels are open. A plant
+      // chip carrying 🌤️ and a vessel chip carrying 🌤️ mean the same thing,
+      // so the pairing is readable without a manual.
+      if (item.openVessel) {
+        card.classList.add("habitat-open");
+        card.title = `${tLabel(item.label)} — ${t(HABITATS.open.label)} · ${t("খোলা পাত্র: বাতাস চলে, বদ্ধ হয় না")}`;
+        const badge = document.createElement("span");
+        badge.className = "item-habitat";
+        badge.textContent = "🌤️";
+        badge.title = t("খোলা পাত্র: বাতাস চলে, বদ্ধ হয় না");
+        card.appendChild(badge);
+      }
       const active =
         group === "jar"
           ? item.id === currentJarId

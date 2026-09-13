@@ -68,6 +68,18 @@ export const PLANT_KINDS = new Set([
   "peperomia",
   "babytears",
   "creepingfig",
+  // the flowering garden pack
+  "rainlily",
+  "crownofthorns",
+  "ruellia",
+  "amaryllis",
+  "butterflypea",
+  "lantana",
+  "wedelia",
+  "coleus",
+  "drimiopsis",
+  "kalanchoe",
+  "oxalis",
 ]);
 
 // Items become available through play, while a small starter set keeps the

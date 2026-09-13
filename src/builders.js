@@ -469,7 +469,29 @@ function buildDecorationParts(kind, v = {}) {
     case "cactus":
       return buildCactus(v);
     case "flowers":
+    case "wedelia":
       return buildFlowers(v);
+    // The flowering garden pack.
+    case "rainlily":
+      return buildRainLily(v);
+    case "crownofthorns":
+      return buildCrownOfThorns(v);
+    case "ruellia":
+      return buildRuellia(v);
+    case "amaryllis":
+      return buildAmaryllis(v);
+    case "butterflypea":
+      return buildButterflyPea(v);
+    case "lantana":
+      return buildLantana(v);
+    case "coleus":
+      return buildColeus(v);
+    case "drimiopsis":
+      return buildDrimiopsis(v);
+    case "kalanchoe":
+      return buildKalanchoe(v);
+    case "oxalis":
+      return buildOxalis(v);
     case "bridge":
       return buildBridge(v);
     case "house":
@@ -649,6 +671,21 @@ function buildDecorationParts(kind, v = {}) {
       return buildOilLamp(v);
     case "moroccanlantern":
       return buildMoroccanLantern(v);
+    // The printed set, second wave.
+    case "branchbench":
+      return buildBranchBench(v);
+    case "coveredwagon":
+      return buildCoveredWagon(v);
+    case "wheelwell":
+      return buildWheelWell(v);
+    case "pagodatower":
+      return buildPagodaTower(v);
+    case "porchcottage":
+      return buildPorchCottage(v);
+    case "fairytower":
+      return buildFairyTower(v);
+    case "chanterelle":
+      return buildChanterelle(v);
     case "mantis":
       return buildMantis(v);
     case "snake":
@@ -993,17 +1030,35 @@ function buildCactus(v = {}) {
   return g;
 }
 
-// A cluster of little daisies on thin stems.
+// A cluster of little daisies on thin stems. With `foliage` the same plant
+// becomes a creeping daisy — the flowers sitting over a mat of toothed leaves
+// instead of over bare soil.
 function buildFlowers(v = {}) {
   const g = new THREE.Group();
-  const stemMat = craftMaterial("#5f7a3c", { rough: 0.85 });
+  const stemMat = craftMaterial(v.stem ?? "#5f7a3c", { rough: 0.85 });
   const petals = v.petals ?? ["#f6f2ea", "#f2d3e2"];
   const petalMat = craftMaterial(petals[0], { rough: 0.65 });
   const petalMatAlt = craftMaterial(petals[petals.length - 1], { rough: 0.65 });
-  const centerMat = craftMaterial("#e8b23a", { rough: 0.7 });
-  const petalGeo = new THREE.CircleGeometry(0.022, 6);
+  const centerMat = craftMaterial(v.center ?? "#e8b23a", { rough: 0.7 });
+  const petalGeo = new THREE.CircleGeometry(v.petalR ?? 0.022, 6);
 
-  const flowers = 3 + ((Math.random() * 3) | 0);
+  if (v.foliage) {
+    const leafMat = plainLeafMaterial(v.foliage, toothedOutline, "toothed");
+    const leafGeo = new THREE.PlaneGeometry(0.055, 0.07);
+    leafGeo.translate(0, 0.035, 0);
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = Math.sqrt(Math.random()) * 0.12;
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      leaf.rotation.order = "YXZ";
+      leaf.rotation.set(1.25 + jitter(0.25), a, 0);
+      leaf.position.set(Math.cos(a) * rr, 0.01 + Math.random() * 0.04, Math.sin(a) * rr);
+      leaf.castShadow = true;
+      g.add(leaf);
+    }
+  }
+
+  const flowers = v.blooms ?? 3 + ((Math.random() * 3) | 0);
   for (let f = 0; f < flowers; f++) {
     const h = 0.14 + Math.random() * 0.12;
     const px = jitter(0.1);
@@ -6886,5 +6941,1555 @@ function buildMoroccanLantern(v = {}) {
   const light = new THREE.PointLight(glow, 0.5, 1.0);
   light.position.y = 0.014 + bodyH / 2;
   g.add(light);
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// The flowering garden pack
+// ---------------------------------------------------------------------------
+// The nursery-bench flowers from the reference photos. Almost none of these are
+// closed-jar species — they are full-sun garden plants — so they carry the
+// `open` habitat in the catalog and the tray chip says so before anyone seals
+// one into a humid box. Where a genus flowers the same way for every cultivar
+// (all fourteen rain lilies, all the crowns of thorns) the kind is the genus
+// and the variants are the cultivars, so the builder is written once.
+
+// A tepal: pointed at the tip, tapering back to nothing where it joins the
+// throat, which is the shape every lily-form flower here is made of.
+function tepalOutline(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(64, 4);
+  ctx.bezierCurveTo(98, 40, 100, 88, 64, 124);
+  ctx.bezierCurveTo(28, 88, 30, 40, 64, 4);
+  ctx.closePath();
+}
+
+// The broad rounded standard petal of a pea flower, notched at the top and
+// tapering back to the calyx at the bottom.
+function standardOutline(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(64, 14);
+  ctx.bezierCurveTo(96, 6, 124, 34, 122, 66);
+  ctx.bezierCurveTo(120, 98, 96, 122, 64, 124);
+  ctx.bezierCurveTo(32, 122, 8, 98, 6, 66);
+  ctx.bezierCurveTo(4, 34, 32, 6, 64, 14);
+  ctx.closePath();
+}
+
+// An ovate blade with a scalloped margin — Coleus, Lantana and the toothed
+// leaves that come with them.
+function toothedOutline(ctx) {
+  const tip = 6;
+  const base = 122;
+  const teeth = 11;
+  const half = (y) => {
+    const t = (y - tip) / (base - tip); // 0 at the tip, 1 at the petiole joint
+    const w = 48 * Math.sin(Math.PI * Math.pow(t, 0.62));
+    return w * (1 + 0.09 * Math.sin(t * Math.PI * 2 * teeth)); // the teeth
+  };
+  ctx.beginPath();
+  ctx.moveTo(64, tip);
+  for (let y = tip; y <= base; y += 2) ctx.lineTo(64 + half(y), y);
+  for (let y = base; y >= tip; y -= 2) ctx.lineTo(64 - half(y), y);
+  ctx.closePath();
+}
+
+// A flat leaf cut from a plain silhouette, for the plants whose leaves are one
+// colour and whose interest is all in the flower.
+function plainLeafMaterial(color, outline = lanceOutline, shape = "lance") {
+  return paintedLeafMaterial(`plain:${color}:${shape}`, (ctx) => {
+    outline(ctx);
+    ctx.fillStyle = color;
+    ctx.fill();
+  });
+}
+
+// Tepals painted from the cultivar's own markings. A rain lily catalogue is
+// almost entirely this: one flower, repainted — a wash out of the throat, an
+// optional pale midstripe, an optional darker rim.
+function tepalMaterial(v) {
+  const base = v.tepal ?? "#f2f0e6";
+  const throat = v.throat ?? null;
+  const stripe = v.stripe ?? null;
+  const edge = v.edge ?? null;
+  const key = `tepal:${base}:${throat}:${stripe}:${edge}`;
+  return paintedLeafMaterial(key, (ctx) => {
+    tepalOutline(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 128, 128);
+    // The throat sits at the bottom of the box: that end joins the centre.
+    if (throat) {
+      const grad = ctx.createLinearGradient(0, 128, 0, 40);
+      grad.addColorStop(0, throat);
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+    }
+    if (stripe) {
+      const grad = ctx.createLinearGradient(34, 0, 94, 0);
+      grad.addColorStop(0, "rgba(255,255,255,0)");
+      grad.addColorStop(0.5, stripe);
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+    }
+    if (edge) {
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = 12;
+      tepalOutline(ctx);
+      ctx.stroke();
+    }
+    // Every one of these has fine veins running the length of the tepal.
+    ctx.globalAlpha = 0.16;
+    ctx.strokeStyle = "#5a4030";
+    ctx.lineWidth = 1.2;
+    for (let i = -3; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(64 + i * 3, 120);
+      ctx.quadraticCurveTo(64 + i * 10, 64, 64 + i * 2.5, 10);
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
+// A whorl of tepals around a throat. `rise` is how far the flower has opened:
+// low for a flat star, high for a cup still closing.
+function flowerHead(mat, { petals = 6, len = 0.09, width = 0.045, rise = 0.5, r = 0.004 } = {}) {
+  const head = new THREE.Group();
+  const geo = new THREE.PlaneGeometry(width, len);
+  geo.translate(0, len / 2, 0); // hinge the tepal at its own base
+  for (let i = 0; i < petals; i++) {
+    const a = (i / petals) * Math.PI * 2 + jitter(0.08);
+    const tepal = new THREE.Mesh(geo, mat);
+    tepal.rotation.order = "YXZ";
+    tepal.rotation.set(Math.PI / 2 - rise - jitter(0.12), a, 0);
+    tepal.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    tepal.castShadow = true;
+    head.add(tepal);
+  }
+  return head;
+}
+
+// The stamens and style standing out of the throat.
+function flowerStamens(head, { color = "#e8c04a", n = 6, len = 0.03, style = null } = {}) {
+  const mat = craftMaterial(color, { rough: 0.6 });
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const lean = 0.5 + jitter(0.15);
+    const fil = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.0018, 0.0018, len, 4),
+      mat,
+    );
+    fil.rotation.order = "YXZ";
+    fil.rotation.set(lean, a, 0);
+    fil.position.set(
+      Math.sin(lean) * Math.cos(a) * len * 0.5,
+      Math.cos(lean) * len * 0.5,
+      Math.sin(lean) * Math.sin(a) * len * 0.5,
+    );
+    head.add(fil);
+    const anther = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 5), mat);
+    anther.scale.set(1, 0.5, 0.5);
+    anther.position.set(
+      Math.sin(lean) * Math.cos(a) * len,
+      Math.cos(lean) * len,
+      Math.sin(lean) * Math.sin(a) * len,
+    );
+    head.add(anther);
+  }
+  if (style) {
+    const s = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.002, 0.002, len * 1.2, 4),
+      craftMaterial(style, { rough: 0.6 }),
+    );
+    s.position.y = len * 0.6;
+    head.add(s);
+  }
+  return head;
+}
+
+// Rain lily (Zephyranthes): a clump of grassy strap leaves with six-tepal
+// stars held just above it. Fourteen cultivars in the pack, one plant.
+function buildRainLily(v = {}) {
+  const g = new THREE.Group();
+  const leafMat = craftMaterial(v.leaf ?? "#4a8a3c", { rough: 0.72 });
+  leafMat.side = THREE.DoubleSide;
+
+  // the grass clump — narrow blades arching out of a tight crown
+  const blades = v.blades ?? 16 + ((Math.random() * 8) | 0);
+  for (let i = 0; i < blades; i++) {
+    const a = (i / blades) * Math.PI * 2 + jitter(0.3);
+    const reach = 0.06 + Math.random() * 0.08;
+    const rise = 0.13 + Math.random() * 0.1;
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0.01, 0),
+      new THREE.Vector3(Math.cos(a) * reach * 0.3, rise, Math.sin(a) * reach * 0.3),
+      new THREE.Vector3(Math.cos(a) * reach, rise * 0.45, Math.sin(a) * reach),
+    );
+    const blade = new THREE.Mesh(new THREE.TubeGeometry(curve, 10, 0.005, 4), leafMat);
+    blade.scale.x = 1.3;
+    blade.castShadow = true;
+    g.add(blade);
+  }
+
+  // the flowers, each on its own hollow scape
+  const stemMat = craftMaterial(v.scape ?? "#5f8a3e", { rough: 0.8 });
+  const mat = tepalMaterial(v);
+  const n = v.blooms ?? 2 + ((Math.random() * 2) | 0);
+  for (let f = 0; f < n; f++) {
+    const h = 0.17 + Math.random() * 0.08;
+    const px = jitter(0.06);
+    const pz = jitter(0.06);
+    const scape = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.007, h, 6),
+      stemMat,
+    );
+    scape.position.set(px, h / 2, pz);
+    scape.rotation.z = jitter(0.12);
+    g.add(scape);
+
+    const head = flowerHead(mat, {
+      petals: 6,
+      len: v.len ?? 0.105,
+      width: v.width ?? 0.052,
+      rise: v.rise ?? 0.55,
+      r: 0.006,
+    });
+    flowerStamens(head, {
+      color: v.stamen ?? "#e8c04a",
+      len: (v.len ?? 0.105) * 0.26,
+      style: v.style ?? "#eaf0d8",
+    });
+    head.position.set(px, h, pz);
+    head.rotation.y = Math.random() * Math.PI;
+    g.add(head);
+  }
+  return g;
+}
+
+// Crown of thorns (Euphorbia milii): thick ridged stems, a rosette of leaves at
+// each tip, and pairs of round bracts that read as the flower. The thornless
+// cultivar is the same plant with the spines left off.
+function buildCrownOfThorns(v = {}) {
+  const g = new THREE.Group();
+  const stemMat = craftMaterial(v.stem ?? "#6e7a52", { rough: 0.88 });
+  const thornMat = craftMaterial(v.thorn ?? "#5a4a38", { rough: 0.95 });
+  const leafMat = plainLeafMaterial(v.leaf ?? "#3f7a42");
+  const bractMat = craftMaterial(v.bract ?? "#d94a5c", { rough: 0.62 });
+  bractMat.side = THREE.DoubleSide;
+  const eyeMat = craftMaterial(v.eye ?? "#e8b23a", { rough: 0.7 });
+  const leafGeo = new THREE.PlaneGeometry(0.044, 0.072);
+  leafGeo.translate(0, 0.036, 0);
+
+  const stems = v.stems ?? 3;
+  for (let s = 0; s < stems; s++) {
+    const a = (s / stems) * Math.PI * 2 + jitter(0.4);
+    const lean = 0.1 + Math.random() * 0.12;
+    const h = 0.2 + Math.random() * 0.09;
+    const bx = Math.cos(a) * 0.035;
+    const bz = Math.sin(a) * 0.035;
+    const tx = bx + Math.cos(a) * Math.sin(lean) * h;
+    const tz = bz + Math.sin(a) * Math.sin(lean) * h;
+
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.011, h, 6),
+      stemMat,
+    );
+    stem.position.set((bx + tx) / 2, h / 2, (bz + tz) / 2);
+    stem.rotation.order = "YXZ";
+    stem.rotation.set(lean, a + Math.PI / 2, 0);
+    stem.castShadow = true;
+    g.add(stem);
+
+    if (v.thorns !== false) {
+      for (let i = 0; i < 22; i++) {
+        const t = 0.1 + Math.random() * 0.85;
+        const ta = Math.random() * Math.PI * 2;
+        const thorn = new THREE.Mesh(new THREE.ConeGeometry(0.0018, 0.019, 4), thornMat);
+        const dir = new THREE.Vector3(Math.cos(ta), 0.2, Math.sin(ta)).normalize();
+        thorn.position.set(
+          bx + (tx - bx) * t + dir.x * 0.016,
+          h * t,
+          bz + (tz - bz) * t + dir.z * 0.016,
+        );
+        thorn.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        g.add(thorn);
+      }
+    }
+
+    // the leaf rosette crowning the stem
+    for (let i = 0; i < 10; i++) {
+      const la = (i / 5) * Math.PI * 2 + jitter(0.25);
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      leaf.rotation.order = "YXZ";
+      leaf.rotation.set(0.75 + jitter(0.3), la, 0);
+      leaf.position.set(tx, h - 0.008 - (i / 10) * 0.05, tz);
+      leaf.castShadow = true;
+      g.add(leaf);
+    }
+
+    // the bract pairs, held above the leaves on short pedicels
+    const heads = 2 + ((Math.random() * 2) | 0);
+    for (let i = 0; i < heads; i++) {
+      const ha = Math.random() * Math.PI * 2;
+      const hx = tx + Math.cos(ha) * 0.022;
+      const hz = tz + Math.sin(ha) * 0.022;
+      const hy = h + 0.012 + Math.random() * 0.022;
+      const pedicel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0025, 0.003, hy - h + 0.02, 4),
+        stemMat,
+      );
+      pedicel.position.set((tx + hx) / 2, (h + hy) / 2 - 0.01, (tz + hz) / 2);
+      g.add(pedicel);
+      for (const side of [-1, 1]) {
+        const bract = new THREE.Mesh(new THREE.CircleGeometry(0.017, 10), bractMat);
+        bract.position.set(hx + side * 0.011, hy, hz);
+        bract.rotation.set(-0.45, 0, side * 0.25);
+        g.add(bract);
+      }
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.006, 7, 6), eyeMat);
+      eye.scale.y = 0.65;
+      eye.position.set(hx, hy + 0.006, hz);
+      g.add(eye);
+    }
+  }
+  return g;
+}
+
+// Ruellia 'Katie': a dense tussock of narrow leaves with short-lived trumpets
+// sitting right down in it.
+function buildRuellia(v = {}) {
+  const g = new THREE.Group();
+  const leafMat = craftMaterial(v.leaf ?? "#3f7a3a", { rough: 0.75 });
+  leafMat.side = THREE.DoubleSide;
+  const leaves = 22 + ((Math.random() * 10) | 0);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.4);
+    const reach = 0.07 + Math.random() * 0.09;
+    const rise = 0.1 + Math.random() * 0.1;
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0.01, 0),
+      new THREE.Vector3(Math.cos(a) * reach * 0.4, rise, Math.sin(a) * reach * 0.4),
+      new THREE.Vector3(Math.cos(a) * reach, rise * 0.6, Math.sin(a) * reach),
+    );
+    const blade = new THREE.Mesh(new THREE.TubeGeometry(curve, 8, 0.006, 4), leafMat);
+    blade.scale.x = 1.5;
+    blade.castShadow = true;
+    g.add(blade);
+  }
+
+  const petalMat = tepalMaterial({ tepal: v.petal ?? "#8f7ad1", throat: v.throat ?? "#5f3f9c" });
+  const tubeMat = craftMaterial(v.throat ?? "#6f5aa8", { rough: 0.7 });
+  const n = 3 + ((Math.random() * 2) | 0);
+  for (let f = 0; f < n; f++) {
+    const h = 0.1 + Math.random() * 0.05;
+    const px = jitter(0.07);
+    const pz = jitter(0.07);
+    const tube = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.006, 0.055, 7, 1, true),
+      tubeMat,
+    );
+    tube.material.side = THREE.DoubleSide;
+    tube.position.set(px, h + 0.028, pz);
+    g.add(tube);
+    // five broad, shallow lobes flaring off the mouth of the tube
+    const head = flowerHead(petalMat, {
+      petals: 5,
+      len: 0.058,
+      width: 0.056,
+      rise: 0.3,
+      r: 0.015,
+    });
+    head.position.set(px, h + 0.055, pz);
+    head.rotation.y = Math.random() * Math.PI;
+    g.add(head);
+  }
+  return g;
+}
+
+// Amaryllis (Hippeastrum): two strap leaves and a fat hollow scape carrying a
+// pair of big sideways trumpets.
+function buildAmaryllis(v = {}) {
+  const g = new THREE.Group();
+  // Strap leaves: blunt-tipped and arching, not the stiff triangles a bare
+  // plane gives you.
+  const leafMat = craftMaterial(v.leaf ?? "#3f7a3c", { rough: 0.7 });
+  leafMat.side = THREE.DoubleSide;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + jitter(0.3);
+    const reach = 0.12 + Math.random() * 0.07;
+    const rise = 0.24 + Math.random() * 0.08;
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0.01, 0),
+      new THREE.Vector3(Math.cos(a) * reach * 0.25, rise, Math.sin(a) * reach * 0.25),
+      new THREE.Vector3(Math.cos(a) * reach, rise * 0.55, Math.sin(a) * reach),
+    );
+    const leaf = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.011, 4), leafMat);
+    leaf.scale.x = 1.8;
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+
+  const h = 0.32;
+  const scape = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.015, h, 7),
+    craftMaterial(v.scape ?? "#5f8a44", { rough: 0.8 }),
+  );
+  scape.position.y = h / 2;
+  scape.castShadow = true;
+  g.add(scape);
+
+  // One open trumpet with a fat bud beside it — a Hippeastrum scape opens one
+  // flower at a time, and two overlapping stars just read as a mess.
+  const mat = tepalMaterial(v);
+  const a = Math.random() * Math.PI * 2;
+  const head = flowerHead(mat, {
+    petals: 6,
+    len: v.len ?? 0.12,
+    width: v.width ?? 0.07,
+    rise: 0.85,
+    r: 0.012,
+  });
+  flowerStamens(head, { color: v.stamen ?? "#e0b8a0", len: 0.05, style: v.style ?? "#e0b8a0" });
+  head.rotation.order = "YXZ";
+  head.rotation.set(1.2, a, 0);
+  head.position.set(Math.cos(a) * 0.02, h - 0.005, Math.sin(a) * 0.02);
+  g.add(head);
+
+  const bud = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.085, 6), mat);
+  bud.rotation.order = "YXZ";
+  bud.rotation.set(0.5, a + Math.PI, 0);
+  bud.position.set(-Math.cos(a) * 0.035, h + 0.02, -Math.sin(a) * 0.035);
+  bud.castShadow = true;
+  g.add(bud);
+  return g;
+}
+
+// Butterfly pea (Clitoria ternatea): a twining vine whose flower is one big
+// rounded standard petal with a pale flash at its throat.
+function buildButterflyPea(v = {}) {
+  const g = new THREE.Group();
+  const stemMat = craftMaterial(v.stem ?? "#6f9a46", { rough: 0.82 });
+  const leafMat = plainLeafMaterial(v.leaf ?? "#5aa348");
+  const leafGeo = new THREE.PlaneGeometry(0.05, 0.062);
+  leafGeo.translate(0, 0.031, 0);
+
+  const vines = 3;
+  for (let i = 0; i < vines; i++) {
+    const a = (i / vines) * Math.PI * 2 + jitter(0.4);
+    const reach = 0.1 + Math.random() * 0.06;
+    const rise = 0.2 + Math.random() * 0.09;
+    const curve = new THREE.CubicBezierCurve3(
+      new THREE.Vector3(0, 0.01, 0),
+      new THREE.Vector3(Math.cos(a) * 0.03, rise * 0.5, Math.sin(a) * 0.03),
+      new THREE.Vector3(Math.cos(a) * reach * 0.8, rise, Math.sin(a) * reach * 0.8),
+      new THREE.Vector3(Math.cos(a) * reach, rise * 0.8, Math.sin(a) * reach),
+    );
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.004, 4), stemMat));
+    for (let j = 1; j <= 4; j++) {
+      const p = curve.getPoint(j / 5);
+      const leaf = new THREE.Mesh(leafGeo, leafMat);
+      leaf.position.copy(p);
+      leaf.rotation.order = "YXZ";
+      leaf.rotation.set(1.2 + jitter(0.3), a + jitter(1.0), 0);
+      leaf.castShadow = true;
+      g.add(leaf);
+    }
+  }
+
+  // the standard petal, big and flat, with the keel tucked under it
+  // The standard is one broad petal with a white-into-cream flash running out
+  // of the throat, which is the whole of what a butterfly pea looks like.
+  const petal = v.petal ?? "#4a35b0";
+  const flash = v.flash ?? "#eef0c0";
+  const petalMat = paintedLeafMaterial(`clitoria:${petal}:${flash}`, (ctx) => {
+    standardOutline(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = petal;
+    ctx.fillRect(0, 0, 128, 128);
+    const grad = ctx.createRadialGradient(64, 104, 4, 64, 104, 62);
+    grad.addColorStop(0, flash);
+    grad.addColorStop(0.45, "rgba(255,255,255,0.35)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.globalAlpha = 0.2;
+    ctx.strokeStyle = "#2a1f5c";
+    ctx.lineWidth = 1.4;
+    for (let i = -4; i <= 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(64, 120);
+      ctx.quadraticCurveTo(64 + i * 12, 70, 64 + i * 15, 20);
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+  const keelMat = craftMaterial(v.keel ?? "#8f7ad1", { rough: 0.66 });
+  for (let f = 0; f < 2; f++) {
+    const a = f * 2.3 + jitter(0.5);
+    const px = Math.cos(a) * 0.07;
+    const pz = Math.sin(a) * 0.07;
+    const py = 0.15 + Math.random() * 0.05;
+    const bloom = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.095), petalMat);
+    bloom.rotation.order = "YXZ";
+    bloom.rotation.set(-0.5, a, 0);
+    bloom.position.set(px, py, pz);
+    bloom.castShadow = true;
+    g.add(bloom);
+    const keel = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), keelMat);
+    keel.scale.set(1, 0.6, 1.5);
+    keel.position.set(px, py - 0.022, pz);
+    g.add(keel);
+  }
+  return g;
+}
+
+// Lantana: toothed leaves under a tight dome of many tiny florets, the outer
+// ring usually a shade off the middle.
+function buildLantana(v = {}) {
+  const g = new THREE.Group();
+  const stemMat = craftMaterial(v.stem ?? "#6f8a42", { rough: 0.85 });
+  const leafMat = plainLeafMaterial(v.leaf ?? "#5f9a46", toothedOutline, "toothed");
+  const leafGeo = new THREE.PlaneGeometry(0.05, 0.06);
+  leafGeo.translate(0, 0.03, 0);
+  const inner = craftMaterial(v.bloom ?? "#a04ac0", { rough: 0.6 });
+  const outer = craftMaterial(v.bloomEdge ?? v.bloom ?? "#c46ad8", { rough: 0.6 });
+
+  const stems = 3;
+  for (let s = 0; s < stems; s++) {
+    const a = (s / stems) * Math.PI * 2 + jitter(0.4);
+    const h = 0.14 + Math.random() * 0.07;
+    const px = Math.cos(a) * 0.035;
+    const pz = Math.sin(a) * 0.035;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.007, h, 5), stemMat);
+    stem.position.set(px, h / 2, pz);
+    stem.rotation.z = -Math.cos(a) * 0.18;
+    stem.rotation.x = Math.sin(a) * 0.18;
+    g.add(stem);
+
+    // leaves in opposite pairs up the stem
+    for (let i = 1; i <= 2; i++) {
+      for (const side of [0, Math.PI]) {
+        const leaf = new THREE.Mesh(leafGeo, leafMat);
+        leaf.rotation.order = "YXZ";
+        leaf.rotation.set(1.1 + jitter(0.2), a + side, 0);
+        leaf.position.set(px, (h * i) / 3, pz);
+        leaf.castShadow = true;
+        g.add(leaf);
+      }
+    }
+
+    // the flower dome: florets packed on a shallow cap
+    const head = new THREE.Group();
+    for (let i = 0; i < 22; i++) {
+      const fa = Math.random() * Math.PI * 2;
+      const fr = Math.sqrt(Math.random()) * 0.026;
+      const floret = new THREE.Mesh(
+        new THREE.SphereGeometry(0.006, 6, 5),
+        fr > 0.016 ? outer : inner,
+      );
+      floret.scale.y = 0.55;
+      floret.position.set(Math.cos(fa) * fr, 0.012 - fr * 0.25, Math.sin(fa) * fr);
+      head.add(floret);
+    }
+    head.position.set(px, h, pz);
+    g.add(head);
+  }
+  return g;
+}
+
+// Coleus: grown for the leaves, not the spike. Magenta blades with a scalloped
+// yellow margin, in opposite pairs up short square stems.
+function buildColeus(v = {}) {
+  const g = new THREE.Group();
+  const base = v.leaf ?? "#a51e63";
+  const margin = v.margin ?? "#d8d84a";
+  const vein = v.vein ?? "#d88ab0";
+  const mat = paintedLeafMaterial(`coleus:${base}:${margin}:${vein}`, (ctx) => {
+    toothedOutline(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 128, 128);
+    // the margin is painted by stroking the outline from the inside
+    ctx.strokeStyle = margin;
+    ctx.lineWidth = 9;
+    toothedOutline(ctx);
+    ctx.stroke();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = vein;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(64, 120);
+    ctx.lineTo(64, 12);
+    ctx.stroke();
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 5; i++) {
+      const y = 30 + i * 18;
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(64, y + 10);
+        ctx.quadraticCurveTo(64 + s * 22, y + 2, 64 + s * 36, y - 8);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  });
+
+  const stemMat = craftMaterial(v.stem ?? "#8a5a6a", { rough: 0.85 });
+  const leafGeo = new THREE.PlaneGeometry(0.085, 0.1);
+  leafGeo.translate(0, 0.05, 0);
+  const stems = v.stems ?? 3;
+  for (let s = 0; s < stems; s++) {
+    const a = (s / stems) * Math.PI * 2 + jitter(0.4);
+    const h = 0.15 + Math.random() * 0.07;
+    const px = Math.cos(a) * 0.03;
+    const pz = Math.sin(a) * 0.03;
+    const stem = new THREE.Mesh(new THREE.BoxGeometry(0.009, h, 0.009), stemMat);
+    stem.position.set(px, h / 2, pz);
+    g.add(stem);
+    // three pairs, each turned a quarter from the pair below it
+    for (let i = 1; i <= 3; i++) {
+      const twist = a + (i % 2) * (Math.PI / 2);
+      for (const side of [0, Math.PI]) {
+        const leaf = new THREE.Mesh(leafGeo, mat);
+        const sc = 0.7 + i * 0.14;
+        leaf.scale.setScalar(sc);
+        leaf.rotation.order = "YXZ";
+        leaf.rotation.set(0.9 + jitter(0.2), twist + side, 0);
+        leaf.position.set(px, (h * i) / 3.4, pz);
+        leaf.castShadow = true;
+        g.add(leaf);
+      }
+    }
+  }
+  return g;
+}
+
+// Drimiopsis: a low rosette of blotched blades with a short white raceme
+// standing out of the middle of it.
+function buildDrimiopsis(v = {}) {
+  const g = new THREE.Group();
+  const base = v.leaf ?? "#b8c9a0";
+  const spot = v.spot ?? "#3f6b34";
+  const mat = paintedLeafMaterial(`drimiopsis:${base}:${spot}`, (ctx) => {
+    heartOutline(ctx);
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = spot;
+    for (let i = 0; i < 54; i++) {
+      const x = 64 + (Math.random() - 0.5) * 96;
+      const y = 10 + Math.random() * 108;
+      const r = 3 + Math.random() * 7;
+      ctx.globalAlpha = 0.55 + Math.random() * 0.35;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * (0.6 + Math.random() * 0.6), Math.random(), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  const stemMat = craftMaterial(v.stem ?? "#7fa06a", { rough: 0.8 });
+  const blade = new THREE.PlaneGeometry(0.1, 0.11);
+  blade.translate(0, 0.055, 0);
+  const leaves = v.leaves ?? 5 + ((Math.random() * 3) | 0);
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2 + jitter(0.3);
+    const h = 0.04 + Math.random() * 0.04;
+    const petiole = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.006, h, 5), stemMat);
+    petiole.position.set(Math.cos(a) * 0.015, h / 2, Math.sin(a) * 0.015);
+    g.add(petiole);
+    const leaf = new THREE.Mesh(blade, mat);
+    leaf.rotation.order = "YXZ";
+    leaf.rotation.set(1.15 + jitter(0.2), a, 0);
+    leaf.position.set(Math.cos(a) * 0.02, h, Math.sin(a) * 0.02);
+    leaf.castShadow = true;
+    g.add(leaf);
+  }
+
+  // the raceme: buds packed up a bare scape, greenest at the tip
+  const budMat = craftMaterial(v.bud ?? "#eef2e0", { rough: 0.65 });
+  const tipMat = craftMaterial(v.budTip ?? "#d8e888", { rough: 0.65 });
+  for (let s = 0; s < (v.spikes ?? 2); s++) {
+    const sa = Math.random() * Math.PI * 2;
+    const sx = Math.cos(sa) * 0.02;
+    const sz = Math.sin(sa) * 0.02;
+    const h = 0.15 + Math.random() * 0.05;
+    const scape = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.005, h, 5), stemMat);
+    scape.position.set(sx, h / 2, sz);
+    g.add(scape);
+    for (let i = 0; i < 14; i++) {
+      const t = i / 14;
+      const bud = new THREE.Mesh(
+        new THREE.SphereGeometry(0.0075 * (1 - t * 0.45), 6, 5),
+        t > 0.7 ? tipMat : budMat,
+      );
+      const ba = i * 2.4;
+      bud.position.set(
+        sx + Math.cos(ba) * 0.006 * (1 - t * 0.5),
+        h + t * 0.05,
+        sz + Math.sin(ba) * 0.006 * (1 - t * 0.5),
+      );
+      g.add(bud);
+    }
+  }
+  return g;
+}
+
+// Kalanchoe: fleshy scalloped paddles with a pink margin, and a flat-topped
+// cluster of small tubular florets on top.
+function buildKalanchoe(v = {}) {
+  const g = new THREE.Group();
+  const stemMat = craftMaterial(v.stem ?? "#8a7a5c", { rough: 0.85 });
+  const leafMat = craftMaterial(v.leaf ?? "#9ab08a", { rough: 0.58 });
+  const edgeMat = craftMaterial(v.edge ?? "#d98a8a", { rough: 0.6 });
+  const floretMat = craftMaterial(v.bloom ?? "#e0452a", { rough: 0.62 });
+  const budMat = craftMaterial(v.bud ?? "#e8a04a", { rough: 0.62 });
+
+  const stems = v.stems ?? 3;
+  for (let s = 0; s < stems; s++) {
+    const a = (s / stems) * Math.PI * 2 + jitter(0.4);
+    const h = 0.16 + Math.random() * 0.07;
+    const px = Math.cos(a) * 0.035;
+    const pz = Math.sin(a) * 0.035;
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, h, 5), stemMat);
+    stem.position.set(px, h / 2, pz);
+    stem.rotation.z = -Math.cos(a) * 0.2;
+    stem.rotation.x = Math.sin(a) * 0.2;
+    g.add(stem);
+
+    for (let i = 1; i <= 3; i++) {
+      const twist = a + (i % 2) * (Math.PI / 2);
+      for (const side of [0, Math.PI]) {
+        const dir = twist + side;
+        const pad = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), leafMat);
+        pad.scale.set(1, 0.28, 0.8);
+        pad.position.set(
+          px + Math.cos(dir) * 0.026,
+          (h * i) / 3.4,
+          pz + Math.sin(dir) * 0.026,
+        );
+        pad.rotation.set(0, -dir, 0.35);
+        pad.castShadow = true;
+        g.add(pad);
+        // the blushed margin: a slightly wider, flatter paddle showing only at
+        // the rim of the green one
+        const rim = new THREE.Mesh(new THREE.SphereGeometry(0.029, 10, 8), edgeMat);
+        rim.scale.set(1, 0.22, 0.82);
+        rim.position.copy(pad.position);
+        rim.rotation.copy(pad.rotation);
+        g.add(rim);
+      }
+    }
+
+    // the corymb — florets on short pedicels, all reaching the same height
+    for (let i = 0; i < 16; i++) {
+      const fa = Math.random() * Math.PI * 2;
+      const fr = Math.sqrt(Math.random()) * 0.03;
+      const fy = h + 0.03 - fr * 0.3;
+      const pedicel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0018, 0.0018, 0.03, 4),
+        stemMat,
+      );
+      pedicel.position.set(px + Math.cos(fa) * fr * 0.6, fy - 0.015, pz + Math.sin(fa) * fr * 0.6);
+      g.add(pedicel);
+      const floret = new THREE.Mesh(
+        new THREE.SphereGeometry(0.0065, 7, 6),
+        i % 3 === 0 ? budMat : floretMat,
+      );
+      floret.scale.set(1, 1.5, 1);
+      floret.position.set(px + Math.cos(fa) * fr, fy, pz + Math.sin(fa) * fr);
+      floret.rotation.set(jitter(0.4), 0, jitter(0.4));
+      g.add(floret);
+    }
+  }
+  return g;
+}
+
+// Purple shamrock (Oxalis triangularis): trefoils of deep purple triangles that
+// fold at night, with pale pink bells over them.
+function buildOxalis(v = {}) {
+  const g = new THREE.Group();
+  const stemMat = craftMaterial(v.stem ?? "#9a7fa8", { rough: 0.82 });
+  const leafMat = craftMaterial(v.leaf ?? "#6e3d66", { rough: 0.66 });
+  leafMat.side = THREE.DoubleSide;
+
+  // one leaflet: a wide triangle notched on its outer edge, hinged at the point
+  const tri = new THREE.Shape();
+  tri.moveTo(0, 0);
+  tri.bezierCurveTo(0.03, 0.04, 0.054, 0.054, 0.046, 0.068);
+  tri.bezierCurveTo(0.036, 0.078, 0.014, 0.066, 0, 0.05);
+  tri.bezierCurveTo(-0.014, 0.066, -0.036, 0.078, -0.046, 0.068);
+  tri.bezierCurveTo(-0.054, 0.054, -0.03, 0.04, 0, 0);
+  tri.closePath();
+  const leafletGeo = new THREE.ShapeGeometry(tri);
+
+  const stalks = v.stalks ?? 6 + ((Math.random() * 3) | 0);
+  for (let s = 0; s < stalks; s++) {
+    const a = (s / stalks) * Math.PI * 2 + jitter(0.4);
+    const h = 0.07 + Math.random() * 0.09;
+    const px = Math.cos(a) * 0.02;
+    const pz = Math.sin(a) * 0.02;
+    const tx = Math.cos(a) * 0.03;
+    const tz = Math.sin(a) * 0.03;
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0035, h, 5), stemMat);
+    stalk.position.set((px + tx) / 2, h / 2, (pz + tz) / 2);
+    stalk.rotation.order = "YXZ";
+    stalk.rotation.set(0.3, a + Math.PI / 2, 0);
+    g.add(stalk);
+
+    for (let i = 0; i < 3; i++) {
+      const la = a + (i / 3) * Math.PI * 2;
+      const leaflet = new THREE.Mesh(leafletGeo, leafMat);
+      leaflet.rotation.order = "YXZ";
+      leaflet.rotation.set(Math.PI / 2 - 0.22 - jitter(0.12), la, 0);
+      leaflet.position.set(tx, h, tz);
+      leaflet.castShadow = true;
+      g.add(leaflet);
+    }
+  }
+
+  // the flowers: little pale trumpets held above the leaves
+  const petalMat = tepalMaterial({ tepal: v.petal ?? "#f0d8e8", throat: v.throat ?? "#d8e888" });
+  for (let f = 0; f < 4; f++) {
+    const a = Math.random() * Math.PI * 2;
+    const h = 0.16 + Math.random() * 0.05;
+    const px = Math.cos(a) * 0.03;
+    const pz = Math.sin(a) * 0.03;
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, h, 4), stemMat);
+    stalk.position.set(px, h / 2, pz);
+    g.add(stalk);
+    const head = flowerHead(petalMat, {
+      petals: 5,
+      len: 0.026,
+      width: 0.018,
+      rise: 0.7,
+      r: 0.003,
+    });
+    head.position.set(px, h, pz);
+    head.rotation.y = Math.random() * Math.PI;
+    g.add(head);
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// The printed miniature set, second wave
+// ---------------------------------------------------------------------------
+// More of the resin/FDM miniatures sold alongside the plants: a branch bench, a
+// covered wagon, a winch well, a pagoda watchtower, a porched cottage, a fairy
+// tower, and the chanterelles people tuck in beside the moss. Same rules as the
+// first wave — matte craft materials, roughly an inch tall, and no piece bigger
+// than the jar it has to fit inside.
+
+// A rustic bench built out of knobbly branches: split-log seat, forked legs,
+// and an upright palisade back under an arched top rail.
+function buildBranchBench(v = {}) {
+  const g = new THREE.Group();
+  const wood = craftMaterial(v.wood ?? "#b3663f", { rough: 0.92, flat: true });
+  const dark = craftMaterial(v.dark ?? "#96522f", { rough: 0.94, flat: true });
+  const w = 0.26;
+  const seatY = 0.062;
+
+  // four legs, each a short length of branch with a knot swelling at the foot
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.012, 0.016, seatY, 6),
+        dark,
+      );
+      leg.position.set(sx * w * 0.4, seatY / 2, sz * 0.038);
+      leg.rotation.z = sx * 0.1;
+      leg.castShadow = true;
+      g.add(leg);
+      const knot = new THREE.Mesh(new THREE.SphereGeometry(0.016, 7, 6), dark);
+      knot.scale.y = 0.55;
+      knot.position.set(sx * w * 0.4, 0.008, sz * 0.038);
+      g.add(knot);
+    }
+  }
+
+  // the seat: a split log, flat on top and bellied underneath
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(w, 0.018, 0.1), wood);
+  seat.position.y = seatY + 0.009;
+  seat.castShadow = true;
+  g.add(seat);
+  const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, w, 10, 1, false, 0, Math.PI), wood);
+  belly.rotation.set(0, 0, Math.PI / 2);
+  belly.rotation.order = "YXZ";
+  belly.scale.set(1, 1, 0.26);
+  belly.position.y = seatY + 0.004;
+  g.add(belly);
+
+  // the arms — a rolled log end on a short post at each side
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.05, 6), dark);
+    post.position.set(sx * w * 0.48, seatY + 0.043, -0.01);
+    g.add(post);
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.075, 8), wood);
+    roll.rotation.x = Math.PI / 2;
+    roll.position.set(sx * w * 0.48, seatY + 0.07, 0.012);
+    roll.castShadow = true;
+    g.add(roll);
+  }
+
+  // the back: branches of uneven height, a few forked, under an arched rail
+  const uprights = 9;
+  for (let i = 0; i < uprights; i++) {
+    const t = i / (uprights - 1);
+    const x = (t - 0.5) * w * 0.86;
+    // tallest in the middle, following the arch of the rail
+    const h = 0.05 + Math.sin(t * Math.PI) * 0.05 + jitter(0.008);
+    const stick = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.006, 0.008, h, 5),
+      i % 2 ? wood : dark,
+    );
+    stick.position.set(x, seatY + 0.018 + h / 2, -0.04);
+    stick.rotation.z = jitter(0.12);
+    stick.castShadow = true;
+    g.add(stick);
+    if (i % 3 === 1) {
+      // a fork branching off the taller sticks
+      const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.005, 0.03, 5), wood);
+      fork.position.set(x + 0.012, seatY + 0.018 + h * 0.8, -0.04);
+      fork.rotation.z = -0.6;
+      g.add(fork);
+    }
+  }
+  // the arched top rail, sampled as short segments along a shallow curve
+  const segs = 10;
+  for (let i = 0; i < segs; i++) {
+    const t = (i + 0.5) / segs;
+    const x = (t - 0.5) * w * 0.96;
+    const y = seatY + 0.09 + Math.sin(t * Math.PI) * 0.022;
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, w / segs + 0.006, 6), wood);
+    rail.rotation.z = Math.PI / 2 - Math.cos(t * Math.PI) * 0.4;
+    rail.position.set(x, y, -0.04);
+    rail.castShadow = true;
+    g.add(rail);
+  }
+  return g;
+}
+
+// A pioneer wagon: planked bed on spoked wheels, a hooped canvas tilt with a
+// dark opening at the back, a driver's bench and the draught pole out front.
+function buildCoveredWagon(v = {}) {
+  const g = new THREE.Group();
+  const wood = craftMaterial(v.wood ?? "#b3663f", { rough: 0.92, flat: true });
+  const dark = craftMaterial(v.dark ?? "#96522f", { rough: 0.94, flat: true });
+  const canvas = craftMaterial(v.canvas ?? "#b3663f", { rough: 0.95 });
+  const shade = craftMaterial("#2a1a12", { rough: 1 });
+  const L = 0.2;
+  const W = 0.1;
+  const bedY = 0.055;
+
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(L, 0.022, W), wood);
+  bed.position.y = bedY;
+  bed.castShadow = true;
+  g.add(bed);
+
+  // the tilt: a half-cylinder of canvas over the bed, ribbed by its hoops
+  const tilt = new THREE.Mesh(
+    new THREE.CylinderGeometry(W * 0.56, W * 0.56, L * 0.86, 16, 1, true, 0, Math.PI),
+    canvas,
+  );
+  tilt.material.side = THREE.DoubleSide;
+  tilt.rotation.set(0, 0, Math.PI / 2);
+  tilt.rotation.order = "YXZ";
+  tilt.position.set(-L * 0.04, bedY + 0.012, 0);
+  tilt.castShadow = true;
+  g.add(tilt);
+  for (let i = 0; i < 4; i++) {
+    const hoop = new THREE.Mesh(
+      new THREE.TorusGeometry(W * 0.57, 0.004, 5, 14, Math.PI),
+      dark,
+    );
+    hoop.rotation.z = 0;
+    hoop.position.set(-L * 0.4 + i * (L * 0.72) / 3, bedY + 0.012, 0);
+    hoop.rotation.y = Math.PI / 2;
+    g.add(hoop);
+  }
+  // the gathered ends: a dark mouth at the front, cinched canvas behind
+  const mouth = new THREE.Mesh(new THREE.CircleGeometry(W * 0.4, 14, 0, Math.PI), shade);
+  mouth.rotation.z = 0;
+  mouth.position.set(L * 0.395, bedY + 0.012, 0);
+  mouth.rotation.y = Math.PI / 2;
+  g.add(mouth);
+  const stern = new THREE.Mesh(new THREE.SphereGeometry(W * 0.55, 12, 8, 0, Math.PI), canvas);
+  stern.rotation.y = -Math.PI / 2;
+  stern.scale.set(0.45, 1, 1);
+  stern.position.set(-L * 0.43, bedY + 0.012, 0);
+  g.add(stern);
+
+  // the driver's footboard and bench, out in front of the tilt
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, W * 0.9), wood);
+  board.position.set(L * 0.56, bedY - 0.004, 0);
+  g.add(board);
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.01, W * 0.8), dark);
+  bench.position.set(L * 0.47, bedY + 0.022, 0);
+  g.add(bench);
+
+  // the pole, with its swingletree at the tip
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.11, 6), wood);
+  pole.rotation.z = Math.PI / 2 - 0.12;
+  pole.position.set(L * 0.82, bedY - 0.022, 0);
+  pole.castShadow = true;
+  g.add(pole);
+  const tree = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.05, 6), dark);
+  tree.rotation.x = Math.PI / 2;
+  tree.position.set(L * 1.07, bedY - 0.035, 0);
+  g.add(tree);
+
+  // four spoked wheels, the rear pair larger, as they always are
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const R = sx < 0 ? 0.042 : 0.032;
+      const wheel = new THREE.Group();
+      wheel.add(new THREE.Mesh(new THREE.TorusGeometry(R, 0.006, 6, 20), wood));
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        const spoke = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.0022, 0.0022, R * 2, 4),
+          wood,
+        );
+        spoke.rotation.z = a;
+        wheel.add(spoke);
+      }
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.016, 8), dark);
+      hub.rotation.x = Math.PI / 2;
+      wheel.add(hub);
+      wheel.position.set(sx * L * 0.3, R, sz * (W / 2 + 0.012));
+      wheel.castShadow = true;
+      g.add(wheel);
+    }
+  }
+  return g;
+}
+
+// A log-built wishing well with the winch wheel standing clear of the roof —
+// stacked log courses, a shingled pitch on two posts, and a bucket on the rim.
+function buildWheelWell(v = {}) {
+  const g = new THREE.Group();
+  const wood = craftMaterial(v.wood ?? "#b3663f", { rough: 0.92, flat: true });
+  const dark = craftMaterial(v.dark ?? "#96522f", { rough: 0.94, flat: true });
+  const shade = craftMaterial("#2a1a12", { rough: 1 });
+  const W = 0.13;
+  const courses = 4;
+  const logR = 0.011;
+
+  // the curb: four log courses, the ends crossing at the corners
+  for (let c = 0; c < courses; c++) {
+    const y = logR + c * logR * 1.9;
+    const along = c % 2 === 0;
+    for (const s of [-1, 1]) {
+      const log = new THREE.Mesh(
+        new THREE.CylinderGeometry(logR, logR, W + 0.03, 8),
+        c % 2 ? dark : wood,
+      );
+      log.rotation.z = Math.PI / 2;
+      if (!along) log.rotation.y = Math.PI / 2;
+      log.position.set(along ? 0 : s * W * 0.5, y, along ? s * W * 0.5 : 0);
+      log.castShadow = true;
+      g.add(log);
+    }
+  }
+  const rimY = logR + (courses - 1) * logR * 1.9 + logR;
+  const water = new THREE.Mesh(new THREE.BoxGeometry(W * 0.82, 0.004, W * 0.82), shade);
+  water.position.y = rimY - 0.012;
+  g.add(water);
+
+  // two posts carrying the roof, and the winch drum slung between them
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.009, 0.1, 6), wood);
+    post.position.set(sx * W * 0.42, rimY + 0.05, 0);
+    post.castShadow = true;
+    g.add(post);
+  }
+  // the drum runs from the wheel's hub across to the far post
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, W * 1.3, 10), dark);
+  drum.rotation.z = Math.PI / 2;
+  drum.position.set(-W * 0.3, rimY + 0.052, 0);
+  g.add(drum);
+  for (let i = 0; i < 7; i++) {
+    // the rope coiled along the drum
+    const coil = new THREE.Mesh(new THREE.TorusGeometry(0.0135, 0.0022, 4, 12), wood);
+    coil.rotation.y = Math.PI / 2;
+    coil.position.set(-W * 0.62 + i * (W * 0.64) / 6, rimY + 0.052, 0);
+    g.add(coil);
+  }
+
+  // the big spoked wheel that cranks it, standing out past one post
+  const wheel = new THREE.Group();
+  const R = 0.048;
+  wheel.add(new THREE.Mesh(new THREE.TorusGeometry(R, 0.007, 6, 22), wood));
+  wheel.add(new THREE.Mesh(new THREE.TorusGeometry(R * 0.82, 0.005, 5, 20), wood));
+  for (let i = 0; i < 10; i++) {
+    const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, R * 2, 4), wood);
+    spoke.rotation.z = (i / 10) * Math.PI * 2;
+    wheel.add(spoke);
+  }
+  wheel.add(new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.02, 8), dark));
+  wheel.children[wheel.children.length - 1].rotation.x = Math.PI / 2;
+  wheel.rotation.y = Math.PI / 2;
+  wheel.position.set(-W * 1.02, rimY + 0.052, 0);
+  wheel.castShadow = true;
+  g.add(wheel);
+  // the A-frame standard the wheel turns on
+  const standard = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.14, 0.016), wood);
+  standard.position.set(-W * 1.12, rimY + 0.006, 0);
+  standard.castShadow = true;
+  g.add(standard);
+
+  // a shingled pitch, laid course by course over both slopes
+  const ridgeY = rimY + 0.108;
+  for (const sz of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const t = i / 4;
+      const shingle = new THREE.Mesh(new THREE.BoxGeometry(W * 1.35, 0.005, 0.028), dark);
+      shingle.position.set(0, ridgeY - t * 0.03 - 0.004, sz * (0.012 + t * 0.045));
+      shingle.rotation.x = sz * 0.62;
+      shingle.castShadow = true;
+      g.add(shingle);
+    }
+  }
+  const ridge = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, W * 1.4, 6), wood);
+  ridge.rotation.z = Math.PI / 2;
+  ridge.position.y = ridgeY + 0.004;
+  g.add(ridge);
+
+  // the bucket, hung on the rim
+  const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.01, 0.02, 9), dark);
+  bucket.position.set(W * 0.34, rimY + 0.01, W * 0.3);
+  bucket.castShadow = true;
+  g.add(bucket);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.0018, 4, 10, Math.PI), wood);
+  handle.position.set(W * 0.34, rimY + 0.02, W * 0.3);
+  g.add(handle);
+  return g;
+}
+
+// A square stone watchtower with a pagoda crown: block courses, a hooded door
+// over steps, a slit window, a railed gallery and a ball finial.
+function buildPagodaTower(v = {}) {
+  const g = new THREE.Group();
+  const stone = craftMaterial(v.stone ?? "#c9b48d", { rough: 0.95, flat: true });
+  const dark = craftMaterial(v.dark ?? "#ab9670", { rough: 0.95, flat: true });
+  const shade = craftMaterial("#2a241c", { rough: 1 });
+  const H = 0.2;
+  const W = 0.1;
+
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(W * 1.35, 0.016, W * 1.35), dark);
+  plinth.position.y = 0.008;
+  plinth.receiveShadow = true;
+  g.add(plinth);
+
+  // the shaft, battered slightly inward, drawn as stacked courses of blocks
+  const courses = 7;
+  for (let c = 0; c < courses; c++) {
+    const t = c / courses;
+    const k = W * (1 - t * 0.16);
+    const course = new THREE.Mesh(
+      new THREE.BoxGeometry(k, H / courses - 0.002, k),
+      c % 2 ? stone : dark,
+    );
+    course.position.y = 0.016 + (c + 0.5) * (H / courses);
+    course.castShadow = true;
+    g.add(course);
+  }
+  const shaftTop = 0.016 + H;
+
+  // the hooded doorway and its steps
+  const doorW = W * 0.34;
+  const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, 0.042, 0.006), shade);
+  door.position.set(0, 0.016 + 0.026, W * 0.5 + 0.002);
+  g.add(door);
+  const hood = new THREE.Mesh(new THREE.BoxGeometry(doorW * 1.6, 0.008, 0.018), stone);
+  hood.position.set(0, 0.016 + 0.052, W * 0.5 + 0.006);
+  hood.rotation.x = 0.35;
+  hood.castShadow = true;
+  g.add(hood);
+  for (const sx of [-1, 1]) {
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.007, 0.046, 0.008), stone);
+    jamb.position.set(sx * doorW * 0.6, 0.016 + 0.026, W * 0.5 + 0.004);
+    g.add(jamb);
+  }
+  for (let i = 0; i < 3; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(doorW * 1.5, 0.007, 0.014), dark);
+    step.position.set(0, 0.014 - i * 0.005, W * 0.54 + i * 0.013);
+    g.add(step);
+  }
+  // the slit window above it, three bars deep
+  for (let i = 0; i < 3; i++) {
+    const slit = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.022, 0.005), shade);
+    slit.position.set((i - 1) * 0.009, 0.016 + H * 0.66, W * 0.46);
+    g.add(slit);
+  }
+
+  // the gallery: a deck ringed by a low railing on turned posts
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(W * 1.28, 0.008, W * 1.28), stone);
+  deck.position.y = shaftTop + 0.004;
+  deck.castShadow = true;
+  g.add(deck);
+  for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(sx ? 0.006 : W * 1.2, 0.004, sz ? 0.006 : W * 1.2),
+      dark,
+    );
+    rail.position.set(sx * W * 0.6, shaftTop + 0.024, sz * W * 0.6);
+    g.add(rail);
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.02, 0.005), dark);
+    // walk the square, not a circle: clamp the unit vector to the deck edge
+    const cx = Math.cos(a);
+    const cz = Math.sin(a);
+    const m = Math.max(Math.abs(cx), Math.abs(cz));
+    post.position.set((cx / m) * W * 0.58, shaftTop + 0.014, (cz / m) * W * 0.58);
+    g.add(post);
+  }
+
+  // the lantern storey and its flared pagoda roof
+  const lanternH = 0.03;
+  const lantern = new THREE.Mesh(
+    new THREE.BoxGeometry(W * 0.64, lanternH, W * 0.64),
+    stone,
+  );
+  lantern.position.y = shaftTop + 0.034 + lanternH / 2;
+  lantern.castShadow = true;
+  g.add(lantern);
+  for (const sz of [-1, 1]) {
+    const opening = new THREE.Mesh(new THREE.BoxGeometry(W * 0.38, lanternH * 0.62, 0.004), shade);
+    opening.position.set(0, shaftTop + 0.034 + lanternH / 2, sz * W * 0.33);
+    g.add(opening);
+  }
+  const roofY = shaftTop + 0.034 + lanternH;
+  const roof = flaredRoof(dark, W * 1.05, W * 1.05, 0.034);
+  roof.position.y = roofY;
+  g.add(roof);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.012, 8), stone);
+  neck.position.y = roofY + 0.04;
+  g.add(neck);
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), stone);
+  finial.position.y = roofY + 0.054;
+  finial.castShadow = true;
+  g.add(finial);
+  return g;
+}
+
+// A storybook cottage with a porched side wing: steep gable with a round
+// window, a chimney, a dormer, and a rail-and-post veranda reached by steps.
+function buildPorchCottage(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#ece9e2", { rough: 0.92, flat: true });
+  const roof = craftMaterial(v.roof ?? "#dcd8cf", { rough: 0.9, flat: true });
+  const trim = craftMaterial(v.trim ?? "#cfcabf", { rough: 0.92, flat: true });
+  const shade = craftMaterial(v.shade ?? "#8f8a80", { rough: 1 });
+  const W = 0.1;
+  const D = 0.09;
+  const wallH = 0.085;
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(W * 1.9, 0.01, D * 1.5), trim);
+  base.position.set(W * 0.28, 0.005, 0);
+  base.receiveShadow = true;
+  g.add(base);
+
+  // the main block
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W, wallH, D), wall);
+  body.position.set(-W * 0.36, 0.01 + wallH / 2, 0);
+  body.castShadow = true;
+  g.add(body);
+  // its steep gable roof: two slopes meeting at a ridge
+  const gableTop = 0.01 + wallH + 0.062;
+  for (const sz of [-1, 1]) {
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(W * 1.16, 0.008, D * 0.78), roof);
+    slope.position.set(-W * 0.36, 0.01 + wallH + 0.03, sz * D * 0.29);
+    slope.rotation.x = sz * 0.92;
+    slope.castShadow = true;
+    g.add(slope);
+  }
+  // the gable end walls filling the triangle under the slopes
+  for (const sz of [-1, 1]) {
+    const tri = new THREE.Shape();
+    tri.moveTo(-W / 2, 0);
+    tri.lineTo(W / 2, 0);
+    tri.lineTo(0, 0.062);
+    tri.closePath();
+    const end = new THREE.Mesh(new THREE.ShapeGeometry(tri), wall);
+    end.material.side = THREE.DoubleSide;
+    end.position.set(-W * 0.36, 0.01 + wallH, (sz * D) / 2);
+    g.add(end);
+  }
+  const roundWin = new THREE.Mesh(new THREE.CircleGeometry(0.012, 14), shade);
+  roundWin.position.set(-W * 0.36, 0.01 + wallH + 0.022, D / 2 + 0.002);
+  g.add(roundWin);
+  for (const rot of [0, Math.PI / 2]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.003, 0.003), trim);
+    bar.rotation.z = rot;
+    bar.position.set(-W * 0.36, 0.01 + wallH + 0.022, D / 2 + 0.004);
+    g.add(bar);
+  }
+  // the arched front door and its steps
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.042, 0.005), shade);
+  door.position.set(-W * 0.36, 0.032, D / 2 + 0.002);
+  g.add(door);
+  const arch = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.005, 12, 1, false, 0, Math.PI), shade);
+  arch.rotation.set(Math.PI / 2, 0, 0);
+  arch.position.set(-W * 0.36, 0.053, D / 2 + 0.002);
+  g.add(arch);
+  for (let i = 0; i < 3; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.007, 0.013), trim);
+    step.position.set(-W * 0.36, 0.009 - i * 0.003, D / 2 + 0.012 + i * 0.012);
+    g.add(step);
+    for (const sx of [-1, 1]) {
+      const newel = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.016, 0.005), trim);
+      newel.position.set(-W * 0.36 + sx * 0.02, 0.016 - i * 0.003, D / 2 + 0.012 + i * 0.012);
+      g.add(newel);
+    }
+  }
+  // the chimney
+  const stack = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.05, 0.016), wall);
+  stack.position.set(-W * 0.22, gableTop - 0.012, -D * 0.16);
+  stack.castShadow = true;
+  g.add(stack);
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.006, 0.022), trim);
+  cap.position.set(-W * 0.22, gableTop + 0.014, -D * 0.16);
+  g.add(cap);
+  // a dormer poking out of the near slope
+  const dormer = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.018), wall);
+  dormer.position.set(-W * 0.58, 0.01 + wallH + 0.024, D * 0.2);
+  dormer.castShadow = true;
+  g.add(dormer);
+  const dormerRoof = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.005, 0.022), roof);
+  dormerRoof.rotation.x = 0.5;
+  dormerRoof.position.set(-W * 0.58, 0.01 + wallH + 0.036, D * 0.2);
+  g.add(dormerRoof);
+
+  // the side wing, lower, with the veranda across its front
+  const wingH = 0.05;
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(W * 0.72, wingH, D * 0.72), wall);
+  wing.position.set(W * 0.52, 0.01 + wingH / 2, -D * 0.1);
+  wing.castShadow = true;
+  g.add(wing);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(W * 0.78, 0.008, D * 0.5), trim);
+  deck.position.set(W * 0.52, 0.014, D * 0.28);
+  g.add(deck);
+  for (let i = 0; i < 4; i++) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.046, 0.005), trim);
+    post.position.set(W * 0.24 + i * (W * 0.56) / 3, 0.041, D * 0.46);
+    post.castShadow = true;
+    g.add(post);
+  }
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(W * 0.78, 0.004, 0.005), trim);
+  rail.position.set(W * 0.52, 0.03, D * 0.46);
+  g.add(rail);
+  // the veranda's shed roof, and a matching slope over the wing
+  const porchRoof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.86, 0.006, D * 0.62), roof);
+  porchRoof.rotation.x = 0.42;
+  porchRoof.position.set(W * 0.52, 0.07, D * 0.3);
+  porchRoof.castShadow = true;
+  g.add(porchRoof);
+  for (const sz of [-1, 1]) {
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(W * 0.8, 0.006, D * 0.42), roof);
+    slope.position.set(W * 0.52, 0.01 + wingH + 0.016, -D * 0.1 + sz * D * 0.17);
+    slope.rotation.x = sz * 0.75;
+    slope.castShadow = true;
+    g.add(slope);
+  }
+  return g;
+}
+
+// A fairy tower: a round turret with a tall shingled cone and a spire, a gabled
+// entry porch at its foot, and a crooked stovepipe chimney out of the side.
+function buildFairyTower(v = {}) {
+  const g = new THREE.Group();
+  const wall = craftMaterial(v.wall ?? "#ece9e2", { rough: 0.92, flat: true });
+  const roof = craftMaterial(v.roof ?? "#dcd8cf", { rough: 0.9, flat: true });
+  const trim = craftMaterial(v.trim ?? "#cfcabf", { rough: 0.92, flat: true });
+  const shade = craftMaterial(v.shade ?? "#8f8a80", { rough: 1 });
+  const R = 0.05;
+  const towerH = 0.12;
+
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.6, R * 1.65, 0.012, 28), trim);
+  plate.position.y = 0.006;
+  plate.receiveShadow = true;
+  g.add(plate);
+
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.86, R, towerH, 22), wall);
+  tower.position.y = 0.012 + towerH / 2;
+  tower.castShadow = true;
+  g.add(tower);
+  // the scattered pebble bosses that print sets always stud these with
+  for (let i = 0; i < 10; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const y = 0.03 + Math.random() * (towerH - 0.04);
+    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 6, 5), wall);
+    boss.position.set(Math.cos(a) * R * 0.93, y, Math.sin(a) * R * 0.93);
+    g.add(boss);
+  }
+  // the pointed lancet window on the front
+  const win = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.024, 0.005), shade);
+  win.position.set(0, 0.012 + towerH * 0.6, R * 0.9);
+  g.add(win);
+  const winTop = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.012, 4), shade);
+  winTop.rotation.y = Math.PI / 4;
+  winTop.position.set(0, 0.012 + towerH * 0.6 + 0.018, R * 0.9);
+  g.add(winTop);
+
+  // the cone, laid as overlapping shingle courses so it is not a bare spike
+  const coneY = 0.012 + towerH;
+  const coneH = 0.1;
+  const courses = 6;
+  for (let i = 0; i < courses; i++) {
+    const t = i / courses;
+    const rr = R * 1.18 * (1 - t);
+    const band = new THREE.Mesh(
+      new THREE.CylinderGeometry(rr * 0.82, rr, coneH / courses + 0.004, 20, 1, true),
+      roof,
+    );
+    band.material.side = THREE.DoubleSide;
+    band.position.y = coneY + t * coneH + coneH / courses / 2;
+    band.castShadow = true;
+    g.add(band);
+  }
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(0.009, 0.036, 10), roof);
+  spire.position.y = coneY + coneH + 0.016;
+  spire.castShadow = true;
+  g.add(spire);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 8), trim);
+  ball.position.y = coneY + coneH + 0.04;
+  g.add(ball);
+  // a dormer sitting in the cone
+  const dormer = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.016, 0.014), wall);
+  dormer.position.set(0, coneY + 0.026, R * 0.78);
+  g.add(dormer);
+  const dormerCap = new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.016, 4), roof);
+  dormerCap.rotation.y = Math.PI / 4;
+  dormerCap.position.set(0, coneY + 0.042, R * 0.78);
+  g.add(dormerCap);
+
+  // the entry porch at the foot, with its own steep gable and arched door
+  const porchH = 0.05;
+  const porch = new THREE.Mesh(new THREE.BoxGeometry(0.05, porchH, 0.03), wall);
+  porch.position.set(0, 0.012 + porchH / 2, R * 0.85);
+  porch.castShadow = true;
+  g.add(porch);
+  for (const sz of [1, -1]) {
+    const slope = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.005, 0.026), roof);
+    slope.position.set(0, 0.012 + porchH + 0.009, R * 0.85 + sz * 0.009);
+    slope.rotation.x = sz * 0.8;
+    slope.castShadow = true;
+    g.add(slope);
+  }
+  const arch = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.011, 0.011, 0.006, 12, 1, false, 0, Math.PI),
+    shade,
+  );
+  arch.rotation.set(Math.PI / 2, 0, 0);
+  arch.position.set(0, 0.012 + 0.03, R * 0.85 + 0.016);
+  g.add(arch);
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.03, 0.005), shade);
+  leaf.position.set(0, 0.012 + 0.015, R * 0.85 + 0.016);
+  g.add(leaf);
+
+  // the stovepipe, leaning out of the side of the turret
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.05, 8), wall);
+  pipe.rotation.z = -0.35;
+  pipe.position.set(R * 0.95, 0.012 + towerH * 0.78, 0);
+  pipe.castShadow = true;
+  g.add(pipe);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.006, 8), trim);
+  collar.rotation.z = -0.35;
+  collar.position.set(R * 1.05, 0.012 + towerH * 0.78 + 0.026, 0);
+  g.add(collar);
+  return g;
+}
+
+// Chanterelles: funnel caps with a wavy rim and false gills running down the
+// stem, in a little troop the way they actually fruit.
+function buildChanterelle(v = {}) {
+  const g = new THREE.Group();
+  const capColor = v.cap ?? "#e0922f";
+  const capMat = craftMaterial(capColor, { rough: 0.82 });
+  capMat.side = THREE.DoubleSide;
+  const gillMat = craftMaterial(v.gill ?? "#c97a2a", { rough: 0.88 });
+  gillMat.side = THREE.DoubleSide;
+  const stemMat = craftMaterial(v.stem ?? "#8a5a3a", { rough: 0.9 });
+
+  const troop = [
+    { x: 0, z: 0, s: 1 },
+    { x: -0.05, z: 0.03, s: 0.62 },
+    { x: 0.045, z: 0.035, s: 0.5 },
+  ];
+  for (const m of troop) {
+    const h = 0.12 * m.s;
+    const capR = 0.055 * m.s;
+
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(capR * 0.34, capR * 0.16, h, 10),
+      stemMat,
+    );
+    stem.position.set(m.x, h / 2, m.z);
+    stem.castShadow = true;
+    g.add(stem);
+
+    // the cap is a shallow funnel: a lathe flaring up and out from the stem,
+    // then its rim pushed into waves so it reads as a chanterelle and not a
+    // parasol
+    const pts = [];
+    const N = 10;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const r = capR * (0.34 + Math.pow(t, 0.7) * 0.66);
+      // dished in the middle, lifting again at the edge
+      const y = h + (-0.03 + Math.pow(t, 2.2) * 0.05) * m.s;
+      pts.push(new THREE.Vector2(r, y));
+    }
+    const capGeo = new THREE.LatheGeometry(pts, 30);
+    const p = capGeo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i);
+      const z = p.getZ(i);
+      const rr = Math.hypot(x, z);
+      const edge = Math.min(1, rr / capR);
+      const wave = Math.sin(Math.atan2(z, x) * 7) * 0.007 * m.s * Math.pow(edge, 4);
+      p.setY(i, p.getY(i) + wave);
+      if (rr > 0.0001) {
+        const k = 1 + Math.pow(edge, 4) * Math.sin(Math.atan2(z, x) * 7 + 1.2) * 0.05;
+        p.setX(i, x * k);
+        p.setZ(i, z * k);
+      }
+    }
+    capGeo.computeVertexNormals();
+    const cap = new THREE.Mesh(capGeo, capMat);
+    cap.castShadow = true;
+    g.add(cap);
+    cap.position.set(m.x, 0, m.z);
+
+    // the false gills: blunt ridges running from under the rim onto the stem
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const gill = new THREE.Mesh(new THREE.PlaneGeometry(capR * 0.42, 0.009 * m.s), gillMat);
+      gill.rotation.order = "YXZ";
+      gill.rotation.set(Math.PI / 2, a, 0.55);
+      gill.position.set(
+        m.x + Math.cos(a) * capR * 0.52,
+        h - 0.016 * m.s,
+        m.z + Math.sin(a) * capR * 0.52,
+      );
+      g.add(gill);
+    }
+  }
+  // the flat pad of litter the troop is printed on
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.09, 0.008, 20), stemMat);
+  pad.position.y = 0.004;
+  pad.receiveShadow = true;
+  g.add(pad);
   return g;
 }

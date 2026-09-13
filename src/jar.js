@@ -163,6 +163,55 @@ const BASE_JARS = [
     interior: { innerRadius: 0.62, bodyHeight: 1.15, floorY: -0.62, wallThickness: 0.04 },
     profile: null,
   },
+  // ---------------------------------------------------------------------
+  // Open vessels
+  // ---------------------------------------------------------------------
+  // The catalog marks succulents, cacti, crowns of thorns and the whole
+  // flowering pack `open` — they need airflow and a dry spell and rot in a
+  // sealed jar. Until now the shelf had nothing to put them in but glass, so
+  // these are the opaque, open-topped planters: no glass, no lid, no
+  // condensation, nothing overhead to trap humidity.
+  {
+    id: "terracotta",
+    label: "টেরাকোটা টব",
+    glyph: "🪴",
+    lid: false,
+    openVessel: true,
+    clay: { color: "#b0684a", rough: 0.95 },
+    interior: { innerRadius: 1.15, bodyHeight: 1.5, floorY: -0.95, wallThickness: 0.07 },
+    profile: potProfile,
+  },
+  {
+    id: "dishgarden",
+    label: "ডিশ গার্ডেন",
+    glyph: "🍽️",
+    lid: false,
+    openVessel: true,
+    clay: { color: "#8f887c", rough: 0.96 },
+    interior: { innerRadius: 1.6, bodyHeight: 0.62, floorY: -0.52, wallThickness: 0.06 },
+    profile: dishProfile,
+  },
+  {
+    id: "stoneurn",
+    label: "পাথরের আর্ন",
+    glyph: "🏺",
+    lid: false,
+    openVessel: true,
+    clay: { color: "#a8a094", rough: 0.96 },
+    interior: { innerRadius: 1.12, bodyHeight: 1.2, floorY: -0.5, wallThickness: 0.07 },
+    profile: urnProfile,
+  },
+  {
+    id: "troughbox",
+    label: "কাঠের ট্রাফ",
+    glyph: "🪵",
+    lid: false,
+    openVessel: true,
+    clay: { color: "#9a7448", rough: 0.94, flat: true },
+    interior: { innerRadius: 1.3, bodyHeight: 0.9, floorY: -0.66, wallThickness: 0.08 },
+    profile: troughProfile,
+    segments: 4, // lathed on four segments, so it reads as a square planter
+  },
   {
     id: "greenhouse",
     label: "গ্রিনহাউস",
@@ -458,6 +507,80 @@ function bowlProfile(it) {
   ].map((p) => new THREE.Vector2(p[0], p[1]));
 }
 
+// A classic flower pot: straight battered walls under a proud rolled rim, and
+// a foot ring so it does not sit flat on the table.
+function potProfile(it) {
+  const rOuter = it.innerRadius + it.wallThickness;
+  const floor = it.floorY - it.wallThickness;
+  const bodyTop = it.floorY + it.bodyHeight;
+  return [
+    [0.0, floor - 0.06],
+    [rOuter * 0.64, floor - 0.06],
+    [rOuter * 0.68, floor],
+    [rOuter * 0.72, floor + 0.02],
+    [rOuter * 0.97, bodyTop - 0.12],
+    [rOuter * 1.0, bodyTop - 0.06],
+    [rOuter * 1.09, bodyTop - 0.04], // the rim, rolled out and back
+    [rOuter * 1.09, bodyTop + 0.06],
+    [rOuter * 0.99, bodyTop + 0.06],
+  ].map((p) => new THREE.Vector2(p[0], p[1]));
+}
+
+// A bonsai tray / dish garden: very wide, very shallow, on four stub feet that
+// a low foot ring stands in for.
+function dishProfile(it) {
+  const rOuter = it.innerRadius + it.wallThickness;
+  const floor = it.floorY - it.wallThickness;
+  const bodyTop = it.floorY + it.bodyHeight;
+  return [
+    [0.0, floor - 0.05],
+    [rOuter * 0.84, floor - 0.05],
+    [rOuter * 0.88, floor],
+    [rOuter * 0.92, floor + 0.03],
+    [rOuter, bodyTop - 0.04],
+    [rOuter * 1.04, bodyTop + 0.04],
+    [rOuter * 0.96, bodyTop + 0.04],
+  ].map((p) => new THREE.Vector2(p[0], p[1]));
+}
+
+// A footed garden urn: a stem and a spreading base under a bellied bowl with a
+// flared lip.
+function urnProfile(it) {
+  const rOuter = it.innerRadius + it.wallThickness;
+  const base = it.floorY - it.bodyHeight * 0.55;
+  const bodyTop = it.floorY + it.bodyHeight;
+  return [
+    [0.0, base - 0.08],
+    [rOuter * 0.6, base - 0.08],
+    [rOuter * 0.62, base],
+    [rOuter * 0.3, base + 0.12], // the stem
+    [rOuter * 0.28, base + 0.3],
+    [rOuter * 0.62, it.floorY - 0.12],
+    [rOuter * 0.94, it.floorY + 0.1],
+    [rOuter, bodyTop - 0.3],
+    [rOuter * 0.96, bodyTop - 0.08],
+    [rOuter * 1.1, bodyTop + 0.04], // flared lip
+    [rOuter * 1.0, bodyTop + 0.08],
+  ].map((p) => new THREE.Vector2(p[0], p[1]));
+}
+
+// A wooden trough. Lathed on four segments only, so the "radius" is the
+// distance to each corner and the result is a square box with sloped sides.
+function troughProfile(it) {
+  const rOuter = it.innerRadius + it.wallThickness;
+  const floor = it.floorY - it.wallThickness;
+  const bodyTop = it.floorY + it.bodyHeight;
+  return [
+    [0.0, floor - 0.07],
+    [rOuter * 0.78, floor - 0.07],
+    [rOuter * 0.8, floor],
+    [rOuter * 0.9, floor + 0.04],
+    [rOuter * 1.02, bodyTop],
+    [rOuter * 1.1, bodyTop + 0.05], // the capping rail
+    [rOuter * 0.98, bodyTop + 0.05],
+  ].map((p) => new THREE.Vector2(p[0], p[1]));
+}
+
 // ---------------------------------------------------------------------------
 // Building the jar mesh
 // ---------------------------------------------------------------------------
@@ -534,7 +657,11 @@ export function buildJar(typeId, envMap, itOverride) {
   const glassGeo = new THREE.LatheGeometry(profile, type.segments || 128);
   glassGeo.computeVertexNormals();
 
-  const glassMat = regGlass(makeGlassMaterial(envMap));
+  // An open planter is not glass: matte fired clay, stone or timber, opaque on
+  // both faces so you read a solid wall rather than a tinted pane.
+  const glassMat = regGlass(
+    type.clay ? makeClayMaterial(type.clay) : makeGlassMaterial(envMap),
+  );
 
   const glass = new THREE.Mesh(glassGeo, glassMat);
   group.add(glass);
@@ -544,7 +671,9 @@ export function buildJar(typeId, envMap, itOverride) {
   // round vessel's underside.
   const sil = jarInnerSilhouette(type.id, it);
   const floorR = sil ? Math.min(it.innerRadius, sil[0].r) : it.innerRadius;
-  const floorGeo = new THREE.CircleGeometry(floorR, 48);
+  // A low-segment vessel (the four-sided trough) needs a matching floor, or a
+  // round disc juts out past the flat walls and reads as a shadow.
+  const floorGeo = new THREE.CircleGeometry(floorR, type.segments || 48);
   const floorMat = new THREE.MeshStandardMaterial({
     color: "#3c2c1e",
     roughness: 1,
@@ -659,6 +788,18 @@ function makeGlassMaterial(envMap) {
     attenuationColor: new THREE.Color(0xd6efe4),
     attenuationDistance: 4.0,
     specularIntensity: 1.0,
+  });
+}
+
+// The opaque counterpart to the glass: fired clay, stone or timber. Registered
+// through the same `glassMats` list so the vessel customiser can still tint it.
+function makeClayMaterial({ color, rough = 0.95, flat = false }) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: rough,
+    metalness: 0,
+    side: THREE.DoubleSide,
+    flatShading: flat,
   });
 }
 
