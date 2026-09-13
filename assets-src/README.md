@@ -1,10 +1,18 @@
 # assets-src
 
-Original, full-resolution theme photographs, renamed from the raw upload dump to
-the theme slug they belong to. Every one is at least 2000px across — a source
-smaller than that reads as a blurry wall once the camera leans in, which is why
-the original 736px-wide set was retired. They are **not** served: `public/themes/` holds
-the derived assets the app actually loads.
+Original theme photographs, renamed from the raw upload dump to the theme slug
+they belong to. Every one is at least 2000px across — a source smaller than that
+reads as a blurry wall once the camera leans in, which is why the original
+736px-wide set was retired. They are **not** served: `public/themes/` holds the
+derived assets the app actually loads.
+
+**Only the first 30 are in git.** The 138 added on 2026-09-13 are listed in
+`.gitignore`: 365MB of originals is more history than they earn, on the same
+reasoning as the GLB rooms. A clean clone still builds and runs — the derived
+backdrops and thumbnails in `public/themes/` are committed — but re-deriving one
+of those themes means fetching its photo from Unsplash again to
+`assets-src/themes/<slug>.jpg` first. Anything dropped in here is capped at
+3200px on the way in; nothing downstream reads more than 2560.
 
 `make-theme-assets.py` regenerates those derivatives from this folder's twin in
 `public/` — run it from the repo root:
