@@ -49,6 +49,8 @@ import { preloadModels, getModelClone, getJarModelInterior } from "./models.js";
 import { createHand } from "./hand.js";
 import { createCursorGhost } from "./ghost.js";
 import { createHandles } from "./handles.js";
+import { createBaseShadow } from "./baseshadow.js";
+import { createHighlight } from "./highlight.js";
 import {
   claimChallengeReward,
   PLANT_KINDS,
@@ -118,7 +120,19 @@ studio.world.add(cursorGhost.group);
 // Handles ride in `world` too, so they stay pinned to their pieces as it turns.
 const handles = createHandles();
 studio.world.add(handles.group);
+
+// The substrate marker: the one thing you can be holding that has no shape of
+// its own to preview. Also in `world`, so the outline stays welded to the
+// vessel's footprint however the jar is turned.
+const baseShadow = createBaseShadow();
+studio.world.add(baseShadow.group);
+
+// The shell around whichever piece a press would act on. In `world` beside the
+// decorations it is tracking, so it turns with them.
+const hoverHighlight = createHighlight();
+studio.world.add(hoverHighlight.group);
 let handFrame = performance.now();
+let lastZoomSync = 0;
 const state = createState();
 const social = createSocialClient();
 const worldEffects = createWorldEffects(studio.world);
@@ -170,8 +184,39 @@ const comfort = {
   opacity: 88,
   sound: false,
   volume: 50,
+  // "auto" reads the machine once on first run and picks for you; an explicit
+  // choice in the panel pins it to "high"/"low" and stops guessing.
+  quality: "auto",
+  clickSound: true,
   ...savedComfort,
 };
+
+// A first guess at what this machine can carry, used only while `quality` is
+// still "auto". Core count and device memory are the two hints browsers
+// actually give us, and a phone is assumed to be the tighter budget of the
+// two. Nothing here is authoritative — it only decides which setting the panel
+// opens on, and one tap overrides it forever.
+function guessQuality() {
+  const cores = navigator.hardwareConcurrency ?? 8;
+  const memory = navigator.deviceMemory ?? 8;
+  const phone = window.matchMedia?.("(max-width: 700px)").matches ?? false;
+  if (cores <= 4 || memory <= 4) return "low";
+  if (phone && cores <= 6) return "low";
+  return "high";
+}
+
+// The quality every renderer-side decision reads, with "auto" already resolved.
+function qualityLevel() {
+  return comfort.quality === "auto" ? guessQuality() : comfort.quality;
+}
+
+// How many of a purely decorative thing to spawn. Splashes, condensation
+// droplets and sparkles all go through here so that one setting thins all of
+// them at once, and so none of them can be thinned to nothing — feedback that
+// disappears entirely reads as a bug, not as a performance mode.
+function particleBudget(n) {
+  return qualityLevel() === "low" ? Math.max(1, Math.round(n * 0.45)) : n;
+}
 let focusMode = false;
 let radialOpen = false;
 let focusToolArmed = false;
@@ -310,6 +355,7 @@ function setJar(typeId) {
 
   pickPlane = buildPickPlane();
   studio.world.add(pickPlane);
+  baseShadow.invalidate(); // a new vessel means a new footprint to trace
 
   // Sit the table surface flush against the *actual* lowest point of the
   // vessel. Polyhedral jars (geodesic, gem, pyramid) extend below their
@@ -434,7 +480,17 @@ studio.setOnFrame((now) => {
   hand.update(now, handDt);
   cursorGhost.update(now, handDt);
   handles.update(now, handDt);
+  baseShadow.update(now, handDt, calmMotion());
+  hoverHighlight.update(now, handDt, calmMotion());
   handFrame = now;
+  // The wheel and the pinch move the same zoom the buttons do, so the buttons
+  // have to notice when a gesture has reached the end of the range — otherwise
+  // they sit enabled and do nothing. Four times a second is plenty for a
+  // disabled state and costs nothing.
+  if (now - lastZoomSync > 250) {
+    lastZoomSync = now;
+    syncZoomButtons();
+  }
   // Ambient drift — dust in the jar and the weather around it — is
   // scenery, not feedback, so reduced motion stops it at the source rather than
   // just hiding it and leaving the maths running. Checked per frame because a
@@ -656,11 +712,143 @@ function placeDecoration(worldPoint, def) {
   // overshooting scale-in is the part that does not.
   if (calmMotion()) obj.scale.setScalar(targetScale);
   else tween(420, (p) => obj.scale.setScalar(0.001 + p * targetScale));
+  // The ring, the sparks and the plop — the same beat a piece gets when it is
+  // set back down, so appearing and being moved read as one family of event.
+  confirmPlacement(obj);
   gameAction("plant", def.kind);
 }
 
 // --- dragging placed decorations ------------------------------------------
 let grabbed = null;
+// The piece the pointer is currently over, if any. Read by the tool status
+// pill and by the hover highlight, so both always agree about which object a
+// press would act on.
+let hoverPiece = null;
+let hoverAccent = "#6d9e4f";
+// The piece waiting for a destination tap, armed from the item menu. Declared
+// up here with the other interaction state because `updateToolStatus` reads it
+// and runs during start-up — a `let` further down the file would be a TDZ
+// throw that silently aborts the rest of main.js.
+let movePending = null;
+
+/**
+ * Light up the piece a press would act on — and only ever one. Cheap to call
+ * from a pointermove: it returns immediately when nothing has changed, so the
+ * shell is rebuilt when the answer changes rather than on every mouse event.
+ */
+// --- picking a piece up ----------------------------------------------------
+// A piece that simply jumps to 1.08 scale the instant you touch it reads as a
+// glitch; the same change over a sixth of a second reads as the thing coming
+// loose in your hand. Both end in exactly the same place, so nothing that
+// depends on the lift has to know which one happened.
+const LIFT_SCALE = 1.08;
+const LIFT_Y = 0.05;
+
+function liftPiece(obj, base) {
+  const y0 = obj.position.y;
+  if (calmMotion()) {
+    obj.scale.setScalar(base * LIFT_SCALE);
+    obj.position.y = y0 + LIFT_Y;
+    return;
+  }
+  tween(150, (k) => {
+    obj.scale.setScalar(base * (1 + (LIFT_SCALE - 1) * k));
+    obj.position.y = y0 + LIFT_Y * k;
+  }, easeOut);
+}
+
+/**
+ * Where a dragged piece may actually stand: inside the vessel at that height,
+ * and not standing in another piece. The nudge out of a neighbour is soft and
+ * partial, so a crowded jar still lets you push things past each other rather
+ * than fighting you — this is a gentle settle, not a collision system.
+ */
+function snapPlacement(obj, x, z) {
+  let nx = x;
+  let nz = z;
+  // 1. Inside the glass. The margin keeps a plant's leaves off the wall rather
+  //    than letting its origin sit exactly on it.
+  const scale = obj.userData.baseScale ?? 1;
+  const margin = jarRadiusAt(surfaceY(nx, nz)) - 0.06 - scale * 0.05;
+  const clamped = clampInside(nx, nz, Math.max(0.05, margin));
+  if (clamped) {
+    nx = clamped.x;
+    nz = clamped.z;
+  }
+  // 2. Out of a neighbour's footprint, by a little each frame rather than all
+  //    at once, so the piece slides clear instead of snapping away.
+  const near = 0.17 * scale;
+  for (const other of decorGroup.children) {
+    if (other === obj || other.userData.dying) continue;
+    const dx = nx - other.position.x;
+    const dz = nz - other.position.z;
+    const d = Math.hypot(dx, dz);
+    const want = near + 0.17 * (other.userData.baseScale ?? 1);
+    if (d > 0.0001 && d < want) {
+      const push = (want - d) * 0.5;
+      nx += (dx / d) * push;
+      nz += (dz / d) * push;
+    }
+  }
+  return { x: nx, z: nz };
+}
+
+// --- tap and hold ----------------------------------------------------------
+// A finger has no right-click and no hover, so the action menu needs a gesture
+// of its own. Holding still on a piece for a moment is that gesture. It is
+// armed on press and abandoned the moment the finger travels, so it can never
+// fire in the middle of a drag the user meant as a drag.
+const LONG_PRESS_MS = 480;
+const LONG_PRESS_SLOP = 10; // px of travel that still counts as "held still"
+let longPress = null;
+
+function startLongPress(screen, obj) {
+  cancelLongPress();
+  if (!screen || !obj) return;
+  longPress = {
+    origin: { x: screen.x, y: screen.y },
+    obj,
+    timer: setTimeout(() => {
+      longPress = null;
+      // The hold replaces the drag: put the piece back where it was picked up
+      // from and open its menu instead.
+      if (grabbed === obj) dropPiece({ silent: true });
+      openItemPanel(obj);
+      playSfx("tap");
+      if (navigator.vibrate && !calmMotion()) navigator.vibrate(12);
+    }, LONG_PRESS_MS),
+  };
+}
+
+function moveLongPress(screen) {
+  if (!longPress || !screen) return;
+  const travelled = Math.hypot(screen.x - longPress.origin.x, screen.y - longPress.origin.y);
+  if (travelled > LONG_PRESS_SLOP) cancelLongPress();
+}
+
+function cancelLongPress() {
+  if (!longPress) return;
+  clearTimeout(longPress.timer);
+  longPress = null;
+}
+
+function setHoverPiece(obj) {
+  if (hoverPiece === obj) return;
+  hoverPiece = obj;
+  hoverHighlight.set(obj, hoverAccent);
+  // The readout names the mode for the object under the pointer, so it has to
+  // hear about this too.
+  updateToolStatus();
+  canvas.style.cursor = obj && !grabbed ? "grab" : "";
+}
+
+// Pieces that still belong to the garden. A deleted plant stays in the scene
+// for the third of a second its dissolve lasts, and for that third of a second
+// it must not be hoverable, grabbable or countable — its record is already
+// gone from the model, so anything that picked it up would be holding nothing.
+function livePieces() {
+  return decorGroup.children.filter((o) => !o.userData.dying);
+}
 
 // Walk up to the decoration's top-level group (a direct child of decorGroup).
 function topDecor(object) {
@@ -685,6 +873,23 @@ const TOOLS = [
 ];
 let activeTool = "place";
 let lastPaint = null; // throttles grass spawns along a stroke
+
+// What the active-tool pill says for each tool: a mode name, and a verb phrase
+// for what the next press does. It lives up here beside TOOLS rather than down
+// with the pill's rendering because `selectTool` runs during start-up, long
+// before the bottom of this file is evaluated — a const declared down there is
+// a temporal-dead-zone throw that takes the rest of main.js with it.
+const TOOL_MODES = {
+  place: { mode: "বসানোর মোড", glyph: "🥢" },
+  water: { mode: "পানির মোড", glyph: "💧", does: "ট্যাপ বা টেনে মাটিতে পানি দাও" },
+  mist: { mode: "স্প্রে মোড", glyph: "💦", does: "কাঁচে স্প্রে করতে ট্যাপ করো" },
+  raise: { mode: "ভাস্কর্য মোড", glyph: "⛰️", does: "মাটি উঁচু করতে টেনে নাও" },
+  lower: { mode: "ভাস্কর্য মোড", glyph: "🕳️", does: "মাটি নিচু করতে টেনে নাও" },
+  flatten: { mode: "ভাস্কর্য মোড", glyph: "🫓", does: "মাটি সমান করতে টেনে নাও" },
+  grass: { mode: "পেইন্ট মোড", glyph: "🌱", does: "ঘাস আঁকতে টেনে নাও" },
+  moss: { mode: "পেইন্ট মোড", glyph: "🖌️", does: "মস আঁকতে টেনে নাও" },
+  pebble: { mode: "পেইন্ট মোড", glyph: "🪨", does: "নুড়ি ছড়াতে টেনে নাও" },
+};
 
 // Brush parameters driven by the top slider chips (0–100 each, mapped here).
 const brushParams = { radius: 50, strength: 50, falloff: 50 };
@@ -743,6 +948,12 @@ function applyBrush(screen) {
 // Free-form substrate painting: with a base material selected, dragging lays
 // that material wherever the cursor goes — any size, any shape.
 let basePainting = false;
+// A press with a substrate material is not yet either gesture. Held still and
+// released it pours a layer; moved, it becomes a brush stroke that shapes the
+// ground. Deciding at press time is what made a tap on the glass do nothing
+// visible at all — it opened a paint stroke of zero length and closed it.
+let basePress = null;
+const BASE_DRAG_SLOP = 7; // px of travel that turns a pour into a stroke
 function applyBaseBrush(screen) {
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) return;
@@ -775,6 +986,82 @@ const dropMat = new THREE.MeshPhysicalMaterial({
 });
 const rnd = (a) => (Math.random() - 0.5) * 2 * a;
 
+// --- placement confirmation ------------------------------------------------
+// The moment a piece becomes real. Three small things at once, because one
+// alone is easy to miss while you are looking somewhere else on the glass: a
+// ring of light opening on the ground where it landed, a scatter of sparks
+// around it, and the plop. The scale bounce is the caller's, since where the
+// piece comes *from* differs between planting and setting down.
+const sparkGeo = new THREE.SphereGeometry(0.012, 5, 4);
+
+function confirmPlacement(obj, { sound = true } = {}) {
+  if (sound) playSfx("plop");
+  studio.markInteraction();
+  if (calmMotion()) return; // the piece appearing is feedback enough
+
+  const at = obj.position;
+  const scale = obj.userData.baseScale ?? 1;
+
+  // The glow: a flat ring opening outward and fading, drawn over everything so
+  // it stays readable through leaves.
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.05, 0.075, 28),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff3d0,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(at.x, at.y + 0.006, at.z);
+  ring.renderOrder = 5;
+  fxGroup.add(ring);
+  tween(460, (k) => {
+    const r = 1 + k * 5.5 * scale;
+    ring.scale.set(r, r, 1);
+    ring.material.opacity = 0.75 * (1 - k);
+    if (k >= 1) {
+      fxGroup.remove(ring);
+      ring.geometry.dispose();
+      ring.material.dispose();
+    }
+  }, easeOut);
+
+  // The sparkle: a handful of motes thrown up and falling back.
+  const count = particleBudget(7);
+  for (let i = 0; i < count; i++) {
+    const spark = new THREE.Mesh(
+      sparkGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0xffeab8,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      }),
+    );
+    const a = Math.random() * Math.PI * 2;
+    const reach = (0.06 + Math.random() * 0.12) * scale;
+    const rise = (0.1 + Math.random() * 0.11) * scale;
+    spark.position.set(at.x, at.y + 0.02, at.z);
+    fxGroup.add(spark);
+    tween(520 + Math.random() * 160, (k) => {
+      spark.position.set(
+        at.x + Math.cos(a) * reach * k,
+        at.y + 0.02 + rise * k - 0.34 * k * k,
+        at.z + Math.sin(a) * reach * k,
+      );
+      spark.material.opacity = 0.9 * (1 - k * k);
+      if (k >= 1) {
+        fxGroup.remove(spark);
+        spark.material.dispose();
+      }
+    }, (x) => x);
+  }
+}
+
 // Spray a cluster of condensation droplets onto the inside of the glass where
 // the cursor points — the glass fogs up the more you spray.
 function sprayMist(screen) {
@@ -783,7 +1070,7 @@ function sprayMist(screen) {
   if (!hit) return;
   if (screen?.x != null) impact(screen.x, screen.y, { size: 54, tone: "water" });
   const local = studio.world.worldToLocal(hit.point.clone());
-  const n = 10 + ((Math.random() * 8) | 0);
+  const n = particleBudget(10 + ((Math.random() * 8) | 0));
   for (let i = 0; i < n; i++) {
     const drop = new THREE.Mesh(dropGeo, dropMat);
     const sc = 0.4 + Math.random() * 1.1;
@@ -1031,6 +1318,8 @@ function setTheme(id, reward = true) {
     getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#6d9e4f";
   cursorGhost.setColor(accent);
   handles.setColor(accent);
+  hoverAccent = accent;
+  hoverHighlight.set(hoverPiece, hoverAccent); // re-tint whatever is lit now
   studio.setTheme?.(theme.id);
   worldEffects.setTheme(theme);
   if (theme.weather) setWeather(theme.weather, false);
@@ -1598,7 +1887,7 @@ function spawnSplash(worldPoint) {
     ring.material.opacity = 0.6 * (1 - p);
     if (p >= 1) fxGroup.remove(ring);
   }, (x) => x);
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0, drops = particleBudget(5); i < drops; i++) {
     const d = new THREE.Mesh(dropGeo, dropMat.clone());
     const a = Math.random() * Math.PI * 2;
     const r = 0.03 + Math.random() * 0.04;
@@ -1638,6 +1927,9 @@ function water(screen, isTap) {
 }
 
 studio.setGrabHandler((screen) => {
+  // While a move is armed the press is a destination, not a grab: let it fall
+  // through to the tap handler rather than starting a drag or a brush stroke.
+  if (movePending) return false;
   // Care tools capture the drag as a continuous spray/water stroke.
   if (activeTool === "mist") {
     sprayMist(screen);
@@ -1649,14 +1941,18 @@ studio.setGrabHandler((screen) => {
   }
   // Base material + drag = paint substrate in any shape.
   if (activeTool === "place" && selected.group === "base") {
-    const hit = studio.raycast(screen, surfaceTargets());
-    if (hit) {
-      basePainting = true;
-      snapshot();
-      applyBaseBrush(screen);
-      return true;
-    }
-    return false; // over empty space → rotate as usual
+    // Aimed at the jar at all? Off it, the press turns the jar as usual.
+    const targets = [];
+    if (jarGlass) targets.push(jarGlass);
+    if (pickPlane) targets.push(pickPlane);
+    if (!targets.length || !studio.raycast(screen, targets)) return false;
+    basePress = { x: screen.x, y: screen.y, touch: Boolean(screen.touch) };
+    basePainting = false;
+    // The marker stays up for the whole gesture, so a finger — which has no
+    // hover to have shown it beforehand — still sees where this lands.
+    const ok = showBaseShadow(screen);
+    if (screen.touch) showReleaseHint(screen, ok);
+    return true;
   }
   // Brush tools capture the drag entirely.
   if (activeTool !== "place") {
@@ -1670,17 +1966,21 @@ studio.setGrabHandler((screen) => {
     return true;
   }
   // Otherwise try to grab a placed decoration.
-  if (!decorGroup.children.length) return false;
-  const hit = studio.raycast(screen, decorGroup.children);
+  const pieces = livePieces();
+  if (!pieces.length) return false;
+  const hit = studio.raycast(screen, pieces);
   if (!hit) return false;
   const obj = topDecor(hit.object);
   if (!obj) return false;
   grabbed = obj;
   snapshot();
+  // The shell follows the piece up, so on a finger — which never had a hover
+  // to light it beforehand — the press is acknowledged the instant it lands.
+  setHoverPiece(obj);
+  startLongPress(screen, obj);
   const base = obj.userData.baseScale ?? 1;
   obj.userData.baseScale = base;
-  obj.scale.setScalar(base * 1.08); // lift feedback
-  obj.position.y += 0.05;
+  liftPiece(obj, base);
   return true;
 });
 
@@ -1693,8 +1993,19 @@ studio.setObjectDrag((screen) => {
     water(screen, false);
     return;
   }
-  if (basePainting) {
-    applyBaseBrush(screen);
+  if (basePress) {
+    const travelled = Math.hypot(screen.x - basePress.x, screen.y - basePress.y);
+    // Crossed the threshold: this was a stroke all along. The snapshot is
+    // taken here rather than on press so a pour and a stroke each leave
+    // exactly one entry in the history.
+    if (!basePainting && travelled > BASE_DRAG_SLOP) {
+      basePainting = true;
+      snapshot();
+      hideReleaseHint();
+    }
+    if (basePainting) applyBaseBrush(screen);
+    const ok = showBaseShadow(screen);
+    if (basePress.touch && !basePainting) showReleaseHint(screen, ok);
     return;
   }
   if (activeTool !== "place") {
@@ -1702,33 +2013,88 @@ studio.setObjectDrag((screen) => {
     return;
   }
   if (!grabbed) return;
+  moveLongPress(screen);
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) return;
   const local = studio.world.worldToLocal(hit.point.clone());
-  grabbed.position.x = local.x;
-  grabbed.position.z = local.z;
-  grabbed.position.y = surfaceY(local.x, local.z) + 0.05;
+  // The piece follows the cursor, but only as far as it is allowed to go — so
+  // what you are dragging and where it can actually land stay the same thing.
+  const spot = snapPlacement(grabbed, local.x, local.z);
+  grabbed.position.x = spot.x;
+  grabbed.position.z = spot.z;
+  const ground = surfaceY(spot.x, spot.z);
+  grabbed.position.y = ground + LIFT_Y;
   const rec = grabbed.userData.record;
   if (rec) {
-    rec.x = local.x;
-    rec.z = local.z;
+    rec.x = spot.x;
+    rec.z = spot.z;
   }
+  // A ring on the ground directly beneath it. Held up in the air the piece
+  // hides its own footing, and on a sculpted surface "under the cursor" and
+  // "where it will stand" are not the same point.
+  cursorGhost.setItem(null);
+  cursorGhost.showAt({ x: spot.x, y: ground, z: spot.z }, 0.16 + (grabbed.userData.baseScale ?? 1) * 0.14);
 });
 
 studio.setObjectDrop(() => {
   if (activeTool === "water") fadePour(); // stop the pour when the stroke ends
-  if (basePainting) {
+  if (basePress) {
+    const wasPainting = basePainting;
+    const press = basePress;
     basePainting = false;
+    basePress = null;
+    hideReleaseHint();
+    if (wasPainting) {
+      baseShadow.hide();
+    } else {
+      // Held still and let go: pour a layer where the marker was showing.
+      lastPress = { x: press.x, y: press.y };
+      tryAddLayer(selected.id);
+      // A pour that would not fit leaves the marker red and standing. A mouse
+      // has a hover to keep it honest from here; a finger does not, so its
+      // marker is put away rather than left frozen over the jar.
+      if (press.touch) baseShadow.hide();
+    }
     updateHint();
     return;
   }
   lastPaint = null;
-  if (!grabbed) return;
-  grabbed.scale.setScalar(grabbed.userData.baseScale ?? 1);
-  const rec = grabbed.userData.record;
-  if (rec) grabbed.position.y = rec.y = surfaceY(rec.x, rec.z);
-  grabbed = null;
+  dropPiece();
 });
+
+/**
+ * Set a dragged piece down. It settles to the ground with the same small
+ * overshoot a freshly planted one gets, so moving something and placing
+ * something feel like the same act rather than two different ones.
+ * `silent` skips the settle — used when a long press takes the drag over.
+ */
+function dropPiece({ silent = false } = {}) {
+  cancelLongPress();
+  cursorGhost.hide();
+  if (!grabbed) return;
+  const obj = grabbed;
+  grabbed = null;
+  const base = obj.userData.baseScale ?? 1;
+  const rec = obj.userData.record;
+  const ground = rec ? surfaceY(rec.x, rec.z) : obj.position.y - LIFT_Y;
+  if (rec) rec.y = ground;
+  // The piece is no longer held, so the cursor stops saying it is — whichever
+  // way it was set down.
+  canvas.style.cursor = hoverPiece ? "grab" : "";
+  if (silent || calmMotion()) {
+    obj.scale.setScalar(base);
+    obj.position.y = ground;
+    if (!silent) confirmPlacement(obj);
+    return;
+  }
+  const fromY = obj.position.y;
+  const fromScale = obj.scale.x;
+  tween(300, (k) => {
+    obj.position.y = fromY + (ground - fromY) * k;
+    obj.scale.setScalar(base * (fromScale / base + (1 - fromScale / base) * k));
+  }, easeOutBack);
+  confirmPlacement(obj);
+}
 
 // --- interaction -----------------------------------------------------------
 let selected = { group: "base", id: BASE_LAYERS[0].id };
@@ -1744,10 +2110,11 @@ function tryAddLayer(id) {
   snapshot();
   addLayer(state, id);
   rebuildSubstrate(true);
+  confirmBaseShadow(); // the marker flares and fades rather than blinking off
   updateEmptyCall();
   if (lastPress) {
     impact(lastPress.x, lastPress.y, { size: 78 });
-    burst(lastPress.x, lastPress.y, { count: 10, spread: 44, colors: def.colors ?? ["#8a6b47", "#a9895f"] });
+    burst(lastPress.x, lastPress.y, { count: particleBudget(10), spread: 44, colors: def.colors ?? ["#8a6b47", "#a9895f"] });
   }
   updateHint();
   gameAction("layer", id);
@@ -1805,7 +2172,7 @@ let handCarrying = null;
 const BRUSH_TOOLS = new Set(["raise", "lower", "flatten", "grass", "moss", "pebble"]);
 
 function decorHandlePoints() {
-  return decorGroup.children.map((obj) => ({
+  return livePieces().map((obj) => ({
     x: obj.position.x,
     y: obj.position.y,
     z: obj.position.z,
@@ -1817,6 +2184,69 @@ function clearHover() {
   hand.hide();
   cursorGhost.hide();
   handles.hide();
+  baseShadow.hide();
+  if (hoverPiece) {
+    setHoverPiece(null);
+  }
+}
+
+// --- base placement marker -------------------------------------------------
+// Answers the two questions a pour raises before it happens: where will this
+// land, and will it fit? `screen` may be null, which is how the touch path
+// says "the finger is out over nothing" — the marker then shows the layer
+// still parked at its settle height but dulled to red, rather than blinking
+// out and leaving the gesture unanswered.
+function showBaseShadow(screen) {
+  const def = BASE_LAYERS.find((b) => b.id === selected.id);
+  if (!def) {
+    baseShadow.hide();
+    return false;
+  }
+  const remaining = remainingHeight(state);
+  const fits = remaining >= def.layerHeight;
+  const y = Math.min(substrateTop(state), JAR.floorY + JAR.bodyHeight);
+  // Over the jar at all? The pour only makes sense aimed inside the glass, and
+  // "aimed at the table" is exactly the invalid case the red is for.
+  const targets = [];
+  if (jarGlass) targets.push(jarGlass);
+  if (pickPlane) targets.push(pickPlane);
+  const hit = screen && targets.length ? studio.raycast(screen, targets) : null;
+  const point = hit ? studio.world.worldToLocal(hit.point.clone()) : null;
+  baseShadow.showAt(y, point, fits && Boolean(hit));
+  return fits && Boolean(hit);
+}
+
+// The marker's job ends the moment the layer is real. It flares once on the
+// way out so the pour and the spot you aimed at read as the same event.
+function confirmBaseShadow() {
+  baseShadow.confirm();
+}
+
+// --- "release to place" ----------------------------------------------------
+// A finger held down over the glass is a state with no visible edge: nothing
+// on screen says the press is being held rather than ignored, or what letting
+// go will do. This rides just above the fingertip and says it. It is a DOM
+// chip rather than anything in the scene, because it has to stay legible over
+// whatever colour the substrate happens to be.
+const RELEASE_LIFT = 84; // clears the fingertip and the marker's own lift
+
+function showReleaseHint(p, valid) {
+  let el = document.getElementById("release-hint");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "release-hint";
+    el.className = "release-hint";
+    document.body.appendChild(el);
+  }
+  el.textContent = t(valid ? "ছেড়ে দিলে বসে যাবে" : "এখানে বসবে না");
+  el.classList.toggle("is-invalid", !valid);
+  el.style.left = `${p.x}px`;
+  el.style.top = `${p.y - RELEASE_LIFT}px`;
+  el.classList.add("is-on");
+}
+
+function hideReleaseHint() {
+  document.getElementById("release-hint")?.classList.remove("is-on");
 }
 
 canvas.addEventListener("pointermove", (e) => {
@@ -1827,6 +2257,7 @@ canvas.addEventListener("pointermove", (e) => {
   if (BRUSH_TOOLS.has(activeTool)) {
     handles.hide();
     hand.hide();
+    setHoverPiece(null);
     const hit = hasBase(state) ? studio.raycast(screen, surfaceTargets()) : null;
     if (!hit) {
       cursorGhost.hide();
@@ -1837,6 +2268,20 @@ canvas.addEventListener("pointermove", (e) => {
     return;
   }
 
+  // Holding a substrate material: the marker, not the tweezers. This comes
+  // before the hasBase() gate below, because the very first layer — the one
+  // where there is no ground at all yet and nothing on screen to aim at — is
+  // precisely the pour that most needs showing.
+  if (activeTool === "place" && selected.group === "base") {
+    hand.hide();
+    cursorGhost.hide();
+    handles.hide();
+    setHoverPiece(null);
+    showBaseShadow(screen);
+    return;
+  }
+  baseShadow.hide();
+
   if (activeTool !== "place" || !hasBase(state)) {
     clearHover();
     handCarrying = null;
@@ -1845,16 +2290,16 @@ canvas.addEventListener("pointermove", (e) => {
 
   // Tweezers over a planted piece: offer to pick that one up rather than to
   // plant another on top of it.
-  const onPiece = decorGroup.children.length
-    ? studio.raycast(screen, decorGroup.children)
-    : null;
-  if (decorGroup.children.length) {
+  const pieces = livePieces();
+  const onPiece = pieces.length ? studio.raycast(screen, pieces) : null;
+  if (pieces.length) {
     handles.sync(decorHandlePoints());
     handles.show();
-    handles.setHovered(onPiece ? decorGroup.children.indexOf(topDecor(onPiece.object)) : -1);
+    handles.setHovered(onPiece ? pieces.indexOf(topDecor(onPiece.object)) : -1);
   } else {
     handles.hide();
   }
+  setHoverPiece(onPiece ? topDecor(onPiece.object) : null);
   if (onPiece) {
     hand.hide();
     cursorGhost.hide();
@@ -1922,11 +2367,15 @@ function aimScreen(p) {
   return null;
 }
 
+// Substrate is not aimed through here: a press with a base material selected is
+// claimed by the grab handler above, which runs first and drives both the
+// pour and the brush stroke from one place for mouse and finger alike.
 studio.setAimHandler({
   start(p) {
     if (!p.touch) return false; // the mouse has a hover already
     if (focusMode && !focusToolArmed) return false; // that press opens the radial
-    if (activeTool !== "place" || selected.group !== "decor") return false;
+    if (activeTool !== "place") return false;
+    if (selected.group !== "decor") return false;
     if (!hasBase(state)) return false; // let the tap through to flash the hint
     aimLift = 0;
     aimAt = aimScreen(p);
@@ -1955,6 +2404,9 @@ studio.setAimHandler({
 });
 
 studio.setTapHandler((screen) => {
+  // An armed move owns the next tap on the jar, before any tool gets it — that
+  // is the whole bargain the menu made when it armed.
+  if (movePending && completeMove(screen)) return;
   // The knob comes before every tool: grabbing it is how you open the jar, and
   // it should work whatever you happen to be holding.
   if (jarDoor && studio.raycast(screen, [jarDoor.knob])) {
@@ -1977,8 +2429,8 @@ studio.setTapHandler((screen) => {
     return;
   }
   // tapping a placed decoration opens the item adjuster instead of placing
-  if (activeTool === "place" && decorGroup.children.length) {
-    const hitD = studio.raycast(screen, decorGroup.children);
+  if (activeTool === "place" && livePieces().length) {
+    const hitD = studio.raycast(screen, livePieces());
     if (hitD) {
       openItemPanel(topDecor(hitD.object));
       return;
@@ -2124,7 +2576,19 @@ function applyComfortSettings() {
     "--text-scale",
     `${Math.max(0.9, Math.min(2, (comfort.textScale || 100) / 100))}`,
   );
-  if (worldEffects.root) worldEffects.root.visible = !comfort.reducedMotion;
+  // Background weather/effects are the first thing to go on a tight budget —
+  // they are pure atmosphere and nothing depends on them.
+  const level = qualityLevel();
+  document.body.classList.toggle("perf-low", level === "low");
+  if (worldEffects.root) worldEffects.root.visible = !comfort.reducedMotion && level !== "low";
+  studio.setQuality(level);
+  document.querySelectorAll(".quality-opt").forEach((button) => {
+    const on = button.dataset.quality === level;
+    button.classList.toggle("is-active", on);
+    button.setAttribute("aria-checked", on ? "true" : "false");
+  });
+  const clickToggle = document.getElementById("comfort-click");
+  if (clickToggle) clickToggle.checked = comfort.clickSound !== false;
   const soft = document.getElementById("comfort-soft");
   const motion = document.getElementById("comfort-motion");
   const opacity = document.getElementById("comfort-opacity");
@@ -2178,6 +2642,9 @@ function updateFocusHud() {
   const radialCurrent = document.getElementById("radial-current");
   if (radialCurrent) radialCurrent.textContent = label;
   updateHistoryUi();
+  // Every tool and selection change already lands here, so the status pill
+  // rides along rather than needing its own set of call sites to keep in sync.
+  updateToolStatus();
 }
 
 function openRadial() {
@@ -2344,6 +2811,15 @@ const NUDGE = 0.03;
 window.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
   if (e.metaKey || e.ctrlKey || e.altKey) return; // undo/redo handle their own
+
+  // An armed move is a mode you are standing in, so Escape has to be able to
+  // step back out of it — otherwise the next tap anywhere lands the piece.
+  if (e.key === "Escape" && movePending) {
+    e.preventDefault();
+    cancelMove();
+    updateHint();
+    return;
+  }
 
   const ids = TAB_TOOLS[activeTab];
   const idx = Number(e.key) - 1;
@@ -2640,7 +3116,9 @@ window.addEventListener("pointerup", (e) => {
   if (group === "jar") {
     if (item.id !== currentJarId) {
       snapshot();
-      setJar(item.id);
+      // Swapping the vessel rebuilds every piece of glass geometry and every
+      // layer inside it. On a full jar that is long enough to read as a hang.
+      withSceneLoading("নতুন জার বসানো হচ্ছে…", () => setJar(item.id));
     }
   } else if (group === "base") {
     selected = { group: "base", id: item.id };
@@ -2765,7 +3243,7 @@ function renderStrip() {
         if (group === "jar") {
           if (item.id !== currentJarId) {
             snapshot();
-            setJar(item.id);
+            withSceneLoading("নতুন জার বসানো হচ্ছে…", () => setJar(item.id));
           }
         } else {
           selected = { group, id: item.id };
@@ -2815,6 +3293,18 @@ function loadGallery() {
 
 function loadBuildData(build, { history = true } = {}) {
   if (!build) return;
+  // A whole garden arriving at once — from a save, a share link or a co-op
+  // peer — is the longest synchronous stall in the app. The message is
+  // released on the frame after the rebuild finishes.
+  const doneLoading = beginSceneLoading("তোমার টেরারিয়াম তৈরি হচ্ছে…");
+  try {
+    loadBuildDataNow(build, { history });
+  } finally {
+    requestAnimationFrame(() => doneLoading());
+  }
+}
+
+function loadBuildDataNow(build, { history = true } = {}) {
   if (history) snapshot();
   Object.assign(jarCustom, { frame: null, glass: null, w: 1, h: 1 }, build.custom ?? {});
   Object.assign(jarLight, { on: false, height: 0.55, bright: 0.6, color: 0xffe4bc }, build.jarLight ?? {});
@@ -3263,16 +3753,190 @@ document.getElementById("item-rot").addEventListener("input", (e) => {
   adjTarget.rotation.y = rad;
 });
 document.getElementById("item-del").addEventListener("click", () => {
-  if (!adjTarget) return;
-  snapshot();
-  const rec = adjTarget.userData.record;
-  const i = state.decorations.indexOf(rec);
-  if (i >= 0) state.decorations.splice(i, 1);
-  decorGroup.remove(adjTarget);
-  adjTarget = null;
+  removePiece(adjTarget);
+});
+
+// --- move ------------------------------------------------------------------
+// Dragging is the fast way to move a piece and it stays the primary one. This
+// is the other way in: on a phone, picking a specific fern out of a crowded
+// jar with a fingertip is genuinely hard, and once the menu is open the piece
+// is already unambiguously chosen. Arming it turns the next tap into "put it
+// there" — one tap, no precision grab required.
+function armMove(obj) {
+  if (!obj?.userData?.record) return;
+  movePending = obj;
   itemPanelEl.classList.add("hidden");
+  document.body.classList.add("move-armed");
+  setHoverPiece(obj); // keep the piece lit so it is clear what is being moved
+  flashHint("কোথায় বসাতে চাও সেখানে ট্যাপ করো");
+  updateToolStatus();
+}
+
+function cancelMove() {
+  if (!movePending) return;
+  movePending = null;
+  document.body.classList.remove("move-armed");
+  updateToolStatus();
+}
+
+/** Finish an armed move at a screen point. Returns false if it could not land. */
+function completeMove(screen) {
+  const obj = movePending;
+  if (!obj) return false;
+  const hit = studio.raycast(screen, surfaceTargets());
+  if (!hit) return false; // aimed off the substrate — stay armed, try again
+  cancelMove();
+  if (!obj.parent) return true; // deleted while the move was armed
+  snapshot();
+  const local = studio.world.worldToLocal(hit.point.clone());
+  const spot = snapPlacement(obj, local.x, local.z);
+  const rec = obj.userData.record;
+  const ground = surfaceY(spot.x, spot.z);
+  rec.x = spot.x;
+  rec.z = spot.z;
+  rec.y = ground;
+  const fromX = obj.position.x;
+  const fromZ = obj.position.z;
+  const base = obj.userData.baseScale ?? 1;
+  if (calmMotion()) {
+    obj.position.set(spot.x, ground, spot.z);
+  } else {
+    // It travels rather than teleporting, so the piece you were moving and the
+    // piece that ends up over there are visibly the same piece.
+    tween(340, (k) => {
+      obj.position.set(
+        fromX + (spot.x - fromX) * k,
+        ground + Math.sin(k * Math.PI) * 0.12, // a small arc, like a carry
+        fromZ + (spot.z - fromZ) * k,
+      );
+      obj.scale.setScalar(base * (1 + Math.sin(k * Math.PI) * 0.06));
+    }, easeOut);
+  }
+  confirmPlacement(obj);
+  return true;
+}
+
+document.getElementById("item-move").addEventListener("click", () => armMove(adjTarget));
+
+// --- duplicate -------------------------------------------------------------
+// A copy of everything the record carries — kind, scale, tint, rotation — set
+// down beside the original rather than exactly on top of it, where it would
+// look like nothing had happened.
+document.getElementById("item-dupe").addEventListener("click", () => {
+  const source = adjTarget;
+  if (!source?.userData?.record) return;
+  if (state.decorations.length >= (window.innerWidth < 700 ? 72 : 120)) {
+    flashHint("জার ভরে গেছে — নকল করা গেল না।");
+    return;
+  }
+  snapshot();
+  const rec = source.userData.record;
+  const def = DECORATIONS.find((d) => d.id === rec.id);
+  const copy = getModelClone(rec.kind, rec.id) ?? buildDecoration(rec.kind, def?.variant);
+
+  // Offset by a little over its own footprint, then let the same spacing rule
+  // the drag uses push it the rest of the way clear.
+  const a = Math.random() * Math.PI * 2;
+  const step = 0.2 * (rec.scale ?? 1);
+  const spot = snapPlacement(copy, rec.x + Math.cos(a) * step, rec.z + Math.sin(a) * step);
+  const inside = clampInside(spot.x, spot.z, Math.max(0.05, jarRadiusAt(rec.y) - 0.08));
+  const x = inside ? inside.x : spot.x;
+  const z = inside ? inside.z : spot.z;
+
+  const record = {
+    id: rec.id,
+    kind: rec.kind,
+    x,
+    z,
+    y: surfaceY(x, z),
+    rotation: rec.rotation + (Math.random() - 0.5) * 0.5, // never a perfect twin
+    scale: rec.scale,
+    tint: rec.tint ?? null,
+  };
+  copy.rotation.y = record.rotation;
+  copy.rotation.x = source.rotation.x;
+  copy.rotation.z = source.rotation.z;
+  copy.position.set(record.x, record.y, record.z);
+  copy.userData.record = record;
+  copy.userData.baseScale = record.scale;
+  if (record.tint) applyTint(copy, record.tint);
+  decorGroup.add(copy);
+  addDecoration(state, record);
+
+  if (calmMotion()) copy.scale.setScalar(record.scale);
+  else tween(380, (k) => copy.scale.setScalar(0.001 + k * record.scale));
+  confirmPlacement(copy);
+  // The menu follows the copy: duplicating twice in a row should make two
+  // copies of what you were looking at, not a copy of a copy of a copy.
+  openItemPanel(copy);
+  gameAction("plant", rec.kind);
   updateHint();
 });
+
+/**
+ * Take a piece out of the garden. The data goes immediately — undo, autosave
+ * and the hint all read the model, and none of them should see a plant that is
+ * only mid-dissolve. The mesh lingers for a third of a second, shrinking and
+ * fading, so the removal is something you watched happen at a place rather
+ * than a gap you notice afterwards.
+ */
+function removePiece(obj) {
+  if (!obj?.userData?.record) return;
+  snapshot();
+  const rec = obj.userData.record;
+  const i = state.decorations.indexOf(rec);
+  if (i >= 0) state.decorations.splice(i, 1);
+  if (obj === adjTarget) {
+    adjTarget = null;
+    itemPanelEl.classList.add("hidden");
+  }
+  if (obj === grabbed) grabbed = null;
+  if (obj === movePending) cancelMove();
+  if (obj === hoverPiece) setHoverPiece(null);
+
+  const from = obj.scale.x;
+  const at = obj.position.clone();
+  obj.userData.dying = true;
+  playSfx("tap");
+  if (calmMotion()) {
+    decorGroup.remove(obj);
+  } else {
+    // Lifted out and shrunk, like something picked up and carried off. Fading
+    // needs transparent materials, and these are shared clones — so the copy
+    // is made here, for the third of a second it is needed.
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const many = Array.isArray(o.material);
+      const fading = (many ? o.material : [o.material]).map((m) => {
+        const c = m.clone();
+        c.transparent = true;
+        c.depthWrite = false;
+        return c;
+      });
+      o.material = many ? fading : fading[0];
+    });
+    tween(320, (k) => {
+      obj.scale.setScalar(from * (1 - k));
+      obj.position.y = at.y + k * 0.12;
+      obj.traverse((o) => {
+        if (!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => (m.opacity = 1 - k));
+      });
+      if (k < 1) return;
+      decorGroup.remove(obj);
+      // Those clones exist only for this animation. Geometry is left alone —
+      // it is shared with every other copy of this plant in the jar.
+      obj.traverse((o) => {
+        if (!o.isMesh) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
+      });
+    }, easeOut);
+  }
+  updateHint();
+  updateEmptyCall();
+  studio.markInteraction();
+}
 
 // --- language toggle -------------------------------------------------------
 const TAB_LABELS = { sculpt: "ভাস্কর্য", paint: "পেইন্টিং", decor: "সাজানো", scene: "দৃশ্য" };
@@ -3388,6 +4052,130 @@ function setHint(step, text) {
   hintStepEl.textContent = getLang() === "en" ? (BN_DIGITS[step] ?? step) : step;
   hintTextEl.textContent = t(text);
 }
+
+// --- tool status -----------------------------------------------------------
+// One pill that always answers "what happens if I press now?". The tab strip
+// already shows which tool is armed, but only while you are looking at it —
+// and the moment that matters is the moment your eyes are on the jar. Each
+// tool gets a mode name and a verb phrase for its next action, because the
+// name alone ("moss brush") does not tell a newcomer whether to tap or drag.
+// Looked up on demand, not captured in module-scope consts. `updateFocusHud`
+// calls this during start-up, well before this point in the file is evaluated,
+// and a `const` read from up there is a TDZ throw that would take the rest of
+// main.js down with it — the same trap the phone workspace hit.
+function updateToolStatus() {
+  const toolStatusEl = document.getElementById("tool-status");
+  if (!toolStatusEl) return;
+  const toolStatusGlyphEl = document.getElementById("tool-status-glyph");
+  const toolStatusModeEl = document.getElementById("tool-status-mode");
+  const toolStatusDoesEl = document.getElementById("tool-status-does");
+  const entry = TOOL_MODES[activeTool] ?? TOOL_MODES.place;
+  let glyph = entry.glyph;
+  let mode = entry.mode;
+  let does = entry.does ?? "";
+
+  // The tweezers are three modes wearing one name, and which one you are in
+  // depends entirely on what is on them — so this is the case worth spelling
+  // out rather than just printing "place".
+  // Item names are catalog labels and the verb phrases are dictionary keys, so
+  // each half is translated on its own and only then joined — running the
+  // joined sentence through t() would miss every time and print raw Bengali
+  // into an English UI.
+  let holding = null;
+  if (activeTool === "place") {
+    if (selected.group === "base") {
+      const def = BASE_LAYERS.find((entry2) => entry2.id === selected.id);
+      mode = "বেস মোড";
+      glyph = "🪵";
+      holding = def ? tLabel(def.label) : null;
+      does = "ট্যাপ করে স্তর দাও";
+    } else if (selected.group === "decor") {
+      const def = DECORATIONS.find((entry2) => entry2.id === selected.id);
+      mode = "বসানোর মোড";
+      holding = def ? tLabel(def.label) : null;
+      does = "ট্যাপ করে বসাও";
+    } else {
+      mode = "নির্বাচনের মোড";
+      does = "জিনিস বেছে নিতে ট্যাপ করো, সরাতে টেনে নাও";
+    }
+    // An armed move overrides everything: the next press is a destination.
+    if (movePending) {
+      mode = "সরানোর মোড";
+      glyph = "✥";
+      holding = null;
+      does = "কোথায় বসাতে চাও সেখানে ট্যাপ করো";
+    } else if (hoverPiece) {
+      mode = "সরানোর মোড";
+      glyph = "✋";
+      holding = null;
+      does = "তুলতে টেনে নাও, মেনুর জন্য ট্যাপ করো";
+    }
+  }
+
+  const phrase = does ? (holding ? `${holding} — ${t(does)}` : t(does)) : "";
+  toolStatusGlyphEl.textContent = glyph;
+  toolStatusModeEl.textContent = t(mode);
+  toolStatusDoesEl.textContent = phrase;
+  toolStatusEl.classList.toggle("has-does", Boolean(phrase));
+  toolStatusEl.dataset.tool = activeTool;
+}
+
+// --- loading feedback ------------------------------------------------------
+// Counted rather than boolean: a jar rebuild and a room download can overlap,
+// and the first to finish must not clear a message the second still needs.
+let busyCount = 0;
+let busyLabel = "তোমার টেরারিয়াম তৈরি হচ্ছে…";
+
+function renderSceneLoading() {
+  const el = document.getElementById("scene-loading");
+  if (!el) return;
+  el.classList.toggle("hidden", busyCount <= 0);
+  const text = document.getElementById("scene-loading-text");
+  if (busyCount > 0 && text) text.textContent = t(busyLabel);
+}
+
+/** Mark the scene busy; returns the function that marks it done again. */
+function beginSceneLoading(label) {
+  if (label) busyLabel = label;
+  busyCount++;
+  renderSceneLoading();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    busyCount = Math.max(0, busyCount - 1);
+    renderSceneLoading();
+  };
+}
+
+/**
+ * Run slow synchronous work with the message on screen. The browser will not
+ * paint between a class change and a blocking rebuild in the same task, so the
+ * work is deferred by two frames — otherwise the message appears only after
+ * the very thing it was meant to cover has already finished.
+ */
+function withSceneLoading(label, work) {
+  const done = beginSceneLoading(label);
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      try {
+        work();
+      } finally {
+        done();
+      }
+    }),
+  );
+}
+
+studio.setBusyReporter((delta) => {
+  if (delta > 0) {
+    busyLabel = "দৃশ্য আনা হচ্ছে…";
+    busyCount++;
+  } else {
+    busyCount = Math.max(0, busyCount - 1);
+  }
+  renderSceneLoading();
+});
 
 function flashHint(text) {
   hintTextEl.textContent = t(text);
@@ -3891,6 +4679,44 @@ for (const [id, direction] of [["zoom-in", -1], ["zoom-out", 1]]) {
 }
 syncZoomButtons();
 
+// Reset: back to the framing the app opened on. Zoom, pitch and turn all drift
+// over a long session and there is no way to undo a camera, so this is the one
+// control that always gets you back to a shot you can work in.
+// --- button click sound ----------------------------------------------------
+// One delegated listener rather than a call in every handler, so a control
+// added later is audible without anyone remembering to make it so. It rides on
+// pointerdown, not click: the sound belongs to the press, and waiting for the
+// release puts it noticeably behind the button's own movement.
+//
+// Gated twice over — the ambience switch has to be on at all (that is what
+// unlocks the audio context) and the click sound has its own opt-out, because
+// wanting room tone is not the same as wanting a tick on every press.
+const CLICKABLE = [
+  ".nav-btn", ".hud-btn", ".focus-btn", ".cam-zoom-btn", ".tab", ".cat-btn",
+  ".item-chip", ".tool-row", ".social-primary", ".social-ghost", ".auth-mode",
+  ".coop-copy", ".item-act", ".quality-opt", ".tray-show", ".tray-hide",
+  ".rail-show", ".rail-hide", ".focus-tray-edge", ".cam-exit", ".theme-card",
+].join(",");
+
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (comfort.clickSound === false) return;
+    const button = event.target.closest?.(CLICKABLE);
+    if (!button) return;
+    // A press on something that cannot act is not a click.
+    if (button.disabled || button.classList.contains("is-disabled")) return;
+    playSfx("click");
+  },
+  true,
+);
+
+document.getElementById("cam-reset")?.addEventListener("click", () => {
+  studio.resetView?.();
+  syncZoomButtons();
+  flashHint("ক্যামেরা আবার আগের জায়গায়।");
+});
+
 // The phone workspace hides the rail, so the More menu needs a door inside the
 // dock or themes, settings and the gallery become unreachable there.
 const focusMoreBtn = document.getElementById("focus-more");
@@ -3917,6 +4743,9 @@ let railWasHidden = false;
 function setCameraMode(on) {
   cameraMode = on;
   cameraModeEl.classList.toggle("hidden", !on);
+  // Photo mode clears the screen down to the frame and the shutter; the tool
+  // readout is HUD like any other and goes with it.
+  document.body.classList.toggle("camera-on", on);
   document.getElementById("calm-camera")?.classList.toggle("is-active", on);
   if (on) {
     railWasHidden = document.body.classList.contains("rail-hidden");
@@ -3992,6 +4821,22 @@ document.getElementById("comfort-sound").addEventListener("change", (event) => {
   comfort.sound = event.target.checked;
   if (isPlaying() !== comfort.sound) syncSoundUi(toggleAmbience());
   persistComfort();
+});
+document.getElementById("comfort-click").addEventListener("change", (event) => {
+  comfort.clickSound = event.target.checked;
+  persistComfort();
+});
+document.querySelectorAll(".quality-opt").forEach((button) => {
+  button.addEventListener("click", () => {
+    comfort.quality = button.dataset.quality;
+    applyComfortSettings();
+    persistComfort();
+    flashHint(
+      comfort.quality === "low"
+        ? t("মসৃণ চলা চালু — ছায়া আর কণা কমানো হলো।")
+        : t("ভালো ছবি চালু — পুরো ছায়া আর কণা ফিরে এলো।"),
+    );
+  });
 });
 document.getElementById("comfort-transparency").addEventListener("change", (event) => {
   comfort.reducedTransparency = event.target.checked;

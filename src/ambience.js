@@ -98,6 +98,10 @@ export function playSfx(kind = "tap") {
     mist: [760, 980, 0.07, 0.08],
     unlock: [520, 1040, 0.3, 0.18],
     save: [360, 540, 0.12, 0.1],
+    // The button click: short, dry and quiet. It fires on almost every press,
+    // so it has to sit under the interface rather than on top of it — anything
+    // longer or louder becomes the loudest thing in the app within a minute.
+    click: [900, 1180, 0.022, 0.045],
   }[kind] ?? [360, 420, 0.08, 0.08];
   osc.type = kind === "water" || kind === "mist" ? "sine" : "triangle";
   osc.frequency.setValueAtTime(settings[0], now);

@@ -257,6 +257,35 @@ export function createStudio(canvas) {
   rim.position.set(-2, 3, -5);
   scene.add(rim);
 
+  // --- render quality ------------------------------------------------------
+  // Weaker machines can trade fidelity for a steady frame. What gets cut is
+  // everything passive — pixel density, shadow resolution, the soft-shadow
+  // filter, the rim light's second shadow pass — and never the interaction
+  // loop, because a placement that lands late is worse than one that lands
+  // ugly. Callers read `quality` back so particle counts can follow suit.
+  const DPR_CAP = () => (window.innerWidth < 700 ? 1.25 : 1.6);
+  let quality = "high";
+  function setQuality(level) {
+    quality = level === "low" ? "low" : "high";
+    const low = quality === "low";
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, low ? 1 : DPR_CAP()));
+    renderer.shadowMap.type = low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    const size = low ? 512 : 1024;
+    if (key.shadow.mapSize.x !== size) {
+      key.shadow.mapSize.set(size, size);
+      // A shadow map that has already been allocated keeps its old resolution
+      // until the texture is thrown away, so the new size only takes effect
+      // once three rebuilds it on the next frame.
+      key.shadow.map?.dispose();
+      key.shadow.map = null;
+    }
+    renderer.shadowMap.needsUpdate = true;
+    resize();
+  }
+  function getQuality() {
+    return quality;
+  }
+
   // --- the table the jar sits on ----------------------------------------
   // A small round side table rather than an endless floor: a floor plane that
   // runs to the fog swallows the lower half of the screen and buries whatever
@@ -469,14 +498,25 @@ export function createStudio(canvas) {
       placeRoom(cached, def);
       return;
     }
+    // A room model is tens of megabytes over the wire; without this the screen
+    // simply sits on the old scene for several seconds and reads as frozen.
+    busyReporter?.(1);
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      busyReporter?.(-1);
+    };
     roomLoader.load(
       `/${def.file}`,
       (gltf) => {
         roomCache.set(def.file, gltf);
+        done();
         if (token === roomToken) placeRoom(gltf, def); // still the active mood?
       },
       undefined,
       () => {
+        done();
         // model missing/failed — fall back to the neutral studio backdrop so the
         // scene never goes blank
         if (token !== roomToken) return;
@@ -486,6 +526,11 @@ export function createStudio(canvas) {
       },
     );
   }
+
+  // How the app above is told that something slow is in flight. It is a
+  // delta (+1 starting, -1 finished) rather than a boolean, so two overlapping
+  // loads cannot have the first one to finish declare the scene ready.
+  let busyReporter = null;
 
   let moodDef = null; // the active mood definition (its lights get scaled below)
   // Photo themes scale the room light so the table never out-shines the picture.
@@ -1113,6 +1158,12 @@ export function createStudio(canvas) {
   function resize() {
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
+    // The desktop/phone density cap is width-derived, so crossing the
+    // breakpoint has to re-apply it — otherwise a window dragged narrow keeps
+    // rendering at desktop density on a machine that just said it can't.
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio, quality === "low" ? 1 : DPR_CAP()),
+    );
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -1198,6 +1249,9 @@ export function createStudio(canvas) {
       direction < 0 ? camDistT > DIST_MIN + 0.01 : camDistT < DIST_MAX - 0.01,
     isCameraLocked: () => camLocked,
     setMood,
+    setBusyReporter: (fn) => (busyReporter = fn),
+    setQuality,
+    getQuality,
     setTheme,
     setBackdropCalm,
     setTable,

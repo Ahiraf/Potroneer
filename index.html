@@ -412,6 +412,11 @@
       <div class="cam-zoom" id="cam-zoom" role="group" aria-label="জুম">
         <button id="zoom-in" class="cam-zoom-btn" type="button" data-i18n-title="কাছে আনো" title="কাছে আনো" aria-label="কাছে আনো">＋</button>
         <button id="zoom-out" class="cam-zoom-btn" type="button" data-i18n-title="দূরে নাও" title="দূরে নাও" aria-label="দূরে নাও">－</button>
+        <!-- Reset lives with the zoom pair rather than only in the focus HUD:
+             getting lost is a camera problem, and this is where the camera
+             controls are. On phones main.js moves the focus centre/lock
+             buttons into this same cluster, so it keeps their shape. -->
+        <button id="cam-reset" class="cam-zoom-btn" type="button" data-i18n-title="ক্যামেরা রিসেট" title="ক্যামেরা রিসেট" aria-label="ক্যামেরা রিসেট">⌖</button>
       </div>
 
       <!-- A drawer pull on the left edge, for reaching the shelf without
@@ -457,10 +462,17 @@
       <!-- item adjuster: opens when a placed decoration is tapped -->
       <div class="cfg-panel hidden" id="item-panel">
         <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context">নির্বাচিত আইটেম</small></div><button class="hud-btn cfg-close" data-close="item-panel">✕</button></div>
+        <!-- the verbs first, then the dials. Move and duplicate are single
+             actions with no setting to them, and burying them under two
+             sliders made them read as settings too. -->
+        <div class="item-actions" role="group" aria-label="আইটেমের কাজ">
+          <button type="button" class="item-act" id="item-move"><span class="item-act-ico" aria-hidden="true">✥</span><span data-i18n="সরাও">সরাও</span></button>
+          <button type="button" class="item-act" id="item-dupe"><span class="item-act-ico" aria-hidden="true">⧉</span><span data-i18n="নকল করো">নকল করো</span></button>
+          <button type="button" class="item-act item-act--danger" id="item-del"><span class="item-act-ico" aria-hidden="true">🗑</span><span data-i18n="মুছে ফেলো">মুছে ফেলো</span></button>
+        </div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="সাইজ">সাইজ</span><input id="item-size" type="range" min="30" max="220" value="100" /></div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="ঘোরাও">ঘোরাও</span><input id="item-rot" type="range" min="0" max="360" value="0" /></div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="রং">রং</span><div class="swatches" id="item-swatches"></div></div>
-        <button id="item-del" class="cfg-del">🗑 <span data-i18n="মুছে ফেলো">মুছে ফেলো</span></button>
       </div>
 
       <!-- gallery modal -->
@@ -698,8 +710,19 @@
           <label class="comfort-row"><span data-i18n="UI স্বচ্ছতা">UI স্বচ্ছতা</span><input id="comfort-opacity" type="range" min="55" max="100" value="88" /></label>
           <label class="comfort-row"><span data-i18n="লেখার আকার">লেখার আকার</span><input id="comfort-text" type="range" min="100" max="200" step="10" value="100" /></label>
 
+          <div class="comfort-group" data-i18n="পারফরম্যান্স">পারফরম্যান্স</div>
+          <div class="comfort-row comfort-row--stack">
+            <span data-i18n="ছবির মান">ছবির মান</span>
+            <div class="quality-choice" id="quality-choice" role="radiogroup" aria-label="ছবির মান">
+              <button type="button" class="quality-opt" data-quality="high" role="radio" aria-checked="true" data-i18n="ভালো ছবি">ভালো ছবি</button>
+              <button type="button" class="quality-opt" data-quality="low" role="radio" aria-checked="false" data-i18n="মসৃণ চলা">মসৃণ চলা</button>
+            </div>
+          </div>
+          <p class="comfort-note" id="quality-note" data-i18n="দুর্বল ডিভাইসে ছায়া আর কণা কমিয়ে দেয় — বসানো আর টানা একই রকম মসৃণ থাকে।">দুর্বল ডিভাইসে ছায়া আর কণা কমিয়ে দেয় — বসানো আর টানা একই রকম মসৃণ থাকে।</p>
+
           <div class="comfort-group" data-i18n="শব্দ">শব্দ</div>
           <label class="comfort-row"><span data-i18n="শব্দ">শব্দ</span><input id="comfort-sound" type="checkbox" /></label>
+          <label class="comfort-row"><span data-i18n="বোতামের ক্লিক">বোতামের ক্লিক</span><input id="comfort-click" type="checkbox" checked /></label>
 
           <button id="comfort-camera" class="social-primary" data-i18n="ক্যামেরা শান্ত করো">ক্যামেরা শান্ত করো</button>
         </div>
@@ -729,6 +752,21 @@
 
       <!-- left tool list (contents depend on the active tab) -->
       <aside class="hud-tools" id="tool-items"></aside>
+
+      <!-- "something slow is happening" — shown while a scene or model loads -->
+      <div class="scene-loading hidden" id="scene-loading" role="status" aria-live="polite">
+        <span class="scene-loading-spin" aria-hidden="true"></span>
+        <span class="scene-loading-text" id="scene-loading-text" data-i18n="তোমার টেরারিয়াম তৈরি হচ্ছে…">তোমার টেরারিয়াম তৈরি হচ্ছে…</span>
+      </div>
+
+      <!-- active-tool readout: what a press will do, always on screen -->
+      <aside class="tool-status" id="tool-status" aria-live="polite">
+        <span class="tool-status-glyph" id="tool-status-glyph">🥢</span>
+        <span class="tool-status-body">
+          <strong class="tool-status-mode" id="tool-status-mode">বসানোর মোড</strong>
+          <span class="tool-status-does" id="tool-status-does"></span>
+        </span>
+      </aside>
 
       <!-- hint pill -->
       <aside class="hint" id="hint">

@@ -4394,3 +4394,454 @@ body.focus-tray-open .cam-zoom {
     width: 100%;
   }
 }
+
+/* --- Performance mode ------------------------------------------------------
+   Two named budgets rather than a row of sliders: nobody wants to tune a
+   shadow map, they want the jar to stop stuttering. The segmented pair reads
+   as one choice with one answer, and the note under it says what is actually
+   traded so the cheaper option is not mistaken for a worse app. */
+.comfort-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.quality-choice {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--hud-border);
+  border-radius: 10px;
+}
+.quality-opt {
+  flex: 1;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: calc(12px * var(--text-scale));
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.08s ease;
+}
+.quality-opt:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+.quality-opt:active {
+  transform: scale(0.97);
+}
+.quality-opt.is-active {
+  background: var(--green);
+  color: #10180f;
+  font-weight: 600;
+}
+.quality-opt:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.comfort-note {
+  margin: 8px 0 2px;
+  color: var(--ink-dim);
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.45;
+}
+
+/* Smooth-performance mode. The expensive things here are the ones that are
+   always on screen doing nothing in particular: the blurs behind every HUD
+   plate, and the ambient loops that animate whether or not anyone is looking.
+   Interaction feedback — press states, placement bounces, the drag shadow —
+   is deliberately left alone, because that is the part people feel. */
+body.perf-low .hud-plate,
+body.perf-low .cfg-panel,
+body.perf-low .comfort-card,
+body.perf-low .rail,
+body.perf-low .focus-hud {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+body.perf-low .toast,
+body.perf-low .tray {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+body.perf-low *,
+body.perf-low *::before,
+body.perf-low *::after {
+  /* Long ambient loops (drifting glows, breathing pulses) stop; short
+     transitions are untouched, so buttons still answer a press. */
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+}
+body.perf-low .toast,
+body.perf-low .float-text,
+body.perf-low .confetti,
+body.perf-low .impact,
+body.perf-low .fly-ghost,
+body.perf-low .place-pop,
+body.perf-low .bump {
+  /* …except the feedback animations, which are the whole point of the app
+     answering you. These are short, one-shot, and cheap. */
+  animation-duration: revert !important;
+  animation-iteration-count: revert !important;
+}
+
+/* --- Active tool readout ---------------------------------------------------
+   The tab strip already says which tool is armed, but only to someone looking
+   at the tab strip — and while you are building, your eyes are on the glass.
+   This pill sits at the edge of that gaze, naming the mode and, under it, the
+   thing the very next press will do. It is deliberately not a button: nothing
+   here is clickable, so it never competes with the controls around it. */
+.tool-status {
+  position: absolute;
+  left: var(--tray-x);
+  bottom: 56px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(340px, 52vw);
+  padding: 7px 14px 7px 8px;
+  background: var(--hud-strong);
+  border: 1px solid var(--hud-border);
+  border-radius: 999px;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.tool-status-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.26);
+  font-size: calc(14px * var(--text-scale));
+  line-height: 1;
+}
+.tool-status-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.tool-status-mode {
+  color: var(--ink);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.tool-status-does {
+  color: var(--ink-dim);
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-status:not(.has-does) .tool-status-does {
+  display: none;
+}
+/* The move mode is the one that says "you are about to disturb something
+   already planted", so it is the one that gets a colour. */
+.tool-status .tool-status-glyph {
+  transition: background 0.16s ease;
+}
+
+/* --- Scene loading ---------------------------------------------------------
+   Not a full-screen blocker: the jar you already have stays visible and the
+   message admits what is happening beside it. A curtain over a scene that is
+   only half a second from ready is more disruptive than the wait. */
+.scene-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 40;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  background: var(--hud-strong);
+  border: 1px solid var(--hud-border);
+  border-radius: 999px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+  font-size: calc(12.5px * var(--text-scale));
+  pointer-events: none;
+}
+.scene-loading.hidden {
+  display: none;
+}
+.scene-loading-spin {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: scene-spin 0.8s linear infinite;
+}
+@keyframes scene-spin {
+  to { transform: rotate(360deg); }
+}
+/* Reduced motion and low-power both keep the message and drop the spin: the
+   words are the information, the rotation was only decoration. */
+body.reduced-motion .scene-loading-spin,
+body.perf-low .scene-loading-spin {
+  animation: none;
+  border-top-color: var(--green);
+  opacity: 0.7;
+}
+
+/* In focus mode the tray column it measures off is gone, so the pill centres
+   over the dock like the hint does — and it sits one step higher so the two
+   stack rather than overlap on the rare frame where both are up. */
+body.focus-mode .tool-status {
+  left: 0;
+  right: 0;
+  bottom: 132px;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 28px));
+  margin-inline: auto;
+}
+body.is-phone.focus-mode .tool-status {
+  bottom: calc(var(--dock-h, 96px) + 54px + env(safe-area-inset-bottom));
+}
+/* Photo mode clears the screen of everything but the frame and the shutter;
+   a mode readout over a photograph is exactly the thing it is clearing. */
+body.camera-on .tool-status,
+body.rail-hidden:not(.focus-mode) .tool-status {
+  opacity: 0;
+  transform: translateY(6px);
+}
+@media (max-width: 700px) {
+  .tool-status {
+    max-width: calc(100vw - var(--tray-x) - 12px);
+  }
+}
+
+/* --- "Release to place" ----------------------------------------------------
+   Rides above the fingertip during a touch pour. It is translated up by its
+   own height rather than positioned by its top edge, so the chip's tail sits
+   at the coordinate main.js hands it whatever the text scale does to its
+   size — and it never intercepts the very gesture it is describing. */
+.release-hint {
+  position: fixed;
+  z-index: 60;
+  padding: 6px 12px;
+  transform: translate(-50%, -100%) scale(0.92);
+  background: rgba(24, 34, 24, 0.94);
+  border: 1px solid rgba(127, 208, 127, 0.55);
+  border-radius: 999px;
+  color: #e8f3e2;
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.14s ease, transform 0.14s ease, border-color 0.14s ease,
+    background 0.14s ease;
+}
+.release-hint.is-on {
+  opacity: 1;
+  transform: translate(-50%, -100%) scale(1);
+}
+.release-hint.is-invalid {
+  background: rgba(46, 24, 22, 0.94);
+  border-color: rgba(216, 115, 107, 0.6);
+  color: #f6ded9;
+}
+body.reduced-motion .release-hint {
+  transition: opacity 0.1s linear;
+  transform: translate(-50%, -100%);
+}
+body.reduced-motion .release-hint.is-on {
+  transform: translate(-50%, -100%);
+}
+
+/* --- Item action menu ------------------------------------------------------
+   The verbs sit above the dials. Move, duplicate and delete each happen once
+   and are done; size, rotation and colour are things you sit and adjust. Mixing
+   them into one list made the two kinds of control look alike, and delete —
+   the only irreversible-looking one — was the least distinct of all. */
+.item-actions {
+  display: flex;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+.item-act {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 52px;
+  padding: 7px 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hud-border);
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: calc(10.5px * var(--text-scale));
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.13s ease, border-color 0.13s ease, transform 0.07s ease,
+    box-shadow 0.13s ease;
+}
+.item-act-ico {
+  font-size: calc(15px * var(--text-scale));
+  line-height: 1;
+}
+.item-act:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--accent, #6d9e4f);
+}
+.item-act:active {
+  transform: translateY(1px) scale(0.97);
+  background: rgba(255, 255, 255, 0.16);
+}
+.item-act:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.item-act--danger {
+  color: #f3c9c2;
+}
+.item-act--danger:hover {
+  background: rgba(200, 90, 78, 0.22);
+  border-color: rgba(216, 115, 107, 0.75);
+}
+.item-act--danger:active {
+  background: rgba(200, 90, 78, 0.3);
+}
+
+/* While a move is armed the cursor is carrying something, and the jar is the
+   only thing on screen that can receive it. */
+body.move-armed #scene {
+  cursor: crosshair;
+}
+
+/* --- Press feedback --------------------------------------------------------
+   One press treatment for every button in the app. Before this, some controls
+   dipped when pressed, some changed colour, and a good half did nothing at
+   all — so whether the app had heard you depended on which button you happened
+   to hit. The move is deliberately small: a 2% dip, a step down in shadow and
+   a lift in surface tone, all inside 80ms, which is short enough that it reads
+   as the button giving way under the finger rather than as an animation.
+
+   It is one selector list rather than a rule per class so that the treatment
+   cannot drift apart again. Buttons that need something extra (the danger red
+   on delete, the shutter's ring) still layer their own on top. */
+.nav-btn,
+.hud-btn,
+.focus-btn,
+.cam-zoom-btn,
+.tab,
+.cat-btn,
+.item-chip,
+.tool-row,
+.social-primary,
+.social-ghost,
+.auth-mode,
+.coop-copy,
+.item-act,
+.quality-opt,
+.tray-show,
+.tray-hide,
+.rail-show,
+.rail-hide,
+.sound-toggle,
+.focus-tray-edge,
+.cam-exit,
+.intro-start {
+  /* Shadow and transform join whatever transition the control already had. */
+  transition-property: background, color, border-color, transform, box-shadow, opacity;
+  transition-duration: 0.08s, 0.12s, 0.12s, 0.08s, 0.12s, 0.12s;
+  transition-timing-function: ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-btn:active,
+.hud-btn:active,
+.focus-btn:active,
+.cam-zoom-btn:active,
+.tab:active,
+.cat-btn:active,
+.item-chip:active,
+.tool-row:active,
+.social-primary:active,
+.social-ghost:active,
+.auth-mode:active,
+.coop-copy:active,
+.item-act:active,
+.quality-opt:active,
+.tray-show:active,
+.tray-hide:active,
+.rail-show:active,
+.rail-hide:active,
+.sound-toggle:active,
+.focus-tray-edge:active,
+.cam-exit:active,
+.intro-start:active {
+  /* Down and slightly in — the shadow shrinking with it is what sells the
+     press as the control moving toward the surface rather than just shrinking. */
+  transform: translateY(1px) scale(0.975);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28) !important;
+  filter: brightness(1.08);
+}
+/* A disabled control must not pretend to depress — that is the one press that
+   genuinely did nothing, and saying otherwise is worse than saying nothing. */
+.nav-btn:disabled:active,
+.hud-btn:disabled:active,
+.focus-btn:disabled:active,
+.cam-zoom-btn:disabled:active,
+.item-act:disabled:active,
+.social-primary:disabled:active,
+.intro-start:disabled:active,
+.is-disabled:active {
+  transform: none;
+  filter: none;
+  box-shadow: none !important;
+}
+/* Reduced motion keeps the colour shift and drops the movement: the press is
+   still answered, it just stops moving under the finger. */
+body.reduced-motion .nav-btn:active,
+body.reduced-motion .hud-btn:active,
+body.reduced-motion .focus-btn:active,
+body.reduced-motion .cam-zoom-btn:active,
+body.reduced-motion .tab:active,
+body.reduced-motion .cat-btn:active,
+body.reduced-motion .item-chip:active,
+body.reduced-motion .tool-row:active,
+body.reduced-motion .social-primary:active,
+body.reduced-motion .item-act:active,
+body.reduced-motion .quality-opt:active {
+  transform: none;
+}
+
+/* --- Scroll containment ----------------------------------------------------
+   `overflow: hidden` on html/body stops the page scrolling, but it does not
+   stop iOS rubber-banding the whole app when a drag inside the jar runs past
+   the edge of the screen — which is exactly what a long placement drag does.
+   `overscroll-behavior: none` is what stops that, and `contain` on the two
+   scrollable columns keeps a flick that reaches the end of the shelf from
+   chaining out into the page behind it. */
+html,
+body {
+  overscroll-behavior: none;
+}
+.strip,
+.hud-bottom,
+.tray,
+.gal-grid,
+.theme-panel,
+.more-menu,
+.comfort-card {
+  overscroll-behavior: contain;
+}
