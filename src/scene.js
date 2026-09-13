@@ -630,14 +630,18 @@ export function createStudio(canvas) {
     const w = Math.max(960, Math.round(canvas.clientWidth || window.innerWidth));
     const h = Math.max(600, Math.round(canvas.clientHeight || window.innerHeight));
     const c = document.createElement("canvas");
-    // The picture is sharp now, so give it every pixel the source has rather
-    // than the viewport's — it hangs on a wall the camera can lean toward, and
-    // a Retina panel asks for two device pixels per CSS pixel before it even
-    // gets there. Capped at 3072: past that the canvas costs more memory than
-    // the extra detail is worth, and no source here exceeds it after cropping.
-    const want = Math.max(w * Math.min(window.devicePixelRatio || 1, 2), img.width);
-    c.width = Math.round(Math.min(3072, want));
+    // Give it every pixel the source has, and not one more: the photograph is
+    // the ceiling on detail, so enlarging a 2560px source into a 3072px canvas
+    // buys nothing but megabytes. How much of it reaches the screen is
+    // fitBackdrop's business, not this function's.
+    c.width = Math.round(clamp(img.width, 960, 3072));
     c.height = Math.round(c.width * (h / w));
+    // A tall, narrow window would otherwise ask for a canvas taller than it is
+    // wide by a long way; cap the long edge and let the short one follow.
+    if (c.height > 3072) {
+      c.width = Math.round(c.width * (3072 / c.height));
+      c.height = 3072;
+    }
     const ctx = c.getContext("2d");
 
     const bright = backdropBrightness(theme);
@@ -1072,33 +1076,115 @@ export function createStudio(canvas) {
   // picture in both axes, so every backdrop arrived cropped into a detail of
   // itself. At 1.15 roughly 87% of the photo is on screen — nearly double the
   // area — and there is still enough spare wall for the parallax sway.
-  const SHELL_OVERSCAN = 1.15;
+  // Margin of real picture around the frame, so that moving the eye after the
+  // fit — dollying, raising or lowering it, easing it toward the cursor — does
+  // not run off the photo into stretched edge pixels. The binding case is
+  // dollying all the way out, which widens the shot by about a tenth; the fit
+  // is deliberately not redone on zoom, because a backdrop that resizes itself
+  // as you dolly stops reading as a wall at a distance and starts reading as
+  // wallpaper stuck to the lens. So this is that tenth, and no more: 1.15 was
+  // paying for drift the camera cannot actually make.
+  const SHELL_OVERSCAN = 1.1;
+  const SHELL_THETA0 = Math.PI - SHELL_ARC / 2;
+
+  // Where a ray lands on the shell, in the geometry's own uv. The shell counts
+  // as an infinite cylinder here: every ray from an eye inside it meets the far
+  // wall exactly once going forward.
+  function shellUV(ox, oy, oz, dx, dy, dz) {
+    const a = dx * dx + dz * dz;
+    if (a < 1e-9) return null; // straight up or down the axis
+    const b = 2 * (ox * dx + oz * dz);
+    const c = ox * ox + oz * oz - SHELL_R * SHELL_R;
+    const disc = b * b - 4 * a * c;
+    if (disc <= 0) return null;
+    const t = (-b + Math.sqrt(disc)) / (2 * a);
+    if (t <= 0) return null;
+    const x = ox + dx * t;
+    const y = oy + dy * t;
+    const z = oz + dz * t;
+    // CylinderGeometry lays u along theta measured as atan2(x, z) from
+    // thetaStart; unwrap so the arc reads 0..1 across the wall.
+    let th = Math.atan2(x, z);
+    while (th < SHELL_THETA0) th += Math.PI * 2;
+    return { u: (th - SHELL_THETA0) / SHELL_ARC, v: (y + SHELL_H / 2) / SHELL_H };
+  }
+
+  // Fit the backdrop image to the frame the camera has *right now*, then leave
+  // it there. Re-fitting every frame would glue the picture back to the lens
+  // and undo the parallax; this only runs when the frame itself changes (a new
+  // backdrop, a resize, a different vessel to frame).
+  //
+  // This used to size the fit by pretending the shell were a flat wall at
+  // `SHELL_R + camDistT` and asking how much of it the lens covered. On a
+  // cylinder that is wrong in both axes, and wrong by different amounts: the
+  // corners of the frame look further round the curve than its centre does. The
+  // measured cost was that only 81% of the picture arrived across and 73% of it
+  // down — so every backdrop hung as a blown-up detail of itself, worst on the
+  // busy, finely patterned photographs that had the most to lose.
+  //
+  // So ask the shell instead of guessing: cast the frame's corners, edges and
+  // centre at it, and take the box they actually land in.
+  const FIT_TAPS = [-1, 0, 1];
   function fitBackdrop() {
     const tex = shellMat.map;
     if (!tex) return;
-    // Distance to the wall along the middle of the shot, and how much of the
-    // wall that covers.
-    const d = SHELL_R + camDistT;
-    const vfov = (camera.fov * Math.PI) / 180;
-    const visH = 2 * Math.tan(vfov / 2) * d;
-    const visW = visH * camera.aspect;
-    // Where the middle of the shot lands on the wall: the eye is above the
-    // table looking slightly down, so it is well below the horizon.
-    // Where the eye is heading, not where it started: the pitch the user has
-    // dragged to decides how far down the wall the middle of the shot lands.
+    // The eye this fit is *for* is the one the camera is heading toward — the
+    // target dolly and pitch — not wherever the easing has reached this frame.
     const elev = clamp(camBaseElev + target.x, ELEV_MIN, ELEV_MAX);
-    const camY = Math.sin(elev) * camDistT;
-    const centreY = camY + ((lookAtY - camY) / Math.max(camDistT, 0.001)) * d;
+    const ce = Math.cos(elev);
+    const ox = camFlat.x * ce * camDistT;
+    const oy = Math.sin(elev) * camDistT;
+    const oz = camFlat.z * ce * camDistT;
+    // Camera basis, built the way camera.lookAt builds it.
+    let fx0 = -ox;
+    let fy0 = lookAtY - oy;
+    let fz0 = -oz;
+    const fl = Math.hypot(fx0, fy0, fz0) || 1;
+    fx0 /= fl; fy0 /= fl; fz0 /= fl;
+    // right = forward x worldUp, with worldUp (0,1,0)
+    let rx = -fz0;
+    let rz = fx0;
+    const rl = Math.hypot(rx, rz) || 1;
+    rx /= rl; rz /= rl;
+    // up = right x forward
+    const ux = -rz * fy0;
+    const uy = rz * fx0 - rx * fz0;
+    const uz = rx * fy0;
 
-    const fx = clamp((visW * SHELL_OVERSCAN) / (SHELL_R * SHELL_ARC), 0.02, 1);
-    const fy = clamp((visH * SHELL_OVERSCAN) / SHELL_H, 0.02, 1);
-    const vc = clamp((centreY + SHELL_H / 2) / SHELL_H, fy / 2, 1 - fy / 2);
+    const th = Math.tan(((camera.fov * Math.PI) / 180) / 2);
+    const tw = th * camera.aspect;
+    let uMin = Infinity;
+    let uMax = -Infinity;
+    let vMin = Infinity;
+    let vMax = -Infinity;
+    for (const sy of FIT_TAPS) {
+      for (const sx of FIT_TAPS) {
+        const hit = shellUV(
+          ox, oy, oz,
+          fx0 + rx * sx * tw + ux * sy * th,
+          fy0 + uy * sy * th,
+          fz0 + rz * sx * tw + uz * sy * th,
+        );
+        if (!hit) continue;
+        if (hit.u < uMin) uMin = hit.u;
+        if (hit.u > uMax) uMax = hit.u;
+        if (hit.v < vMin) vMin = hit.v;
+        if (hit.v > vMax) vMax = hit.v;
+      }
+    }
+    if (!(uMax > uMin) || !(vMax > vMin)) return; // degenerate — keep the last fit
+
+    const uc = (uMin + uMax) / 2;
+    const vc = (vMin + vMax) / 2;
+    const uHalf = ((uMax - uMin) / 2) * SHELL_OVERSCAN;
+    const vHalf = ((vMax - vMin) / 2) * SHELL_OVERSCAN;
+
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
     // u runs from screen-right to screen-left around the arc, so the picture
     // goes on backwards unless the horizontal repeat is negative.
-    tex.repeat.set(-1 / fx, 1 / fy);
-    tex.offset.set(0.5 / fx + 0.5, 0.5 - vc / fy);
+    tex.repeat.set(-0.5 / uHalf, 0.5 / vHalf);
+    tex.offset.set(0.5 - uc * tex.repeat.x, 0.5 - vc * tex.repeat.y);
     tex.needsUpdate = true;
   }
 
