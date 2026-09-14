@@ -860,8 +860,13 @@ export function createStudio(canvas) {
    */
   const VIEWS = {
     "three-quarter": { x: 0.05, y: 0.4, fill: 0.76 },
-    front: { x: 0.02, y: 0, fill: 0.78 },
-    side: { x: 0.02, y: Math.PI / 2, fill: 0.78 },
+    // Slightly above the tabletop rather than level with it. At table height
+    // the eye sees along the backdrop's lower edge, where the photograph runs
+    // out and its last row of pixels stretches away — a pale band under the
+    // jar that is not part of the room. A few degrees up is also the better
+    // shot: it reads layer thickness *and* keeps the surface in view.
+    front: { x: 0.18, y: 0, fill: 0.78 },
+    side: { x: 0.18, y: Math.PI / 2, fill: 0.78 },
     // Pitch is resolved at call time: it is measured from the camera's base
     // elevation, which is declared further down this function. Reading it here
     // would be a TDZ throw during setup — the failure mode that takes the whole
