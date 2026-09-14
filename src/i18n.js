@@ -85,6 +85,7 @@ const EN = {
   "জার ভরে গেছে — নকল করা গেল না।": "This garden is full \u2014 nothing to duplicate into.",
   "ছেড়ে দিলে বসে যাবে": "Release to place",
   "এখানে বসবে না": "Can\u2019t place here",
+  "জারের ভেতরে নিয়ে এসো": "Move inside the jar",
   "বসানোর মোড": "Place mode",
   "নির্বাচনের মোড": "Select mode",
   "সরানোর মোড": "Move mode",

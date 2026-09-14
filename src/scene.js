@@ -839,7 +839,7 @@ export function createStudio(canvas) {
   function resetView() {
     target.x = 0.05;
     target.y = 0.4;
-    frameJar(framed.centerY, framed.height);
+    frameJar(framed.centerY, framed.height, { radius: framed.radius ?? 0 });
     markInteraction();
   }
 
@@ -996,11 +996,32 @@ export function createStudio(canvas) {
   // camera's axis and backs off just far enough to leave a margin around it.
   let lookAtY = 0.1;
   let framed = { centerY: 0.1, height: 3.0 };
-  function frameJar(centerY, height, { fill = 0.76, animate = true } = {}) {
-    framed = { centerY, height };
+  /**
+   * Frame the shot on a vessel of this height and this horizontal reach.
+   *
+   * `radius` is the widest the vessel gets from its own axis in the XZ plane.
+   * It used to be ignored entirely: the distance was solved from height alone,
+   * which frames an upright jar correctly and crops everything that is wider
+   * than it is tall. A glass house lost its eaves and a bottle on its side ran
+   * off both edges of the screen. The turntable makes this worse, not better,
+   * because the widest silhouette arrives part-way through a spin — so the fit
+   * uses the vessel's greatest horizontal extent, not the one facing us now.
+   */
+  function frameJar(centerY, height, { fill = 0.76, animate = true, radius = 0 } = {}) {
+    framed = { centerY, height, radius };
     lookAtY = centerY;
     const vfov = (camera.fov * Math.PI) / 180;
-    const dist = height / (2 * fill * Math.tan(vfov / 2));
+    const tanV = Math.tan(vfov / 2);
+    const tanH = tanV * camera.aspect;
+    // Whichever axis runs out of room first decides the distance — and then
+    // the vessel's own depth is added on top, because that distance frames the
+    // shot at the *centre* of the jar while the corner nearest the lens sits a
+    // radius closer and therefore projects larger. Without this the front-lower
+    // corner of a wide vessel hangs off the bottom of the screen even though
+    // the arithmetic says it fits.
+    const distV = height / (2 * fill * tanV);
+    const distH = radius > 0 ? radius / (fill * tanH) : 0;
+    const dist = Math.max(distV, distH) + radius;
     camDistT = clamp(dist, DIST_MIN, DIST_MAX);
     if (!animate) camDist = camDistT;
     // A shallow bowl and a tall bell jar are shot from different distances, so

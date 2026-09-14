@@ -300,16 +300,33 @@ export function sculpt(state, x, z, amount, radius = 0.3, falloff = 0.8) {
   }
 }
 
-// Total height of substrate stacked so far.
+// The substrate rests a hair above the jar's inner floor rather than on it.
+// Two coincident surfaces at exactly floorY z-fight, and which one wins varies
+// with the camera — so the bottom of a jar flickered between glass and gravel.
+// This is the one place the stack's base is defined; everything that asks
+// where the substrate starts asks substrateBase(), so the layers, the terrain
+// cap, the pick plane and the placement marker cannot end up on different
+// floors.
+export const FLOOR_GAP = 0.006;
+
+/** Bottom of the first layer: the jar's floor plus that gap. */
+export function substrateBase() {
+  return JAR.floorY + FLOOR_GAP;
+}
+
+// Top of the stack. Each layer sits on the one below:
+//   layer 0 bottom = substrateBase()
+//   layer n bottom = layer n-1 top
+//   layer n top    = layer n bottom + layer n height
 export function substrateTop(state) {
   const h = state.layers.reduce((sum, l) => sum + l.height, 0);
-  return JAR.floorY + h;
+  return substrateBase() + h;
 }
 
 // How much headroom is left before layers would reach the jar shoulder.
 export function remainingHeight(state) {
-  const used = substrateTop(state) - JAR.floorY;
-  return JAR.bodyHeight - used;
+  const used = substrateTop(state) - substrateBase();
+  return JAR.bodyHeight - FLOOR_GAP - used;
 }
 
 export function addLayer(state, typeId) {

@@ -1148,6 +1148,14 @@ function makeGlassMaterial(envMap) {
     envMap: envMap || null,
     envMapIntensity: 1.15,
     transparent: true,
+    // Glass does not occlude what is inside it. Transmissive materials are
+    // rendered in their own pass *before* the transparent one, so a pane that
+    // writes depth culls every transparent thing behind it — which meant the
+    // dust motes and the base placement marker were both invisible inside the
+    // very jar they belong to, with no way to order around it. Opaque contents
+    // (substrate, decorations) still occlude the glass correctly, because they
+    // are drawn first and the glass still depth-*tests*.
+    depthWrite: false,
     side: THREE.DoubleSide,
     clearcoat: 0.5,
     clearcoatRoughness: 0.06,

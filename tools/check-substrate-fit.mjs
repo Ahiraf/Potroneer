@@ -22,7 +22,7 @@ import {
   geoFootprint,
   buildJar,
 } from "../src/jar.js";
-import { setJarInterior } from "../src/state.js";
+import { setJarInterior, substrateBase } from "../src/state.js";
 import { buildLayer } from "../src/builders.js";
 
 const LAYERS = [
@@ -73,7 +73,8 @@ for (const type of JAR_TYPES) {
   setJarInterior(it, jarInnerSilhouette(type.id, it), jarSectionFor(type.id, it, panes));
   slowest = Math.max(slowest, Date.now() - t0);
 
-  let y = it.floorY;
+  // Same base the app stacks from — a hair above the jar floor, not on it.
+  let y = substrateBase();
   let worst = -Infinity;
   let worstY = null;
   LAYERS.forEach((spec, i) => {

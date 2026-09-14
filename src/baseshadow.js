@@ -23,15 +23,53 @@ const INVALID = 0xd8736b;
 // construction, not by two pieces of code agreeing to be careful.
 const PREVIEW_MARGIN = 0.022;
 
-/** Points around the jar's interior at height `y`, pulled in to `k` of full. */
-function footprintPoints(y, k = 1, segments = 72) {
-  const points = [];
+/**
+ * The interior boundary at height `y`, as a flat ring of world XZ points.
+ *
+ * Everything here lives in the horizontal plane already — no geometry is built
+ * in XY and rotated down afterwards. That rotation was the source of two bugs
+ * at once: the outline never got it, so it stood up as a vertical hoop around
+ * the jar; and the fill that did get it came out mirrored, because rotating
+ * −90° about X sends (x, y, 0) to (x, 0, −y), not (x, 0, y). A symmetric jar
+ * hid the mirror. An asymmetric one (kite, wedge) would not have.
+ */
+function footprintRing(y, k = 1, segments = 72) {
+  const pts = [];
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2;
     const [x, z] = jarPointAt(y, a, k, PREVIEW_MARGIN);
-    points.push(new THREE.Vector2(x, z));
+    pts.push(x, z);
   }
-  return points;
+  return pts;
+}
+
+/** A filled disc of that ring, as a triangle fan about the centre, in XZ. */
+function ringFillGeometry(ring) {
+  const n = ring.length / 2;
+  const pos = new Float32Array((n + 1) * 3); // centre + ring
+  for (let i = 0; i < n; i++) {
+    pos[(i + 1) * 3] = ring[i * 2];
+    pos[(i + 1) * 3 + 2] = ring[i * 2 + 1];
+  }
+  const idx = [];
+  for (let i = 0; i < n; i++) idx.push(0, 1 + ((i + 1) % n), 1 + i);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  return g;
+}
+
+/** The same ring as a closed outline, in XZ. */
+function ringEdgeGeometry(ring) {
+  const n = ring.length / 2;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = ring[i * 2];
+    pos[i * 3 + 2] = ring[i * 2 + 1];
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return g;
 }
 
 /** A soft radial falloff, so the marker reads as light on the ground. */
@@ -53,32 +91,43 @@ export function createBaseShadow() {
   group.name = "baseShadow";
   group.visible = false;
 
+  // The marker is depth-tested like anything else in the room. It used to be
+  // drawn with depthTest off so it could never be hidden — which meant a wide,
+  // bright outline painted itself over the table, the jar and whatever else
+  // was in front of it, reading as a hoop floating in the scene rather than as
+  // a mark on the substrate. depthWrite stays off so it does not occlude the
+  // things it lies against, and polygonOffset lifts it off the surface it sits
+  // a few millimetres above without letting them z-fight.
+  const surfaceMaterial = (opts) =>
+    new THREE.MeshBasicMaterial({
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+      side: THREE.DoubleSide,
+      ...opts,
+    });
+
   // The filled silhouette: the layer's actual footprint, laid flat.
   const fill = new THREE.Mesh(
-    new THREE.ShapeGeometry(new THREE.Shape(footprintPoints(0))),
-    new THREE.MeshBasicMaterial({
-      color: VALID,
-      transparent: true,
-      opacity: 0.22,
-      depthWrite: false,
-      depthTest: false,
-      side: THREE.DoubleSide,
-    }),
+    ringFillGeometry(footprintRing(0)),
+    surfaceMaterial({ color: VALID, opacity: 0.22 }),
   );
-  fill.rotation.x = -Math.PI / 2;
   fill.renderOrder = 3;
   group.add(fill);
 
   // Its edge, drawn brighter — a filled shape alone at this opacity reads as a
   // stain on the substrate rather than as a boundary.
   const edge = new THREE.LineLoop(
-    new THREE.BufferGeometry(),
+    ringEdgeGeometry(footprintRing(0)),
     new THREE.LineBasicMaterial({
       color: VALID,
       transparent: true,
       opacity: 0.9,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
     }),
   );
   edge.renderOrder = 4;
@@ -95,9 +144,14 @@ export function createBaseShadow() {
       transparent: true,
       opacity: 0.8,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
     }),
   );
+  // A symmetric quad, so rotating it down carries no mirror the way a shaped
+  // outline would.
   dot.rotation.x = -Math.PI / 2;
   dot.renderOrder = 5;
   group.add(dot);
@@ -111,13 +165,11 @@ export function createBaseShadow() {
 
   /** Rebuild the outline for a new settle height (or a new vessel shape). */
   function reshape(y) {
-    const points = footprintPoints(y);
+    const ring = footprintRing(y);
     fill.geometry.dispose();
-    fill.geometry = new THREE.ShapeGeometry(new THREE.Shape(points));
+    fill.geometry = ringFillGeometry(ring);
     edge.geometry.dispose();
-    edge.geometry = new THREE.BufferGeometry().setFromPoints(
-      points.map((p) => new THREE.Vector3(p.x, p.y, 0)),
-    );
+    edge.geometry = ringEdgeGeometry(ring);
     shapeY = y;
   }
 
@@ -183,8 +235,10 @@ export function createBaseShadow() {
     const breath = calm ? 1 : 1 + Math.sin(now * 0.0035) * 0.012;
     const flare = calm ? 1 : 1 + released * 0.09;
     const s = breath * flare;
-    fill.scale.set(s, s, 1);
-    edge.scale.set(s, s, 1);
+    // Both live in XZ now, so the swell is in X and Z — scaling Y would lift
+    // the marker off the surface instead of widening it.
+    fill.scale.set(s, 1, s);
+    edge.scale.set(s, 1, s);
     fill.material.opacity = (valid ? 0.22 : 0.3) * shown;
     edge.material.opacity = (valid ? 0.9 : 0.95) * shown * (1 - released * 0.35);
     const d =

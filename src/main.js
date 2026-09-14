@@ -31,6 +31,7 @@ import {
   addLayer,
   addDecoration,
   reset as resetState,
+  substrateBase,
   substrateTop,
   hasBase,
   remainingHeight,
@@ -41,6 +42,7 @@ import {
   paintMaterial,
   jarRadiusAt,
   clampInsideAt,
+  insideJarAt,
   jarPointAt,
   jarReach,
   JAR,
@@ -399,7 +401,7 @@ function setJar(typeId) {
   jarDoor = built.door ?? null;
   studio.world.add(jarGroup);
 
-  pickPlane = buildPickPlane(JAR.floorY);
+  pickPlane = buildPickPlane(substrateBase());
   studio.world.add(pickPlane);
   baseShadow.invalidate(); // a new vessel means a new footprint to trace
 
@@ -428,7 +430,23 @@ function setJar(typeId) {
     ? jarBounds.max.y + (targetBottom - actualBottom)
     : -Infinity;
   const vesselTop = Math.max(declaredTop, measuredTop);
-  studio.frameJar((targetBottom + vesselTop) / 2, Math.max(1.6, vesselTop - targetBottom));
+  // The widest this vessel ever gets from its own axis, measured off the mesh.
+  // The turntable turns it, so the shot has to hold the *largest* horizontal
+  // extent rather than whichever face happens to be pointing at us — otherwise
+  // a glass house or a bottle on its side crops itself part-way through a spin.
+  const horizontalRadius = hasVisibleVessel && Number.isFinite(jarBounds.max.x)
+    ? Math.max(
+        Math.hypot(jarBounds.max.x, jarBounds.max.z),
+        Math.hypot(jarBounds.min.x, jarBounds.min.z),
+        Math.hypot(jarBounds.max.x, jarBounds.min.z),
+        Math.hypot(jarBounds.min.x, jarBounds.max.z),
+      )
+    : Math.max(it.innerRadius * (it.stretchX || 1), it.innerRadius);
+  studio.frameJar(
+    (targetBottom + vesselTop) / 2,
+    Math.max(1.6, vesselTop - targetBottom),
+    { radius: horizontalRadius },
+  );
 
   // A jar without a door can't be left ajar; one with a door keeps whatever the
   // player last chose across a rebuild (the width/height sliders rebuild too).
@@ -592,7 +610,10 @@ let terrainCap = null;
 function rebuildSubstrate(animateLast = false) {
   substrateGroup.clear();
   terrainCap = null;
-  let y = JAR.floorY;
+  // The stack starts at the substrate base, not at the jar floor — see
+  // substrateBase(). Each layer then starts where the previous one ended;
+  // nothing is ever reset back to the floor mid-stack.
+  let y = substrateBase();
   state.layers.forEach((layer, idx) => {
     const isTop = idx === state.layers.length - 1;
     // The layer below, so this one's underside can be built as the *same*
@@ -1997,17 +2018,14 @@ studio.setGrabHandler((screen) => {
   }
   // Base material + drag = paint substrate in any shape.
   if (activeTool === "place" && selected.group === "base") {
-    // Aimed at the jar at all? Off it, the press turns the jar as usual.
-    const targets = [];
-    if (jarGlass) targets.push(jarGlass);
-    if (pickPlane) targets.push(pickPlane);
-    if (!targets.length || !studio.raycast(screen, targets)) return false;
+    // Aimed inside the jar at all? Off it, the press turns the jar as usual.
+    if (!aimInsideJar(screen)) return false;
     basePress = { x: screen.x, y: screen.y, touch: Boolean(screen.touch) };
     basePainting = false;
     // The marker stays up for the whole gesture, so a finger — which has no
     // hover to have shown it beforehand — still sees where this lands.
-    const ok = showBaseShadow(screen);
-    if (screen.touch) showReleaseHint(screen, ok);
+    const ok = showBaseShadow(screen, true);
+    showReleaseHint(screen, ok);
     return true;
   }
   // Brush tools capture the drag entirely.
@@ -2060,8 +2078,8 @@ studio.setObjectDrag((screen) => {
       hideReleaseHint();
     }
     if (basePainting) applyBaseBrush(screen);
-    const ok = showBaseShadow(screen);
-    if (basePress.touch && !basePainting) showReleaseHint(screen, ok);
+    const ok = showBaseShadow(screen, true);
+    if (!basePainting) showReleaseHint(screen, ok);
     return;
   }
   if (activeTool !== "place") {
@@ -2252,24 +2270,59 @@ function clearHover() {
 // says "the finger is out over nothing" — the marker then shows the layer
 // still parked at its settle height but dulled to red, rather than blinking
 // out and leaving the gesture unanswered.
-function showBaseShadow(screen) {
+/**
+ * Where a pointer is aiming *inside* the jar, in world-group local space, or
+ * null if it is not aiming inside one.
+ *
+ * The glass is deliberately not a target here. It used to be, so that a press
+ * anywhere over the vessel would count — but a wall is a wall from both sides,
+ * and the ray hits the *outside* of the far pane, the neck of a bottle, or the
+ * crown of a cloche just as readily as it hits the space you meant. Clicking
+ * the glass then read as a valid placement. What a pour or a planting is
+ * actually aimed at is the surface inside: the sculpted terrain where there is
+ * some, and the interior pick plane where there is not. Both are cut to the
+ * jar's own footprint, and insideJarAt is the final word.
+ *
+ * The glass keeps its other jobs — misting it, opening its door — which are
+ * about the pane itself rather than about the room behind it.
+ */
+function aimInsideJar(screen) {
+  if (!screen) return null;
+  const hit = studio.raycast(screen, surfaceTargets());
+  if (!hit) return null;
+  const local = studio.world.worldToLocal(hit.point.clone());
+  return insideJarAt(local.y, local.x, local.z) ? local : null;
+}
+
+/**
+ * Park the base marker under the pointer.
+ *
+ * `holding` is true while a press or touch is actually down. It is the whole
+ * difference between the two things this used to conflate: with the pointer
+ * merely hovering, aiming away from the jar means there is nothing to preview
+ * and the marker goes away; mid-gesture it means *this gesture will not work*,
+ * which is worth a red marker and a line of text. Showing a jar-wide marker
+ * parked at the centre while the cursor was somewhere else entirely was the
+ * worst of both.
+ */
+function showBaseShadow(screen, holding = false) {
   const def = BASE_LAYERS.find((b) => b.id === selected.id);
-  if (!def) {
+  if (!def || activeTool !== "place" || selected.group !== "base") {
     baseShadow.hide();
+    hideReleaseHint();
     return false;
   }
-  const remaining = remainingHeight(state);
-  const fits = remaining >= def.layerHeight;
+  const fits = remainingHeight(state) >= def.layerHeight;
   const y = Math.min(substrateTop(state), JAR.floorY + JAR.bodyHeight);
-  // Over the jar at all? The pour only makes sense aimed inside the glass, and
-  // "aimed at the table" is exactly the invalid case the red is for.
-  const targets = [];
-  if (jarGlass) targets.push(jarGlass);
-  if (pickPlane) targets.push(pickPlane);
-  const hit = screen && targets.length ? studio.raycast(screen, targets) : null;
-  const point = hit ? studio.world.worldToLocal(hit.point.clone()) : null;
-  baseShadow.showAt(y, point, fits && Boolean(hit));
-  return fits && Boolean(hit);
+  const point = aimInsideJar(screen);
+  if (!point && !holding) {
+    baseShadow.hide();
+    hideReleaseHint();
+    return false;
+  }
+  const ok = fits && Boolean(point);
+  baseShadow.showAt(y, point, ok);
+  return ok;
 }
 
 // The marker's job ends the moment the layer is real. It flares once on the
@@ -2294,7 +2347,7 @@ function showReleaseHint(p, valid) {
     el.className = "release-hint";
     document.body.appendChild(el);
   }
-  el.textContent = t(valid ? "ছেড়ে দিলে বসে যাবে" : "এখানে বসবে না");
+  el.textContent = t(valid ? "ছেড়ে দিলে বসে যাবে" : "জারের ভেতরে নিয়ে এসো");
   el.classList.toggle("is-invalid", !valid);
   el.style.left = `${p.x}px`;
   el.style.top = `${p.y - RELEASE_LIFT}px`;
@@ -2391,8 +2444,14 @@ function aimTweezers(screen) {
   }
   hand.hoverTo(hit.point);
   const local = studio.world.worldToLocal(hit.point.clone());
+  // The tap target is deliberately a little wider than the interior (see
+  // buildPickPlane), so a hit on it is not by itself a licence to plant. The
+  // ghost goes red over the slack, which is the same answer the placement
+  // itself will give — rather than looking willing and then refusing.
+  const inside = insideJarAt(local.y, local.x, local.z, 0.04);
+  cursorGhost.setValid(inside);
   cursorGhost.showAt(local, 0.34 * Math.min(1.25, Math.max(0.55, JAR.innerRadius)));
-  return hit;
+  return inside ? hit : null;
 }
 
 // --- planting with a finger ------------------------------------------------
@@ -2493,9 +2552,12 @@ studio.setTapHandler((screen) => {
     }
   }
   if (selected.group === "base") {
-    // Any tap over the jar drops another substrate layer.
-    const hit = studio.raycast(screen, [jarGlass, pickPlane]);
-    if (!hit) return;
+    // Any tap *inside* the jar drops another substrate layer. A tap on the
+    // glass itself is not a placement — see aimInsideJar.
+    if (!aimInsideJar(screen)) {
+      flashHint(t("জারের ভেতরে নিয়ে এসো"));
+      return;
+    }
     tryAddLayer(selected.id);
   } else {
     tryPlaceDecoration(screen, selected.id);
@@ -4965,7 +5027,7 @@ document.getElementById("reset").addEventListener("click", () => {
   game.care.soil = 0.32;
   game.care.health = 0.72;
   game.care.growth = 0;
-  placePickPlane(JAR.floorY);
+  placePickPlane(substrateBase());
   tweens.length = 0;
   updateHint();
   scheduleAutosave();

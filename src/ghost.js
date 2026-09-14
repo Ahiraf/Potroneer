@@ -54,7 +54,14 @@ export function createCursorGhost() {
       transparent: true,
       opacity: 0.75,
       depthWrite: false,
-      depthTest: false,
+      // Depth-tested, so the ring is a mark on the ground it is describing
+      // rather than a decal floating over the table and the glass in front of
+      // it. The polygon offset lifts it clear of the surface it lies on
+      // without letting the two z-fight.
+      depthTest: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
     }),
   );
   footprint.rotation.x = -Math.PI / 2;
@@ -64,9 +71,12 @@ export function createCursorGhost() {
   const preview = new THREE.Group();
   group.add(preview);
 
+  const INVALID = 0xd8736b;
   let alive = false;
   let fade = 0;
   let radius = 0.5;
+  let accent = 0xffffff; // the theme's colour, used whenever placement is fine
+  let valid = true;
 
   function clearPreview() {
     preview.clear();
@@ -74,7 +84,20 @@ export function createCursorGhost() {
 
   /** Tint the ring to the current theme accent so it belongs to the world. */
   function setColor(hex) {
-    footprint.material.color.set(hex);
+    accent = new THREE.Color(hex).getHex();
+    if (valid) footprint.material.color.setHex(accent);
+  }
+
+  /**
+   * Whether the spot under the cursor can actually take this piece. Red is not
+   * a decoration here: the ghost stays on screen while it is wrong, because a
+   * marker that simply disappears when you wander off the jar tells you
+   * nothing about *why* the press you are about to make will do nothing.
+   */
+  function setValid(ok) {
+    if (ok === valid) return;
+    valid = ok;
+    footprint.material.color.setHex(ok ? accent : INVALID);
   }
 
   /**
@@ -132,5 +155,5 @@ export function createCursorGhost() {
     });
   }
 
-  return { group, showAt, setItem, setColor, hide, update };
+  return { group, showAt, setItem, setColor, setValid, hide, update };
 }
