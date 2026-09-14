@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { BASE_BY_ID, BASE_LAYERS, DECOR_BY_ID } from "./catalog.js";
-import { JAR, footprintK, heightAt, jarGridR, jarPolar, jarRadiusAt, TERRAIN_N } from "./state.js";
+import { JAR, heightAt, jarGridR, jarPointAt, TERRAIN_N } from "./state.js";
 
 // ---------------------------------------------------------------------------
 // Small shared helpers
@@ -126,78 +126,219 @@ export function buildJarLamp(jar, { height = 0.55, bright = 0.6, color = 0xffe4b
 // Substrate layers
 // ---------------------------------------------------------------------------
 
-// Build one substrate layer as a short cylinder whose top rim is gently uneven,
-// with speckled vertex colours. `isTop` layers get scattered grains/pebbles on
-// their surface for texture; buried layers stay smooth to save geometry.
-export function buildLayer(layer, baseY, isTop) {
-  const def = BASE_BY_ID[layer.type];
-  const group = new THREE.Group();
-  // Taper the layer to the jar's interior at its own bottom and top, so a
-  // round vessel's substrate curves in with the glass instead of bulging
-  // straight out through it.
-  const rBot = Math.max(0.05, jarRadiusAt(baseY) - 0.02);
-  const rTop = Math.max(0.05, jarRadiusAt(baseY + layer.height) - 0.02);
+// ---------------------------------------------------------------------------
+// Substrate volumes
+// ---------------------------------------------------------------------------
+// A layer used to be a CylinderGeometry: one radius at the bottom, one at the
+// top, straight between them. That is a fair description of a mason jar and a
+// lie about everything else — and because the radius came from a silhouette
+// that had no entry for bottles or glass houses, it was often a lie about the
+// mason jar's radius too.
+//
+// A layer is now lofted: a stack of rings, each measured against the interior
+// at its own height, closed with a floor and a top surface. It is a real
+// volume with real walls, so it fills a bowl's curve and a bottle's bore the
+// way the material would, and the only thing standing between it and the glass
+// is the margin we choose.
 
-  const geo = new THREE.CylinderGeometry(rTop, rBot, layer.height, 40, 2, false);
-  // Tilt + jitter the top surface: a gentle directional slope (real substrate
-  // is banked asymmetrically for depth) plus per-vertex noise so sediment
-  // settles unevenly.
+// Substrate surfaces are shaped by a coherent field rather than per-vertex
+// randomness. Per-vertex noise gives a surface that is rough at the scale of
+// the mesh — spikes between neighbouring vertices, which read as crystals, not
+// soil. This is smooth between samples and only varies over real distance, so
+// what it produces is dunes and settling, the shape material actually takes.
+//
+// It is also a *function of position and seed*, which is what lets the seam
+// between two layers close: layer N asks the same field, with layer N−1's
+// seed, for its own underside, so the two surfaces are the same surface.
+function hash2(seed, i, j) {
+  let h = (seed * 374761393 + i * 668265263 + j * 2147483647) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+const NOISE_SCALE = 1.9; // how many bumps across a unit of world space
+
+function surfaceBump(seed, x, z) {
+  const fx = x * NOISE_SCALE;
+  const fz = z * NOISE_SCALE;
+  const i = Math.floor(fx);
+  const j = Math.floor(fz);
+  const tx = fx - i;
+  const tz = fz - j;
+  // smoothstep keeps the field C1 across cell boundaries, so no creases show
+  const sx = tx * tx * (3 - 2 * tx);
+  const sz = tz * tz * (3 - 2 * tz);
+  const a = hash2(seed, i, j);
+  const b = hash2(seed, i + 1, j);
+  const c = hash2(seed, i, j + 1);
+  const d = hash2(seed, i + 1, j + 1);
+  const top = a + (b - a) * sx;
+  const bot = c + (d - c) * sx;
+  return (top + (bot - top) * sz) * 2 - 1; // -1..1
+}
+
+/**
+ * The height of a layer's own surface at (x, z): its bank plus its settling.
+ * `layer` carries the bank and the seed, so a rebuild reproduces the surface
+ * exactly and two neighbouring layers can agree on the seam between them.
+ */
+function layerSurface(layer, x, z) {
+  if (!layer) return 0;
   const sx = layer.slopeX || 0;
   const sz = layer.slopeZ || 0;
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    if (y > layer.height / 2 - 1e-3) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      pos.setY(i, y + x * sx + z * sz + jitter(layer.height * 0.25));
+  const amp = Math.min((layer.height || 0.1) * 0.3, 0.04);
+  return x * sx + z * sz + surfaceBump(layerSeed(layer), x, z) * amp;
+}
+
+/** A stable seed per layer, including for builds saved before seeds existed. */
+function layerSeed(layer) {
+  if (Number.isFinite(layer.seed)) return layer.seed;
+  // Derive one from what the record does carry, so old saves keep a fixed
+  // (if arbitrary) surface instead of reshuffling on every rebuild.
+  return Math.abs(Math.round(((layer.slopeX || 0) * 9173 + (layer.slopeZ || 0) * 3571) * 1000)) + 7;
+}
+
+const LAYER_SECTORS = 48;
+// Enough vertical divisions to follow a curve without faceting. A bowl's belly
+// is the demanding case; below ~5 the wall visibly chords across it.
+const LAYER_RINGS = 7;
+// How far the substrate stops short of the glass. Small enough to read as
+// contact, large enough that no shimmer of z-fighting shows where they meet.
+const GLASS_MARGIN = 0.022;
+
+/** One ring of interior-hugging points at height `y`. */
+function jarRing(y, sectors = LAYER_SECTORS, margin = GLASS_MARGIN, t = 1) {
+  const pts = [];
+  for (let i = 0; i < sectors; i++) {
+    const a = (i / sectors) * Math.PI * 2;
+    pts.push(jarPointAt(y, a, t, margin));
+  }
+  return pts;
+}
+
+/**
+ * Loft a closed solid between two heights, hugging the interior the whole way.
+ * Returns the geometry plus the indices of its top ring and top centre, so the
+ * caller can shape the surface (slope, jitter, sculpted terrain) without having
+ * to know how the mesh was wound.
+ */
+function loftInterior(baseY, topY, {
+  sectors = LAYER_SECTORS,
+  rings = LAYER_RINGS,
+  margin = GLASS_MARGIN,
+  t = 1,
+} = {}) {
+  const positions = [];
+  const push = (x, y, z) => positions.push(x, y, z);
+
+  const floorCentre = 0;
+  push(0, baseY, 0);
+  const ringStart = [];
+  for (let r = 0; r <= rings; r++) {
+    const y = baseY + ((topY - baseY) * r) / rings;
+    ringStart.push(positions.length / 3);
+    for (const [x, z] of jarRing(y, sectors, margin, t)) push(x, y, z);
+  }
+  const topCentre = positions.length / 3;
+  push(0, topY, 0);
+
+  const indices = [];
+  // floor fan — wound to face down
+  const r0 = ringStart[0];
+  for (let i = 0; i < sectors; i++) {
+    indices.push(0, r0 + i, r0 + ((i + 1) % sectors));
+  }
+  // side wall
+  for (let r = 0; r < rings; r++) {
+    const a = ringStart[r];
+    const b = ringStart[r + 1];
+    for (let i = 0; i < sectors; i++) {
+      const j = (i + 1) % sectors;
+      indices.push(a + i, b + i, b + j);
+      indices.push(a + i, b + j, a + j);
     }
   }
-  shapeToJar(geo);
+  // top fan
+  const rN = ringStart[rings];
+  for (let i = 0; i < sectors; i++) {
+    indices.push(topCentre, rN + ((i + 1) % sectors), rN + i);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  return { geo, floorCentre, ringStart, rings, topRing: rN, topCentre, sectors };
+}
+
+// Build one substrate layer as a lofted volume whose top surface is gently
+// uneven, with speckled vertex colours. `isTop` layers get scattered
+// grains/pebbles on their surface for texture; buried layers stay smooth to
+// save geometry.
+export function buildLayer(layer, baseY, isTop, below = null) {
+  const def = BASE_BY_ID[layer.type];
+  const group = new THREE.Group();
+  const topY = baseY + layer.height;
+
+  const { geo, floorCentre, ringStart, rings, topRing, topCentre, sectors } =
+    loftInterior(baseY, topY);
+
+  const pos = geo.attributes.position;
+  // Shape the solid between two surfaces: the top of whatever is underneath
+  // (or the jar's flat floor for the first layer) and this layer's own. Every
+  // ring in between is interpolated across that gap, so the walls stay
+  // straight-sided while both faces undulate — and the seam is shared
+  // geometry, not two independent guesses at the same height that leave a
+  // visible gap when they disagree.
+  const lift = (x, z, t) => {
+    const under = layerSurface(below, x, z);
+    const over = layerSurface(layer, x, z);
+    return under + (over - under) * t;
+  };
+
+  for (let r = 0; r <= rings; r++) {
+    const t = r / rings;
+    const base = ringStart[r];
+    for (let i = 0; i < sectors; i++) {
+      const v = base + i;
+      let x = pos.getX(v);
+      let z = pos.getZ(v);
+      const y = pos.getY(v) + lift(x, z, t);
+      // Raising a vertex moves it to a height where the jar may be narrower —
+      // in a bowl or an egg it always is — so re-measure the reach there.
+      // Sloping a surface up without this is how substrate creeps out through
+      // the wall on the high side, which is exactly where the eye looks.
+      [x, z] = jarPointAt(y, Math.atan2(z, x), 1, GLASS_MARGIN);
+      pos.setXYZ(v, x, y, z);
+    }
+  }
+  pos.setY(floorCentre, baseY + layerSurface(below, 0, 0));
+  pos.setY(topCentre, topY + layerSurface(layer, 0, 0));
+  pos.needsUpdate = true;
+
   geo.computeVertexNormals();
   speckleColors(geo, def.colors);
 
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.95,
+    // Wet-looking soil and dry sand should not share a sheen. Chunky material
+    // (leca, pebbles) catches a little more light off its facets.
+    roughness: def.chunky ? 0.86 : 0.97,
     metalness: 0,
     flatShading: true,
   });
-  const cyl = new THREE.Mesh(geo, mat);
-  cyl.position.y = baseY + layer.height / 2;
-  cyl.castShadow = false;
-  cyl.receiveShadow = true;
-  group.add(cyl);
+  const solid = new THREE.Mesh(geo, mat);
+  solid.castShadow = false;
+  solid.receiveShadow = true;
+  group.add(solid);
 
-  if (isTop) {
-    group.add(scatterGrains(def, baseY + layer.height / 2));
-  }
+  if (isTop) group.add(scatterGrains(def, layer, topY));
   return group;
 }
 
-// Push a round cross-section out to the vessel's own footprint. A cylinder is
-// the right starting point either way — a jar is round, and a glass case is a
-// round cross-section stretched unevenly — so every layer is built as one and
-// then pressed into shape here.
-function shapeToJar(geo) {
-  if (!JAR.footprint) {
-    geo.scale(JAR.stretchX, 1, 1); // elliptical footprint for lying bottles
-    return;
-  }
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    if (x === 0 && z === 0) continue; // the centre of a cap stays put
-    const k = footprintK(Math.atan2(z, x));
-    pos.setX(i, x * k);
-    pos.setZ(i, z * k);
-  }
-  pos.needsUpdate = true;
-}
-
 // Scatter little instanced stones/grains across a layer surface.
-function scatterGrains(def, topY) {
+const _v = new THREE.Vector3();
+
+function scatterGrains(def, layer, topY) {
   const chunky = def.chunky;
   const count = chunky ? 90 : 140;
   const size = chunky ? 0.07 : 0.03;
@@ -216,16 +357,19 @@ function scatterGrains(def, topY) {
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
   const s = new THREE.Vector3();
-  const rMax = Math.max(0.05, jarRadiusAt(topY) - 0.08);
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
-    const rad = Math.sqrt(Math.random()) * rMax;
-    const [x, z] = jarPolar(a, rad);
+    // sqrt keeps the scatter even per unit area rather than crowding the axis
+    const t = Math.sqrt(Math.random());
+    const [x, z] = jarPointAt(topY, a, t, GLASS_MARGIN + 0.05);
     e.set(jitter(Math.PI), jitter(Math.PI), jitter(Math.PI));
     q.setFromEuler(e);
     const sc = 0.6 + Math.random() * 0.9;
     s.set(sc, sc * (chunky ? 0.7 : 1), sc);
-    m.compose(new THREE.Vector3(x, topY + size * 0.4, z), q, s);
+    // Sit each grain on the undulating surface, half-sunk into it, so the
+    // scatter reads as material *in* the bed rather than sprinkled over a lid.
+    const gy = topY + layerSurface(layer, x, z) + size * 0.35 * sc;
+    m.compose(_v.set(x, gy, z), q, s);
     mesh.setMatrixAt(i, m);
   }
   mesh.receiveShadow = true;
@@ -241,24 +385,32 @@ function scatterGrains(def, topY) {
 export function buildTerrainCap(def, surfaceY = JAR.floorY) {
   const rings = 14;
   const sectors = 48;
-  // Sized to the interior where the cap actually sits — and to where its skirt
-  // hangs — so the surface never overshoots a curved-in wall.
-  const R = Math.max(
-    0.05,
-    Math.min(jarRadiusAt(surfaceY), jarRadiusAt(surfaceY - 0.12)) - 0.03,
-  );
+  // The cap takes the jar's own outline at the height it sits, not a circle.
+  // Its rim and its skirt are measured separately: the skirt hangs below the
+  // surface, and in a bowl or a bottle the interior there is *narrower*, so a
+  // skirt cut to the rim's width would hang straight through the glass.
+  const skirtDrop = 0.12;
+  const rim = [];
+  const skirt = [];
+  for (let s = 0; s < sectors; s++) {
+    const a = (s / sectors) * Math.PI * 2;
+    rim.push(jarPointAt(surfaceY, a, 1, GLASS_MARGIN + 0.008));
+    skirt.push(jarPointAt(surfaceY - skirtDrop, a, 1, GLASS_MARGIN + 0.008));
+  }
 
   const positions = [0, 0, 0]; // centre vertex
   const jitters = [0];
   const ringT = [0]; // 0..1 radial position; 2 marks skirt vertices
+  const angles = [0]; // heading of each vertex, kept for re-measuring the reach
   for (let r = 1; r <= rings; r++) {
-    const rad = (r / rings) * R;
+    const t = r / rings;
     for (let s = 0; s < sectors; s++) {
-      const a = (s / sectors) * Math.PI * 2;
-      const [px, pz] = jarPolar(a, rad);
-      positions.push(px, 0, pz);
+      // Interpolating toward the measured rim keeps every inner ring inside the
+      // outline too, whatever shape that outline is.
+      positions.push(rim[s][0] * t, 0, rim[s][1] * t);
       jitters.push(jitter(0.012));
-      ringT.push(r / rings);
+      ringT.push(t);
+      angles.push((s / sectors) * Math.PI * 2);
     }
   }
   // skirt: a second copy of the outer rim that drops below the surface, so
@@ -266,11 +418,10 @@ export function buildTerrainCap(def, surfaceY = JAR.floorY) {
   const rimStart = 1 + (rings - 1) * sectors;
   const skirtStart = 1 + rings * sectors;
   for (let s = 0; s < sectors; s++) {
-    const a = (s / sectors) * Math.PI * 2;
-    const [px, pz] = jarPolar(a, R);
-    positions.push(px, 0, pz);
+    positions.push(skirt[s][0], 0, skirt[s][1]);
     jitters.push(0);
     ringT.push(2);
+    angles.push((s / sectors) * Math.PI * 2);
   }
 
   const indices = [];
@@ -316,6 +467,8 @@ export function buildTerrainCap(def, surfaceY = JAR.floorY) {
   mesh.castShadow = false;
   mesh.userData.jitters = jitters;
   mesh.userData.ringT = ringT;
+  mesh.userData.angles = angles;
+  mesh.userData.skirtDrop = skirtDrop;
   // per-vertex random seeds so painted materials keep a stable grain
   mesh.userData.seeds = jitters.map(() => (Math.random() * 1024) | 0);
   mesh.userData.fallbackDef = def;
@@ -327,18 +480,27 @@ export function updateTerrainCap(mesh, state, baseY) {
   const pos = mesh.geometry.attributes.position;
   const jitters = mesh.userData.jitters;
   const ringT = mesh.userData.ringT;
+  const angles = mesh.userData.angles;
+  const drop = mesh.userData.skirtDrop ?? 0.12;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
     if (ringT[i] === 2) {
       // skirt: tuck well below the surface so the side wall closes any gap
-      pos.setY(i, baseY - 0.12);
+      pos.setY(i, baseY - drop);
       continue;
     }
     // fade sculpted height to zero at the rim so the edge always sits flush
     // on the layer beneath — no more floating sheet
     const fade = ringT[i] <= 0.82 ? 1 : Math.max(0, (1 - ringT[i]) / 0.18);
-    pos.setY(i, baseY + 0.005 + heightAt(state, x, z) * fade + jitters[i]);
+    const y = baseY + 0.005 + heightAt(state, x, z) * fade + jitters[i];
+    pos.setY(i, y);
+    if (i === 0) continue; // the centre vertex has no heading to re-measure
+    // Sculpting lifts the surface, and lifting it moves it to a height where
+    // the vessel may be narrower. Without this the rim of a mounded-up terrain
+    // pushes out through the shoulder of a globe or an egg.
+    const [nx, nz] = jarPointAt(y, angles[i], ringT[i], GLASS_MARGIN + 0.008);
+    pos.setXYZ(i, nx, y, nz);
   }
   pos.needsUpdate = true;
   mesh.geometry.computeVertexNormals();

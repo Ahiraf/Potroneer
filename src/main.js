@@ -5,6 +5,7 @@ import {
   buildJar,
   buildPickPlane,
   jarInnerSilhouette,
+  jarSectionFor,
   geoFootprint,
   geoSpecFor,
   JAR_TYPES,
@@ -39,7 +40,9 @@ import {
   flatten,
   paintMaterial,
   jarRadiusAt,
-  clampInside,
+  clampInsideAt,
+  jarPointAt,
+  jarReach,
   JAR,
 } from "./state.js";
 import { toggleAmbience, playSfx, setVolume, isPlaying } from "./ambience.js";
@@ -105,6 +108,33 @@ preloadModels((kind) => {
 
 const canvas = document.getElementById("scene");
 const studio = createStudio(canvas);
+
+// A window onto the live scene for development only. `import.meta.env.DEV` is
+// statically false in a production build, so this whole block is dropped from
+// the bundle rather than shipped behind a runtime check. It exists because the
+// interesting questions about this app ("is that substrate actually inside the
+// glass?") are answered by measuring the scene graph, not by looking at it.
+if (import.meta.env.DEV) {
+  window.__potroneer = {
+    THREE,
+    studio,
+    get state() { return state; },
+    get jarId() { return currentJarId; },
+    get jarGroup() { return jarGroup; },
+    get substrate() { return substrateGroup; },
+    get terrainCap() { return terrainCap; },
+    get pickPlane() { return pickPlane; },
+    get baseShadow() { return baseShadow; },
+    setJar: (id) => setJar(id),
+    // The live interior, reached through *this* module's import. Importing
+    // state.js separately from a console gets a second instance with its own
+    // JAR — Vite serves versioned module URLs — and measuring the scene
+    // against that one silently compares the jar on screen to a default.
+    JAR,
+    jarReach,
+    jarPointAt,
+  };
+}
 
 // The builder's hand: tweezers pinched over the jar, following the cursor while
 // an ingredient is selected and dipping in to release it — the real gesture the
@@ -339,13 +369,29 @@ function setJar(typeId) {
   if (!type) return;
   currentJarId = typeId;
   const it = jarInterior(type);
-  setJarInterior(it, jarInnerSilhouette(typeId, it));
+  // Seed the interior before building, so anything the build reads has sane
+  // metrics; the section is refined from the actual glass a few lines down.
+  setJarInterior(it, jarInnerSilhouette(typeId, it), null);
 
   if (jarGroup) studio.world.remove(jarGroup);
   if (pickPlane) studio.world.remove(pickPlane);
 
   const built = buildJar(typeId, studio.envMap, it);
   jarBuilt = built;
+  // Now that the glass exists, take the interior from the panes themselves
+  // rather than from the numbers that described them. Everything that fills the
+  // jar reads this one table, so what the preview draws, what the substrate is
+  // lofted against and where a tap is allowed to land cannot disagree.
+  const glassMeshes = [];
+  const glassMatSet = new Set(built.glassMats || []);
+  built.group.traverse((o) => {
+    if (!o.isMesh || !o.geometry) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    // Panes only. Stands, cradles, trays and frame struts are furniture, and
+    // measuring against them would wall the substrate off from its own jar.
+    if (mats.some((m) => glassMatSet.has(m))) glassMeshes.push(o);
+  });
+  setJarInterior(it, jarInnerSilhouette(typeId, it), jarSectionFor(typeId, it, glassMeshes));
   jarBuilt.frameOrig = built.frameMats.map((m) => m.color.clone());
   applyJarColors();
   jarGroup = built.group;
@@ -353,7 +399,7 @@ function setJar(typeId) {
   jarDoor = built.door ?? null;
   studio.world.add(jarGroup);
 
-  pickPlane = buildPickPlane();
+  pickPlane = buildPickPlane(JAR.floorY);
   studio.world.add(pickPlane);
   baseShadow.invalidate(); // a new vessel means a new footprint to trace
 
@@ -399,9 +445,9 @@ function setJar(typeId) {
   // The build survives jar changes — you can decorate in the open and slip a
   // jar over it later, like the reference. Just nudge anything that would
   // poke through the new glass back inside the footprint.
-  const rDec = jarRadiusAt(substrateTop(state)) * 0.9;
+  const decY = substrateTop(state);
   state.decorations.forEach((rec) => {
-    const inside = clampInside(rec.x, rec.z, rDec);
+    const inside = clampInsideAt(decY, rec.x, rec.z, 0.1);
     if (inside) {
       rec.x = inside.x;
       rec.z = inside.z;
@@ -526,9 +572,18 @@ studio.setOnFrame((now) => {
 function placePickPlane(y) {
   if (!pickPlane) return;
   pickPlane.position.y = y + 0.001;
-  const base = Math.max(0.05, JAR.innerRadius - 0.05);
-  const k = Math.max(0.05, jarRadiusAt(y) - 0.05) / base;
-  pickPlane.scale.set(k, 1, k);
+  // The outline is not a circle, so it cannot be resized by scaling: a bottle's
+  // cross-section changes *shape* with height, not just size. Recut it when the
+  // surface has moved enough to matter. This runs on substrate changes, not per
+  // frame, so rebuilding a 64-gon here costs nothing worth saving.
+  if (Math.abs((pickPlane.userData.builtY ?? -1e9) - y) > 0.015) {
+    const next = buildPickPlane(y);
+    next.position.copy(pickPlane.position);
+    studio.world.remove(pickPlane);
+    pickPlane.geometry.dispose();
+    studio.world.add(next);
+    pickPlane = next;
+  }
 }
 
 // --- rebuild substrate from state -----------------------------------------
@@ -540,19 +595,21 @@ function rebuildSubstrate(animateLast = false) {
   let y = JAR.floorY;
   state.layers.forEach((layer, idx) => {
     const isTop = idx === state.layers.length - 1;
-    const mesh = buildLayer(layer, y, isTop);
+    // The layer below, so this one's underside can be built as the *same*
+    // surface as that one's top rather than a flat disc floating on its peaks.
+    const mesh = buildLayer(layer, y, isTop, state.layers[idx - 1] ?? null);
     substrateGroup.add(mesh);
     if (animateLast && isTop) {
-      mesh.scale.y = 0.001;
-      mesh.position.y = y - layer.height; // start collapsed at the seam
-      tween(
-        360,
-        (p) => {
-          mesh.scale.y = 0.001 + p * 0.999;
-          mesh.position.y = (y - layer.height) * (1 - p);
-        },
-        easeOut,
-      );
+      // The layer's vertices carry absolute heights, so scaling the group about
+      // the origin would drag it through the floor. Pin the seam instead:
+      // y' = k·y + base·(1−k) holds `base` still while the rest rises.
+      const base = y;
+      const pin = (k) => {
+        mesh.scale.y = k;
+        mesh.position.y = base * (1 - k);
+      };
+      pin(0.001);
+      tween(360, (p) => pin(0.001 + p * 0.999), easeOut);
     }
     y += layer.height;
   });
@@ -769,8 +826,7 @@ function snapPlacement(obj, x, z) {
   // 1. Inside the glass. The margin keeps a plant's leaves off the wall rather
   //    than letting its origin sit exactly on it.
   const scale = obj.userData.baseScale ?? 1;
-  const margin = jarRadiusAt(surfaceY(nx, nz)) - 0.06 - scale * 0.05;
-  const clamped = clampInside(nx, nz, Math.max(0.05, margin));
+  const clamped = clampInsideAt(surfaceY(nx, nz), nx, nz, 0.06 + scale * 0.05);
   if (clamped) {
     nx = clamped.x;
     nz = clamped.z;
@@ -2879,7 +2935,7 @@ window.addEventListener("keydown", (e) => {
     rec.x += step[0] * amount;
     rec.z += step[1] * amount;
     // stay inside the glass at the height the piece actually sits at
-    const inside = clampInside(rec.x, rec.z, jarRadiusAt(rec.y) * 0.92);
+    const inside = clampInsideAt(rec.y, rec.x, rec.z, 0.08);
     if (inside) {
       rec.x = inside.x;
       rec.z = inside.z;
@@ -3839,7 +3895,7 @@ document.getElementById("item-dupe").addEventListener("click", () => {
   const a = Math.random() * Math.PI * 2;
   const step = 0.2 * (rec.scale ?? 1);
   const spot = snapPlacement(copy, rec.x + Math.cos(a) * step, rec.z + Math.sin(a) * step);
-  const inside = clampInside(spot.x, spot.z, Math.max(0.05, jarRadiusAt(rec.y) - 0.08));
+  const inside = clampInsideAt(rec.y, spot.x, spot.z, 0.08);
   const x = inside ? inside.x : spot.x;
   const z = inside ? inside.z : spot.z;
 

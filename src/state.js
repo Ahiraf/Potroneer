@@ -26,11 +26,26 @@ export const JAR = {
   // narrow well below it near the floor. Anything that fills the jar has to
   // ask jarRadiusAt(y) instead, or it pokes out through the glass.
   silhouette: null,
+  // The interior cross-section as a table of absolute reaches, sampled at NA
+  // even angles for each of NY heights: { ys, r, na }, r[iy * na + ia].
+  //
+  // Why this exists when `silhouette` × `footprint` already describes a shape:
+  // that pair is *separable* — one radius curve down the height, one outline
+  // around the axis, multiplied. Most vessels are separable, but a bottle
+  // lying on its side is not. Its cross-section is as long as the bottle at
+  // every height, while its depth across the belly starts at zero on the floor
+  // and swells to the full bore at the axis. No single outline scaled by one
+  // radius can say that, and pretending otherwise is what drove a flat slab of
+  // soil straight out through the round glass. So a vessel may hand over a
+  // measured table instead, and everything that fills the jar reads it through
+  // jarReach(y, a).
+  section: null,
 };
 
-export function setJarInterior(interior, silhouette = null) {
-  Object.assign(JAR, { stretchX: 1, footprint: null }, interior);
+export function setJarInterior(interior, silhouette = null, section = null) {
+  Object.assign(JAR, { stretchX: 1, footprint: null, section: null }, interior);
   JAR.silhouette = silhouette && silhouette.length >= 2 ? silhouette : null;
+  JAR.section = section && section.ys && section.ys.length >= 2 ? section : null;
 }
 
 // The footprint multiplier at angle `a` (radians, +X = 0), interpolated
@@ -43,17 +58,6 @@ export function footprintK(a) {
   const i = Math.floor(t) % n;
   const j = (i + 1) % n;
   return f[i] + (f[j] - f[i]) * (t - Math.floor(t));
-}
-
-// Turn a polar coordinate into the point on the vessel's own footprint. Every
-// builder that lays something out in a ring goes through here, so they all
-// take the vessel's shape from one place.
-export function jarPolar(a, radius) {
-  if (JAR.footprint) {
-    const k = footprintK(a) * radius;
-    return [Math.cos(a) * k, Math.sin(a) * k];
-  }
-  return [Math.cos(a) * radius * JAR.stretchX, Math.sin(a) * radius];
 }
 
 // Largest radius the substrate/terrain/decorations may occupy at height `y`.
@@ -79,25 +83,97 @@ export function jarRadiusAt(y) {
   return Math.max(0.05, Math.min(r, JAR.innerRadius));
 }
 
-// How far from the centre the vessel reaches at heading `a`, for a footprint
-// scaled to `limit`. A round or elliptical jar works this out from stretchX; a
-// measured one reads it straight off its outline.
-export function reachAt(a, limit) {
-  if (JAR.footprint) return limit * footprintK(a);
-  const sx = JAR.stretchX || 1;
-  return 1 / Math.hypot(Math.cos(a) / (limit * sx), Math.sin(a) / limit);
+// ---------------------------------------------------------------------------
+// The interior, asked properly
+// ---------------------------------------------------------------------------
+// One question underlies every part of filling a jar: *how far out may I go,
+// at this height, in this direction?* Substrate volumes, the terrain cap, the
+// placement preview, the tap target and decoration clamping are all that same
+// question with different callers, and each of them used to answer it its own
+// way — which is why they disagreed, and why soil could sit outside glass a
+// preview had drawn correctly. They all come here now.
+
+/** Absolute reach from the axis at height `y`, heading `a` (radians, +X = 0). */
+export function jarReach(y, a) {
+  const sec = JAR.section;
+  if (!sec) return jarRadiusAt(y) * footprintK(a); // separable vessels
+  const { ys, r, na } = sec;
+  // Bracket the height, then the angle, and bilinearly interpolate. A table
+  // read with nearest-neighbour shows as facets on a curved belly.
+  const n = ys.length;
+  let iy = 0;
+  if (y <= ys[0]) iy = 0;
+  else if (y >= ys[n - 1]) iy = n - 1;
+  else {
+    while (iy < n - 2 && ys[iy + 1] < y) iy++;
+  }
+  const iy1 = Math.min(iy + 1, n - 1);
+  const span = ys[iy1] - ys[iy];
+  const ty = span > 1e-9 ? Math.min(1, Math.max(0, (y - ys[iy]) / span)) : 0;
+
+  const ta = ((((a / (Math.PI * 2)) % 1) + 1) % 1) * na;
+  const ia = Math.floor(ta) % na;
+  const ia1 = (ia + 1) % na;
+  const fa = ta - Math.floor(ta);
+
+  const lo = r[iy * na + ia] * (1 - fa) + r[iy * na + ia1] * fa;
+  const hi = r[iy1 * na + ia] * (1 - fa) + r[iy1 * na + ia1] * fa;
+  return Math.max(0.02, lo * (1 - ty) + hi * ty);
 }
 
-// Pull a point back inside that reach, or null if it was already inside.
-export function clampInside(x, z, limit) {
-  const r = Math.hypot(x, z);
-  if (!r) return null;
-  const max = reachAt(Math.atan2(z, x), limit);
-  return r > max ? { x: (x / r) * max, z: (z / r) * max } : null;
+/**
+ * A point on the interior boundary at height `y`, heading `a`, pulled in to
+ * fraction `t` of the full reach and then held `margin` clear of the glass.
+ * The margin is subtracted rather than scaled so it stays a real distance:
+ * a 2mm gap at the rim of a bowl is 2mm, not 2mm × however wide the bowl is.
+ */
+export function jarPointAt(y, a, t = 1, margin = 0) {
+  const reach = Math.max(0.02, jarReach(y, a) - margin);
+  const d = reach * t;
+  return [Math.cos(a) * d, Math.sin(a) * d];
 }
 
-// Widest half-extent of the footprint — the terrain grid spans this.
+/** Is this point inside the interior at that height, with a margin to spare? */
+export function insideJarAt(y, x, z, margin = 0) {
+  const d = Math.hypot(x, z);
+  if (d < 1e-6) return true;
+  return d <= Math.max(0.02, jarReach(y, Math.atan2(z, x)) - margin);
+}
+
+/**
+ * Pull a point back inside the interior at height `y`, or null if it was
+ * already in. Everything that places something in the jar goes through this
+ * or jarPointAt — there is deliberately no height-blind version to reach for
+ * by mistake, because "inside the widest part of the glass" is not the same
+ * question and answering it was how soil ended up outside a bowl.
+ */
+export function clampInsideAt(y, x, z, margin = 0) {
+  const d = Math.hypot(x, z);
+  if (d < 1e-6) return null;
+  const max = Math.max(0.02, jarReach(y, Math.atan2(z, x)) - margin);
+  return d > max ? { x: (x / d) * max, z: (z / d) * max } : null;
+}
+
+/** The widest the interior ever gets at height `y` — for sizing a grid or box. */
+export function jarMaxReachAt(y, samples = 48) {
+  let max = 0;
+  for (let i = 0; i < samples; i++) {
+    max = Math.max(max, jarReach(y, (i / samples) * Math.PI * 2));
+  }
+  return max;
+}
+
+// Widest half-extent the interior ever reaches — the terrain grid spans this.
+// A measured section is the authority when there is one: a bottle reaches far
+// further along its axis than `innerRadius × stretchX` would suggest, and a
+// grid cut to the smaller number leaves the ends of the bottle unsculptable.
 export function jarGridR() {
+  const sec = JAR.section;
+  if (sec) {
+    let max = 0;
+    for (let i = 0; i < sec.r.length; i++) max = Math.max(max, sec.r[i]);
+    return Math.max(0.1, max);
+  }
   if (JAR.footprint) {
     let max = 1;
     for (const k of JAR.footprint) max = Math.max(max, k);
@@ -121,6 +197,15 @@ export function createState() {
 }
 
 // Stamp a base-material index into the paint map under the brush.
+// The terrain grid is a square laid over a vessel that is not one, so most of
+// its corner cells are outside the glass. Sculpting them piled soil into thin
+// air beside the jar — visible from above as a square shadow around a round
+// terrarium — and painting them stained material onto ground that is not there.
+// Every brush asks this first.
+function cellInsideJar(state, wx, wz) {
+  return insideJarAt(substrateTop(state), wx, wz, 0.02);
+}
+
 export function paintMaterial(state, x, z, radius, matIndex) {
   const R = jarGridR();
   const n = TERRAIN_N;
@@ -131,7 +216,7 @@ export function paintMaterial(state, x, z, radius, matIndex) {
       const wx = -R + i * cell;
       const wz = -R + j * cell;
       const d2 = (wx - x) * (wx - x) + (wz - z) * (wz - z);
-      if (d2 <= r2) state.terrainMat[j * n + i] = matIndex;
+      if (d2 <= r2 && cellInsideJar(state, wx, wz)) state.terrainMat[j * n + i] = matIndex;
     }
   }
   state.painted = true;
@@ -176,6 +261,7 @@ export function flatten(state, x, z, strength = 0.4, radius = 0.3, falloff = 0.8
       const wz = -R + j * cell;
       const d2 = (wx - x) * (wx - x) + (wz - z) * (wz - z);
       if (d2 > r2 * 4) continue;
+      if (!cellInsideJar(state, wx, wz)) continue;
       const fall = Math.exp(-d2 / (r2 * falloff));
       const k = j * n + i;
       sum += state.terrain[k] * fall;
@@ -203,6 +289,7 @@ export function sculpt(state, x, z, amount, radius = 0.3, falloff = 0.8) {
       const wz = -R + j * cell;
       const d2 = (wx - x) * (wx - x) + (wz - z) * (wz - z);
       if (d2 > r2 * 4) continue;
+      if (!cellInsideJar(state, wx, wz)) continue;
       const fall = Math.exp(-d2 / (r2 * falloff));
       const k = j * n + i;
       state.terrain[k] = Math.min(
@@ -237,6 +324,10 @@ export function addLayer(state, typeId) {
     height: def.layerHeight,
     slopeX: (Math.random() - 0.5) * 0.08,
     slopeZ: (Math.random() - 0.5) * 0.08,
+    // Fixes this layer's settling pattern once, so rebuilding the scene from
+    // the same data gives back the same surface — and so the layer above can
+    // reproduce this one's top exactly when it builds its own underside.
+    seed: (Math.random() * 0x7fffffff) | 0,
   });
   return true;
 }

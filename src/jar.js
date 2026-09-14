@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { JAR, footprintK } from "./state.js";
+import { JAR, jarPointAt } from "./state.js";
 import { getJarModelClone } from "./models.js";
 
 // ---------------------------------------------------------------------------
@@ -347,6 +347,366 @@ export function jarInnerSilhouette(typeId, it) {
   return samples;
 }
 
+// ---------------------------------------------------------------------------
+// Interior cross-section
+// ---------------------------------------------------------------------------
+// `jarInnerSilhouette` above answers "how wide at this height", which is the
+// whole truth for a vessel whose outline is the same shape all the way up —
+// a cylinder, a bowl, a hexagonal case. Two families are not like that, and
+// they are exactly the two that looked broken:
+//
+//   • a bottle on its side is a *horizontal* bore. Its footprint is as long as
+//     the bottle at every height, while its width across the belly starts at
+//     nothing on the floor and swells to the full bore at the axis.
+//   • a glass house is a rectangle, and a rectangle scaled by one radius is
+//     still a rectangle only if you started with one — starting from a circle
+//     gives you an ellipse inscribed in the case, with four empty corners.
+//
+// Both need the footprint to be a function of height, so they hand over a
+// sampled table instead. Everything reads it through jarReach(y, a); vessels
+// that *are* separable return null and keep the cheaper silhouette path.
+// The most reliable description of a vessel's inside is the vessel. The
+// formulas below derive a section from each family's *declared* metrics, and
+// they are right whenever those metrics match the mesh — but a globe with a
+// pedestal, an egg that tapers to a point and a trough whose footprint was
+// tuned by eye all had glass somewhere its numbers did not predict, and the
+// substrate went where the numbers said.
+//
+// So the section is *measured* off the built glass where we can: fire a ray out
+// from the axis at each sample and take the first pane it meets. That is true
+// by construction for every vessel, including ones whose shape nobody wrote
+// down — a loaded GLB terrarium measures exactly as well as a lathe.
+//
+// Rays that meet nothing (an open-bottomed cloche below its rim, a height above
+// the glass) leave a hole in the table, which is filled from the analytic
+// section afterwards rather than being allowed to read as "infinitely wide".
+export function measureInnerSection(glassMeshes, it, fallback = null, radial = false) {
+  if (!glassMeshes || !glassMeshes.length) return fallback;
+  // A surface of revolution is the same at every heading, so one column of rays
+  // describes it exactly and the other 63 are 63 times the work for the same
+  // answer. This is the difference between ~400ms and ~6ms on a jar switch,
+  // which is the difference between a stall and no stall.
+  const cols = radial ? 1 : SECT_NA;
+  const ray = new THREE.Raycaster();
+  ray.firstHitOnly = true;
+  const org = new THREE.Vector3();
+  const dir = new THREE.Vector3();
+
+  // Casting from *inside*, the first surface met is a back face. Front-side
+  // materials would cull it and report the far wall — or nothing at all.
+  const sides = [];
+  for (const m of glassMeshes) {
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    for (const mat of mats) {
+      if (!mat) continue;
+      sides.push([mat, mat.side]);
+      mat.side = THREE.DoubleSide;
+    }
+    m.updateMatrixWorld(true);
+  }
+
+  const y0 = it.floorY;
+  const y1 = it.floorY + it.bodyHeight;
+  const ys = new Float32Array(SECT_NY);
+  const r = new Float32Array(SECT_NY * SECT_NA);
+  const inset = it.wallThickness * 0.5 + 0.012;
+  try {
+    for (let iy = 0; iy < SECT_NY; iy++) {
+      // Sample a hair above the floor: a ray exactly on it grazes the base pane
+      // and reports a hit at zero distance.
+      const y = y0 + ((y1 - y0) * iy) / (SECT_NY - 1) + (iy === 0 ? 0.008 : 0);
+      ys[iy] = y0 + ((y1 - y0) * iy) / (SECT_NY - 1);
+      for (let ia = 0; ia < cols; ia++) {
+        const a = (ia / cols) * Math.PI * 2;
+        org.set(0, y, 0);
+        dir.set(Math.cos(a), 0, Math.sin(a));
+        ray.set(org, dir);
+        const hits = ray.intersectObjects(glassMeshes, true);
+        const v = hits.length ? Math.max(0.02, hits[0].distance - inset) : -1;
+        if (radial) r.fill(v, iy * SECT_NA, (iy + 1) * SECT_NA);
+        else r[iy * SECT_NA + ia] = v;
+      }
+    }
+  } finally {
+    for (const [mat, side] of sides) mat.side = side;
+  }
+
+  // Fill the misses from whatever we can say analytically, and if there is
+  // nothing to say, from the nearest measured neighbour at the same heading.
+  let measured = 0;
+  for (let ia = 0; ia < SECT_NA; ia++) {
+    const a = (ia / SECT_NA) * Math.PI * 2;
+    for (let iy = 0; iy < SECT_NY; iy++) {
+      const k = iy * SECT_NA + ia;
+      if (r[k] > 0) { measured++; continue; }
+      r[k] = fallbackReach(fallback, ys[iy], a, it);
+    }
+  }
+  // A vessel we could barely see is one we should not claim to have measured.
+  if (measured < SECT_NY * SECT_NA * 0.35) return fallback;
+  void cols;
+  return { ys, r, na: SECT_NA };
+}
+
+/** Best analytic guess at the reach, for filling gaps in a measured table. */
+function fallbackReach(fallback, y, a, it) {
+  if (fallback) {
+    const { ys, r, na } = fallback;
+    let iy = 0;
+    while (iy < ys.length - 1 && ys[iy + 1] < y) iy++;
+    const ia = Math.round((a / (Math.PI * 2)) * na) % na;
+    return r[iy * na + ia];
+  }
+  return Math.max(0.05, it.innerRadius - it.wallThickness);
+}
+
+const SECT_NA = 64; // angular samples — smooth on a belly, cheap to build
+const SECT_NY = 28; // height samples
+
+/**
+ * The interior of the vessel that was just built, as one table.
+ *
+ * This is the only thing callers should need. The policy for *how* the table
+ * is obtained lives here rather than at the call site, because it is the kind
+ * of decision that grows a special case per jar if you let it:
+ *
+ *   • a bottle is described analytically from the same spec its glass is
+ *     lathed from, so measuring it would only re-derive what we already know —
+ *     at a cost of ~140ms, the one measurement expensive enough to feel.
+ *   • a surface of revolution is identical at every heading, so a single
+ *     column of rays describes it exactly.
+ *   • everything else is measured properly off its panes, which is what caught
+ *     an egg whose declared floor sat below its glass and a trough whose
+ *     corners its footprint never knew about.
+ *
+ * The analytic section is always computed first and handed in as the fallback,
+ * so a measurement that sees too little of the vessel degrades to it rather
+ * than to nothing.
+ */
+export function jarSectionFor(typeId, it, glassMeshes) {
+  const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
+  const analytic = jarInnerSection(typeId, it);
+  if (type.bottle) return analytic;
+  return measureInnerSection(glassMeshes, it, analytic, jarIsRound(typeId, it));
+}
+
+/** Is this vessel a surface of revolution about Y? */
+export function jarIsRound(typeId, it) {
+  const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
+  // A lathe is only a surface of revolution if it has enough segments to be
+  // one. The trough is lathed on four, which makes it a square planter wearing
+  // a lathe's clothes — measuring it down a single ray would describe a circle
+  // that its corners stick straight out of.
+  const segments = type.segments || 128;
+  return Boolean(
+    type.profile &&
+      segments >= 24 &&
+      !type.poly &&
+      !type.geo &&
+      !type.bottle &&
+      !type.house &&
+      !it.footprint,
+  );
+}
+
+export function jarInnerSection(typeId, it) {
+  const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
+  if (type.bottle) return bottleSection(it);
+  if (type.house) return boxSection(it);
+  if (type.poly) return polySection(it, type.poly);
+  return null; // separable: silhouette × footprint already describes it
+}
+
+// A faceted vessel — square pyramid, icosahedron, dodecahedron — sliced from
+// the very geometry the glass is built from, so the soil's outline and the
+// panes it sits behind cannot disagree. Each triangle contributes a half-space
+// n·p ≤ d; a point is inside when it satisfies all of them, and the reach along
+// a heading is the nearest wall that heading runs into.
+//
+// This replaces treating faceted jars as round at their *inscribed* radius,
+// which was safe — it never poked out — but left the corners of every pane
+// visibly empty, which is the tell that nothing is really being filled.
+function polySection(it, kind) {
+  let geo;
+  let centerY;
+  if (kind === "pyramid") {
+    const h = it.bodyHeight + 1.1;
+    geo = new THREE.ConeGeometry(it.innerRadius * 1.55, h, 4, 1);
+    geo.rotateY(Math.PI / 4);
+    centerY = it.floorY - 0.06 + h / 2;
+  } else if (kind === "ico") {
+    const R = it.innerRadius * 1.4;
+    geo = new THREE.IcosahedronGeometry(R, 0);
+    centerY = it.floorY + R * 0.6;
+  } else {
+    const R = it.innerRadius * 1.42;
+    geo = new THREE.DodecahedronGeometry(R, 0);
+    centerY = it.floorY + R * 0.58;
+  }
+
+  const planes = facePlanes(geo);
+  geo.dispose();
+  const inset = it.wallThickness + 0.02;
+
+  const y0 = it.floorY;
+  const y1 = it.floorY + it.bodyHeight;
+  return sampleSection(y0, y1, (y, a) => {
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    const ly = y - centerY; // the polyhedron is modelled about its own centre
+    let best = Infinity;
+    for (const pl of planes) {
+      const along = pl.nx * dx + pl.nz * dz;
+      if (along <= 1e-9) continue; // this wall is behind us, or parallel
+      const room = pl.d - inset - pl.ny * ly;
+      if (room <= 0) return 0.02; // already outside at this height
+      best = Math.min(best, room / along);
+    }
+    return best === Infinity ? 0.02 : best;
+  });
+}
+
+/** Outward face planes (n, d) of a convex geometry, deduplicated. */
+function facePlanes(geo) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const pos = g.attributes.position;
+  const out = [];
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const ac = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i);
+    b.fromBufferAttribute(pos, i + 1);
+    c.fromBufferAttribute(pos, i + 2);
+    ab.subVectors(b, a);
+    ac.subVectors(c, a);
+    n.crossVectors(ab, ac);
+    if (n.lengthSq() < 1e-12) continue;
+    n.normalize();
+    const d = n.dot(a);
+    // Coplanar triangles of the same face collapse to one plane.
+    if (out.some((p) => Math.abs(p.nx - n.x) < 1e-4 && Math.abs(p.ny - n.y) < 1e-4 &&
+                        Math.abs(p.nz - n.z) < 1e-4 && Math.abs(p.d - d) < 1e-4)) continue;
+    out.push({ nx: n.x, ny: n.y, nz: n.z, d });
+  }
+  if (g !== geo) g.dispose();
+  return out;
+}
+
+/**
+ * Sample `reach(y, a)` into the flat table jarReach() expects.
+ *
+ * `y0`/`y1` must bracket the vessel's usable body, because jarReach holds the
+ * first and last rows for anything outside the table rather than extrapolating.
+ * A table that starts above the floor therefore does not leave the floor
+ * undefined — it quietly reports the floor as being as wide as the first row.
+ */
+function sampleSection(y0, y1, reach) {
+  const ys = new Float32Array(SECT_NY);
+  const r = new Float32Array(SECT_NY * SECT_NA);
+  for (let iy = 0; iy < SECT_NY; iy++) {
+    const y = y0 + ((y1 - y0) * iy) / (SECT_NY - 1);
+    ys[iy] = y;
+    for (let ia = 0; ia < SECT_NA; ia++) {
+      const a = (ia / SECT_NA) * Math.PI * 2;
+      r[iy * SECT_NA + ia] = Math.max(0.02, reach(y, a));
+    }
+  }
+  return { ys, r, na: SECT_NA };
+}
+
+// A bottle lying along +X. At height y the bore is a horizontal slice of the
+// body of revolution: the half-width across the bottle (±z) at station x is
+// sqrt(bore(x)² − dy²), where dy is how far y sits off the bottle's axis. So
+// the boundary along a heading is found by walking out until that stops being
+// true — a short march, done once per jar, not per frame.
+function bottleSection(it) {
+  const { bodyLen, centerY, pts } = bottleSpec(it);
+  const wall = it.wallThickness;
+  // Only the body is fillable; soil does not climb into the neck.
+  const xMin = -bodyLen / 2 + 0.12;
+  const xMax = bodyLen / 2 - 0.16;
+
+  // Inner bore at station x along the axis, shrunk by the wall.
+  const boreAt = (x) => Math.max(0, latheRadiusAt(pts, x) - wall);
+
+  // Half-depth across the belly at station x, at height y.
+  const depth = (x, y) => {
+    if (x < xMin || x > xMax) return -1;
+    const bore = boreAt(x);
+    const dy = y - centerY;
+    const v = bore * bore - dy * dy;
+    return v <= 0 ? -1 : Math.sqrt(v);
+  };
+
+  // The bore's lowest point *is* floorY: the bore radius is `innerRadius`, and
+  // the axis sits `innerRadius` above the floor. Subtracting the wall again
+  // here started the table a wall-thickness too high, and since jarReach holds
+  // the end value for anything below the table, every height under it inherited
+  // a bed 0.26 wide where the bottle is a knife edge — which is precisely the
+  // substrate that was seen fanning out beneath the glass.
+  //
+  // Every section must span the vessel's whole declared body for this reason:
+  // outside the table there is no measurement, only the nearest row repeated.
+  const y0 = it.floorY;
+  const y1 = it.floorY + it.bodyHeight;
+
+  return sampleSection(y0, y1, (y, a) => {
+    const dx = Math.cos(a);
+    const dz = Math.sin(a);
+    // March out along the heading until the point leaves the bore, then bisect
+    // for the crossing. 28 coarse steps over the longest possible ray, and 18
+    // bisections, put the boundary well inside a tenth of a millimetre.
+    const far = bodyLen;
+    let lo = 0;
+    let hi = far;
+    let found = false;
+    const inside = (t) => {
+      const hz = depth(dx * t, y);
+      return hz >= 0 && Math.abs(dz * t) <= hz;
+    };
+    if (!inside(0.0005)) return 0.02; // this height misses the bore entirely
+    const STEPS = 28;
+    for (let i = 1; i <= STEPS; i++) {
+      const t = (far * i) / STEPS;
+      if (!inside(t)) {
+        lo = (far * (i - 1)) / STEPS;
+        hi = t;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return far;
+    for (let i = 0; i < 18; i++) {
+      const mid = (lo + hi) / 2;
+      if (inside(mid)) lo = mid;
+      else hi = mid;
+    }
+    return lo;
+  });
+}
+
+// A rectangular glass case: half-width `hw` along X, half-depth `hd` along Z.
+// The reach along a heading is whichever wall the ray meets first — which is
+// what makes the substrate square off into the corners instead of sitting in
+// the middle as a disc.
+function boxSection(it) {
+  const hw = Math.max(0.05, it.innerRadius * (it.stretchX || 1) - it.wallThickness);
+  const hd = Math.max(0.05, it.innerRadius - it.wallThickness);
+  const y0 = it.floorY;
+  const y1 = it.floorY + it.bodyHeight;
+  return sampleSection(y0, y1, (_y, a) => {
+    const c = Math.abs(Math.cos(a));
+    const s = Math.abs(Math.sin(a));
+    const tx = c > 1e-6 ? hw / c : Infinity;
+    const tz = s > 1e-6 ? hd / s : Infinity;
+    return Math.min(tx, tz);
+  });
+}
+
 // Outer radius of a lathe profile at height `y` — the tightest of every segment
 // spanning that height, so a flared rim can never widen what sits below it.
 function latheRadiusAt(pts, y) {
@@ -449,11 +809,17 @@ function globeProfile(it) {
   const R = (it.innerRadius + it.wallThickness) * 1.28;
   const cy = it.floorY - it.wallThickness + R * 0.86;
   const pts = [new THREE.Vector2(0, it.floorY - it.wallThickness)];
-  const t0 = Math.PI * 0.72; // near bottom
-  const t1 = Math.PI * 0.12; // near top mouth
+  // y = cy − cos(t)·R, so *small* t is the bottom of the sphere and large t the
+  // mouth. Walking t downward therefore built the profile top-first, and a
+  // lathe fed points in that order joins the base axis straight up to the rim —
+  // a cone standing inside the globe. It was invisible through transmissive
+  // glass, but it is real geometry: it is what a ray fired out from the axis
+  // met first, and so it is what the substrate was being fitted to.
+  const tBottom = Math.PI * 0.12;
+  const tMouth = Math.PI * 0.72;
   const N = 24;
   for (let i = 0; i <= N; i++) {
-    const t = t0 + (t1 - t0) * (i / N);
+    const t = tBottom + (tMouth - tBottom) * (i / N);
     pts.push(new THREE.Vector2(Math.sin(t) * R, cy - Math.cos(t) * R));
   }
   return pts;
@@ -805,25 +1171,32 @@ function makeClayMaterial({ color, rough = 0.95, flat = false }) {
 
 // A wine bottle lying on its side on a wooden cradle — ship-in-a-bottle style,
 // neck pointing right, corked. The terrarium bed sits along the belly.
-function buildBottle(it, envMap, group) {
+// The bottle described once, so the glass and the soil inside it cannot drift
+// apart. `pts` is the lathe profile along +Y (revolved, then laid along +X):
+// x is the bore at that station, y the distance along the bottle's axis.
+function bottleSpec(it) {
   const R = it.innerRadius + it.wallThickness; // cross-section outer radius
   const bodyLen = it.innerRadius * it.stretchX * 2 + 0.3;
   const centerY = it.floorY + it.innerRadius; // glass axis height
+  const pts = [
+    [0, -bodyLen / 2 - 0.02],
+    [R * 0.55, -bodyLen / 2 - 0.02],
+    [R * 0.92, -bodyLen / 2 + 0.06],
+    [R, -bodyLen / 2 + 0.2],
+    [R, bodyLen / 2 - 0.2],
+    // shoulder into the neck
+    [R * 0.85, bodyLen / 2 + 0.05],
+    [R * 0.42, bodyLen / 2 + 0.32],
+    [R * 0.3, bodyLen / 2 + 0.5],
+    [R * 0.3, bodyLen / 2 + 0.85],
+    [R * 0.34, bodyLen / 2 + 0.9],
+    [R * 0.31, bodyLen / 2 + 0.96],
+  ].map((p) => new THREE.Vector2(p[0], p[1]));
+  return { R, bodyLen, centerY, pts };
+}
 
-  // profile along +Y (revolved), then rotated to lie along +X
-  const pts = [];
-  pts.push(new THREE.Vector2(0, -bodyLen / 2 - 0.02));
-  pts.push(new THREE.Vector2(R * 0.55, -bodyLen / 2 - 0.02));
-  pts.push(new THREE.Vector2(R * 0.92, -bodyLen / 2 + 0.06));
-  pts.push(new THREE.Vector2(R, -bodyLen / 2 + 0.2));
-  pts.push(new THREE.Vector2(R, bodyLen / 2 - 0.2));
-  // shoulder into the neck
-  pts.push(new THREE.Vector2(R * 0.85, bodyLen / 2 + 0.05));
-  pts.push(new THREE.Vector2(R * 0.42, bodyLen / 2 + 0.32));
-  pts.push(new THREE.Vector2(R * 0.3, bodyLen / 2 + 0.5));
-  pts.push(new THREE.Vector2(R * 0.3, bodyLen / 2 + 0.85));
-  pts.push(new THREE.Vector2(R * 0.34, bodyLen / 2 + 0.9));
-  pts.push(new THREE.Vector2(R * 0.31, bodyLen / 2 + 0.96));
+function buildBottle(it, envMap, group) {
+  const { R, bodyLen, centerY, pts } = bottleSpec(it);
 
   const glassGeo = new THREE.LatheGeometry(pts, 96);
   glassGeo.computeVertexNormals();
@@ -845,18 +1218,10 @@ function buildBottle(it, envMap, group) {
   cork.position.set(bodyLen / 2 + 0.88, centerY, 0);
   group.add(cork);
 
-  // dark settled bed filling the curved bilge below the substrate floor, so
-  // no gap shows between the flat layers and the round glass.
-  const bed = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 32, 12),
-    new THREE.MeshStandardMaterial({ color: "#33251a", roughness: 1 }),
-  );
-  bed.scale.set(it.innerRadius * it.stretchX, it.innerRadius * 0.94, it.innerRadius * 0.97);
-  bed.position.y = centerY - 0.06;
-  const clipY = it.floorY + 0.02;
-  bed.material.clippingPlanes = null; // keep simple: sink it below the floor
-  bed.position.y = clipY - it.innerRadius * 0.55;
-  group.add(bed);
+  // There used to be a dark "settled bed" sphere here, parked below the floor to
+  // hide the gap between flat slab layers and round glass. The layers follow
+  // the bore now (see bottleSection), so there is no gap to hide — and the
+  // sphere was itself the brown dome that hung visibly under the cradle.
 
   // wooden cradle: plank + two chocks
   const woodMat = regFrame(new THREE.MeshStandardMaterial({ color: "#6e4f30", roughness: 0.85 }));
@@ -1623,31 +1988,53 @@ function buildJarDoor({ group, spec, lo, hi, i, n, glassMat, frameMat, envMap })
   return { pivot, knob, sign, max: Math.PI * 0.62 };
 }
 
-// Invisible interior disc used purely as a raycast target for taps.
-export function buildPickPlane() {
-  const geo = new THREE.CircleGeometry(JAR.innerRadius - 0.05, 48);
-  if (JAR.footprint) {
-    // Same footprint the substrate takes, so a tap anywhere over a long glass
-    // case counts, not just over the disc in the middle of it. The circle is
-    // built in XY and laid down by the rotation below, which turns its +Y into
-    // world −Z — hence the flipped angle.
-    const pos = geo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const y = pos.getY(i);
-      if (x === 0 && y === 0) continue;
-      const k = footprintK(Math.atan2(-y, x));
-      pos.setX(i, x * k);
-      pos.setY(i, y * k);
+// Invisible interior target used purely as a raycast surface for taps. Cut to
+// the interior *at the height it sits*, so a tap lands where the substrate
+// really is: a disc sized to the widest part of the jar accepted taps out over
+// the table for a bowl, and out through the belly for a bottle on its side.
+export function buildPickPlane(y = JAR.floorY, bodyHeight = JAR.bodyHeight) {
+  const SEG = 64;
+  const positions = [0, 0, 0];
+  // The target is cut to the widest the interior gets in a short band *above*
+  // the surface, not to the surface itself. Two reasons, and the first is not
+  // subtle: where a vessel pinches at its floor — a bottle lying on its side
+  // comes to a keel, an egg to a point — the cross-section right at the floor
+  // is a sliver a millimetre wide, and a tap target that shape is one nobody
+  // can hit. The first layer of a bottle became unpourable.
+  //
+  // Widening it is safe because this plane only answers "are you pointing into
+  // the jar?". A poured layer fills the whole cross-section wherever you aimed,
+  // and a decoration is put back inside by clampInsideAt at the height it
+  // actually lands. So the forgiving thing here cannot place anything outside.
+  const band = Math.min(0.25, Math.max(0.06, bodyHeight * 0.25));
+  const reachAtAngle = (a) => {
+    let best = 0;
+    for (let k = 0; k <= 3; k++) {
+      const [x, z] = jarPointAt(y + (band * k) / 3, a, 1, 0.01);
+      best = Math.max(best, Math.hypot(x, z));
     }
-  } else {
-    geo.scale(JAR.stretchX, 1, 1);
+    return best;
+  };
+  for (let i = 0; i < SEG; i++) {
+    const a = (i / SEG) * Math.PI * 2;
+    const d = reachAtAngle(a);
+    // Built in XY and laid down by the rotation below, which turns local +Y
+    // into world −Z — hence the flip.
+    positions.push(Math.cos(a) * d, -Math.sin(a) * d, 0);
   }
+  const indices = [];
+  for (let i = 0; i < SEG; i++) indices.push(0, 1 + i, 1 + ((i + 1) % SEG));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+
   const plane = new THREE.Mesh(
     geo,
-    new THREE.MeshBasicMaterial({ visible: false }),
+    new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }),
   );
   plane.rotation.x = -Math.PI / 2;
   plane.name = "pickPlane";
+  plane.userData.builtY = y;
   return plane;
 }

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { JAR, jarPolar, jarRadiusAt } from "./state.js";
+import { JAR, jarPointAt, jarReach } from "./state.js";
 
 // ---------------------------------------------------------------------------
 // Base placement shadow
@@ -18,13 +18,17 @@ import { JAR, jarPolar, jarRadiusAt } from "./state.js";
 const VALID = 0x7fd07f;
 const INVALID = 0xd8736b;
 
-/** Points around the jar's footprint at height `y`, scaled to `k` of full. */
+// The marker traces the same outline the substrate is lofted against, through
+// the same function — so what it promises and what lands are the one shape by
+// construction, not by two pieces of code agreeing to be careful.
+const PREVIEW_MARGIN = 0.022;
+
+/** Points around the jar's interior at height `y`, pulled in to `k` of full. */
 function footprintPoints(y, k = 1, segments = 72) {
-  const radius = jarRadiusAt(y) * k;
   const points = [];
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2;
-    const [x, z] = jarPolar(a, radius);
+    const [x, z] = jarPointAt(y, a, k, PREVIEW_MARGIN);
     points.push(new THREE.Vector2(x, z));
   }
   return points;
@@ -103,6 +107,7 @@ export function createBaseShadow() {
   let valid = true;
   let shapeY = null; // the height the silhouette was last built for
   let released = 0; // 1 right after a placement, decaying — the confirm flash
+  let dotAngle = 0; // heading of the cursor dot, for sizing it to the local reach
 
   /** Rebuild the outline for a new settle height (or a new vessel shape). */
   function reshape(y) {
@@ -126,6 +131,7 @@ export function createBaseShadow() {
     if (point) {
       dot.visible = true;
       dot.position.set(point.x, 0.004, point.z);
+      dotAngle = Math.atan2(point.z, point.x) || 0;
     } else {
       dot.visible = false;
     }
@@ -181,7 +187,9 @@ export function createBaseShadow() {
     edge.scale.set(s, s, 1);
     fill.material.opacity = (valid ? 0.22 : 0.3) * shown;
     edge.material.opacity = (valid ? 0.9 : 0.95) * shown * (1 - released * 0.35);
-    const d = (calm ? 0.34 : 0.34 + Math.sin(now * 0.005) * 0.03) * jarRadiusAt(group.position.y);
+    const d =
+      (calm ? 0.34 : 0.34 + Math.sin(now * 0.005) * 0.03) *
+      jarReach(group.position.y, dotAngle);
     dot.scale.set(d, d, 1);
     dot.material.opacity = 0.8 * fade;
   }
