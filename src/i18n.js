@@ -73,6 +73,8 @@ const EN = {
   "কম অ্যানিমেশন": "Reduced motion",
   "পারফরম্যান্স": "Performance",
   "ছবির মান": "Picture quality",
+  "টেনে চওড়া করো": "Drag to resize",
+  "প্যানেলের চওড়া": "Panel width",
   "ক্যামেরা রিসেট": "Reset camera",
   "ক্যামেরা আবার আগের জায়গায়।": "Camera back where it started.",
   "সরাও": "Move",

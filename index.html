@@ -217,6 +217,16 @@
            in one press (the ✕, like Townscaper's panel) and the jar gets the
            whole screen back; the round handle brings it home. -->
       <aside class="rail" id="rail" aria-label="Potroneer controls">
+        <!-- Drag the rail's inner edge to widen it; the keycaps grow with it. -->
+        <div
+          class="panel-grip"
+          id="rail-grip"
+          role="separator"
+          aria-orientation="vertical"
+          tabindex="0"
+          data-i18n-title="টেনে চওড়া করো"
+          title="টেনে চওড়া করো"
+        ></div>
         <button class="rail-hide" id="rail-hide" type="button" aria-label="Hide controls" title="Hide controls">✕</button>
 
         <div class="rail-card rail-card--brand">
@@ -360,6 +370,18 @@
       <!-- Theme gallery: pick a family, then a picture. Every card previews the
            real backdrop, so nothing is chosen blind. -->
       <div class="theme-panel hidden" id="theme-panel">
+        <!-- Drag the left edge to widen the shelf. Widening grows the cards
+             rather than adding more of them, because the point is to see the
+             photograph, not to fit more postage stamps on screen. -->
+        <div
+          class="panel-grip"
+          id="theme-grip"
+          role="separator"
+          aria-orientation="vertical"
+          tabindex="0"
+          data-i18n-title="টেনে চওড়া করো"
+          title="টেনে চওড়া করো"
+        ></div>
         <div class="cfg-head">
           <span data-i18n="থিম বেছে নাও">থিম বেছে নাও</span>
           <button class="hud-btn" id="theme-close">✕</button>
@@ -802,6 +824,17 @@
 
       <!-- bottom bar: build-from-tray toggle + category button + search + cards -->
       <footer class="hud-bottom" id="hud-bottom">
+        <!-- Drag the tray's inner edge to widen it; everything docked beside the
+             column measures off --tray-x and follows. -->
+        <div
+          class="panel-grip panel-grip--right"
+          id="tray-grip"
+          role="separator"
+          aria-orientation="vertical"
+          tabindex="0"
+          data-i18n-title="টেনে চওড়া করো"
+          title="টেনে চওড়া করো"
+        ></div>
         <button class="tray-hide" id="tray-hide" type="button" aria-controls="hud-bottom" aria-expanded="true" aria-label="সাইডবার লুকাও" title="সাইডবার লুকাও (T)">‹</button>
         <button class="build-toggle" id="build-toggle" data-i18n="ট্রে থেকে বানাও">ট্রে থেকে বানাও</button>
         <button class="cat-btn" id="cat-btn">

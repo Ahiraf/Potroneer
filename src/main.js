@@ -4979,6 +4979,202 @@ wireDialogs([
 ], { fallbackFocus: "#more-btn" });
 wireTabs("#tabs");
 
+// --- draggable sidebar edges -----------------------------------------------
+// Both columns are fixed furniture around a 3D scene, and the right width for
+// them is not a number anyone can pick for someone else: it depends on the
+// screen, the language (Bengali labels run longer than their English twins),
+// the text scale, and whether you are hunting the shelf or watching the jar.
+// So the edges are draggable, and the width someone chooses is the width they
+// get next time.
+//
+// One implementation drives all three grips. What differs between them is only
+// which way "wider" points — the tray is anchored to the left edge so widening
+// means dragging right; the rail and the theme shelf are anchored right, so
+// widening means dragging left — and that is a sign, not a second code path.
+const PANEL_W_KEY = "potroneer-panel-widths";
+
+let panelWidths = {};
+try {
+  panelWidths = JSON.parse(localStorage.getItem(PANEL_W_KEY) || "{}");
+} catch {
+  panelWidths = {};
+}
+
+function savePanelWidths() {
+  try {
+    localStorage.setItem(PANEL_W_KEY, JSON.stringify(panelWidths));
+  } catch {
+    /* private mode: the drag still works, it just will not be remembered */
+  }
+}
+
+// Every grip registers what it drives, so the phone listener can put the
+// stylesheet back in charge without each grip having to watch the media query.
+const panelGrips = [];
+
+// A width is only ever *applied* on a layout that has room for it. On a phone
+// the stylesheet narrows the tray to 150px and focus mode takes the column over
+// entirely; a desktop-chosen 320px written onto :root would beat both, because
+// an inline custom property outranks every media query in the sheet. So on a
+// phone the properties are removed rather than overwritten, and the sheet's own
+// numbers apply again.
+function applyPanelWidth(grip, w) {
+  const root = document.documentElement.style;
+  if (w == null) {
+    for (const name of Object.keys(grip.vars)) root.removeProperty(name);
+    return;
+  }
+  for (const [name, spec] of Object.entries(grip.vars)) {
+    const v = typeof spec === "function" ? spec(w) : w + spec;
+    root.setProperty(name, `${Math.round(v)}px`);
+  }
+}
+
+function syncPanelWidths() {
+  const phone = document.body.classList.contains("is-phone");
+  for (const grip of panelGrips) {
+    applyPanelWidth(grip, phone ? null : panelWidths[grip.id] ?? null);
+  }
+}
+
+// `vars` maps each custom property this panel drives to how it follows the
+// panel's width — a number is a fixed lead over it, a function is anything
+// else. The tray is the reason that is a map and not a single name: --tray-x and --tray-fx are where things *docked beside* the column
+// measure from, and if they do not follow the drag, widening the tray slides it
+// underneath the toolbar instead of pushing the toolbar over.
+function initPanelGrip({ id, gripId, panelId, vars, min, max, sign }) {
+  const grip = document.getElementById(gripId);
+  const panel = document.getElementById(panelId);
+  if (!grip || !panel) return;
+
+  const entry = { id, vars, min, max };
+  panelGrips.push(entry);
+
+  // The width to start a drag from. A panel that has never been dragged has no
+  // stored number, so measure what the stylesheet is actually giving it rather
+  // than hardcoding a default here and having two sources of truth.
+  const currentWidth = () =>
+    panelWidths[id] ?? Math.round(panel.getBoundingClientRect().width);
+
+  const clamp = (w) =>
+    Math.max(min, Math.min(typeof max === "function" ? max() : max, w));
+
+  function setWidth(w, persist) {
+    const next = clamp(w);
+    panelWidths[id] = next;
+    applyPanelWidth(entry, next);
+    if (persist) savePanelWidths();
+    return next;
+  }
+
+  let startX = 0;
+  let startW = 0;
+  let dragging = false;
+
+  grip.addEventListener("pointerdown", (e) => {
+    // Left button / touch / pen only; a right-click on the edge is not a drag.
+    if (e.button !== 0) return;
+    if (document.body.classList.contains("is-phone")) return;
+    dragging = true;
+    startX = e.clientX;
+    startW = currentWidth();
+    // Capture so the drag survives the pointer outrunning a 16px strip — which
+    // it will, because the whole point is to move the edge a long way.
+    grip.setPointerCapture?.(e.pointerId);
+    grip.classList.add("is-dragging");
+    document.body.classList.add("panel-resizing");
+    // preventDefault (below) stops the text selection a drag across the HUD
+    // would otherwise start — and with it the focus the press would have given
+    // the grip, which the arrow keys need. So take the focus explicitly.
+    e.preventDefault();
+    grip.focus?.({ preventScroll: true });
+  });
+
+  grip.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    setWidth(startW + (e.clientX - startX) * sign, false);
+  });
+
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    grip.releasePointerCapture?.(e.pointerId);
+    grip.classList.remove("is-dragging");
+    document.body.classList.remove("panel-resizing");
+    savePanelWidths();
+  }
+  grip.addEventListener("pointerup", endDrag);
+  grip.addEventListener("pointercancel", endDrag);
+
+  // A drag is not an input method everyone has. The grip is a focusable
+  // separator, so the arrow keys move it too — the pattern screen-reader users
+  // are already told to expect from role="separator" with a tabindex.
+  grip.addEventListener("keydown", (e) => {
+    const step = e.shiftKey ? 48 : 16;
+    let delta = 0;
+    if (e.key === "ArrowLeft") delta = -step * sign;
+    else if (e.key === "ArrowRight") delta = step * sign;
+    else if (e.key === "Home") delta = -1e4;
+    else if (e.key === "End") delta = 1e4;
+    else if (e.key === "Enter" || e.key === " ") {
+      // Back to whatever the stylesheet would have given it.
+      delete panelWidths[id];
+      applyPanelWidth(entry, null);
+      savePanelWidths();
+      e.preventDefault();
+      return;
+    } else return;
+    e.preventDefault();
+    setWidth(currentWidth() + delta, true);
+  });
+
+  // Double-click the edge to forget the choice — the usual escape hatch for a
+  // resizer, and the one people try before they look for a reset button.
+  grip.addEventListener("dblclick", () => {
+    delete panelWidths[id];
+    applyPanelWidth(entry, null);
+    savePanelWidths();
+  });
+}
+
+// The tray is anchored left: dragging right widens it (sign +1). --tray-x and
+// --tray-fx are the gutters things docked beside it measure from, and they keep
+// their original 22px / 12px lead over the column's own width.
+initPanelGrip({
+  id: "tray",
+  gripId: "tray-grip",
+  panelId: "hud-bottom",
+  vars: { "--tray-w": 0, "--tray-x": 22, "--tray-fx": 12 },
+  min: 180,
+  max: () => Math.min(420, window.innerWidth * 0.4),
+  sign: 1,
+});
+
+// The rail is anchored right, so dragging *left* widens it (sign -1).
+initPanelGrip({
+  id: "rail",
+  gripId: "rail-grip",
+  panelId: "rail",
+  vars: { "--rail-w": 0 },
+  min: 150,
+  max: () => Math.min(360, window.innerWidth * 0.35),
+  sign: -1,
+});
+
+// The theme shelf, also anchored right. Widening it grows the cards rather than
+// adding columns — the point of a wider shelf is to see the photograph, not to
+// fit more postage stamps — so the grid's column floor is derived from the
+// panel's width and kept at roughly three across.
+initPanelGrip({
+  id: "theme",
+  gripId: "theme-grip",
+  panelId: "theme-panel",
+  vars: { "--theme-panel-w": 0, "--theme-card-min": (w) => (w - 72) / 3 },
+  min: 300,
+  max: () => Math.min(900, window.innerWidth - 24),
+  sign: -1,
+});
+
 // --- phone workspace -------------------------------------------------------
 // A phone is not a small desktop. The desktop composition puts a 150px tray
 // down one side and a 148px rail down the other, which on a 390px screen leaves
@@ -5023,11 +5219,15 @@ phoneMedia?.addEventListener?.("change", () => {
   placeMoreMenu();
   // Rotating a tablet or dragging a window narrow should not yank someone out
   // of the layout they are working in, so this only ever opts *in*.
+  syncPanelWidths();
   if (phone) startPhoneWorkspace();
 });
 
 syncPhoneClass();
 startPhoneWorkspace();
+// Only now is `is-phone` on <body>, which is what decides whether a stored
+// width may be applied at all.
+syncPanelWidths();
 
 // --- phone: camera controls move out of the dock ---------------------------
 // Eight controls in one bar wraps to two rows on a 390px phone and strands the

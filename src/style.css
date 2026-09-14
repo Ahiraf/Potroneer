@@ -295,7 +295,9 @@ body {
   position: absolute;
   top: 10px;
   right: 12px;
-  width: 190px;
+  /* Driven by the grip on the rail's left edge; see --rail-w in the text-scale
+     block, which is where the unresized default (and its scaling) lives. */
+  width: var(--rail-w, 190px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1232,6 +1234,14 @@ textarea.social-input {
   top: 62px;
   right: 12px;
   width: min(520px, calc(100vw - 24px));
+}
+/* The shelf is resizable; `--theme-panel-w` is written by the grip and kept in
+   localStorage, so the width someone chose is the width they get next time. */
+.theme-panel {
+  width: clamp(300px, var(--theme-panel-w, 520px), calc(100vw - 24px));
+}
+.theme-panel,
+.photo-panel {
   padding: 14px;
   background: var(--hud-strong);
   border: 1px solid var(--hud-border);
@@ -1279,9 +1289,12 @@ textarea.social-input {
 /* Every card previews its real backdrop, so no theme is chosen blind. */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  /* Widening the panel grows the cards instead of adding columns — the column
+     floor is set from the panel's own width by main.js. Three-ish columns at
+     every size, each as large as the space allows. */
+  grid-template-columns: repeat(auto-fill, minmax(var(--theme-card-min, 148px), 1fr));
   gap: 8px;
-  max-height: min(52vh, 400px);
+  max-height: min(58vh, 620px);
   overflow: auto;
   padding: 2px;
   scrollbar-width: thin;
@@ -3668,10 +3681,9 @@ body.pre-first-build .game-panel {
   --tray-w: calc(244px * var(--furniture-scale));
   --tray-x: calc(266px * var(--furniture-scale));
   --tray-fx: calc(256px * var(--furniture-scale));
+  --rail-w: calc(190px * var(--furniture-scale));
 }
-.rail {
-  width: calc(190px * var(--furniture-scale));
-}
+
 /* Tray chips stop clipping their names and wrap instead. */
 .item-chip .chip-label {
   white-space: normal;
@@ -4844,4 +4856,101 @@ body {
 .more-menu,
 .comfort-card {
   overscroll-behavior: contain;
+}
+
+/* --- Resizable theme shelf -------------------------------------------------
+   A grab edge down the panel's left side. It is deliberately wider than it
+   looks: the visible rule is 4px so it does not compete with the panel's own
+   border, but the hit area is 16px, because a 4px drag target is a 4px drag
+   target no matter how good it looks. */
+.panel-grip {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 16px;
+  margin-left: -8px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  cursor: ew-resize;
+  touch-action: none; /* the drag is ours; never let it scroll the panel */
+  background: none;
+  border: 0;
+}
+.panel-grip::before {
+  content: "";
+  width: 4px;
+  height: 100%;
+  max-height: 96px;
+  border-radius: 999px;
+  background: var(--control-border);
+  transition: background 0.14s ease, transform 0.14s ease;
+}
+.panel-grip:hover::before,
+.panel-grip.is-dragging::before {
+  background: var(--accent, #6d9e4f);
+  transform: scaleX(1.6);
+}
+.panel-grip:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  border-radius: 999px;
+}
+/* While dragging, the pointer owns the whole window: no text selection, and the
+   ew-resize cursor stays put even when the pointer outruns the 16px strip. */
+body.panel-resizing {
+  cursor: ew-resize;
+  user-select: none;
+}
+/* Nothing may ease while a finger is deciding the width: the tray and rail both
+   animate their fold, and a 0.22s transition on `width` turns a drag into a
+   rubber band that arrives late. */
+body.panel-resizing .theme-panel,
+body.panel-resizing .rail,
+body.panel-resizing .hud-bottom {
+  transition: none;
+}
+
+/* The same grip, mirrored. The tray is anchored to the left edge, so its handle
+   lives on its right side and widening means dragging *away* from the anchor;
+   the rail and the theme shelf are anchored right, so theirs is the default. */
+.panel-grip--right {
+  left: auto;
+  right: 0;
+  margin-left: 0;
+  margin-right: -8px;
+}
+
+/* The sidebars are full-height columns, so their handles are too — a 96px stub
+   halfway down a 900px edge is a target you have to hunt for. */
+.rail > .panel-grip,
+.hud-bottom > .panel-grip {
+  top: 0;
+  bottom: 0;
+}
+.rail > .panel-grip::before,
+.hud-bottom > .panel-grip::before {
+  max-height: none;
+  opacity: 0;
+  transition: opacity 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+/* Idle, the sidebar edges stay clean: the handle only paints once a pointer is
+   on it (or it is being dragged, or keyboard focus has found it). */
+.rail:hover > .panel-grip::before,
+.hud-bottom:hover > .panel-grip::before,
+.panel-grip:hover::before,
+.panel-grip:focus-visible::before,
+.panel-grip.is-dragging::before {
+  opacity: 1;
+}
+
+/* Phones give the panel the full width already, so there is nothing to drag. */
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .panel-grip {
+    display: none;
+  }
+  .theme-panel {
+    width: auto;
+  }
 }
