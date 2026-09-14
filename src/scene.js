@@ -1076,15 +1076,11 @@ export function createStudio(canvas) {
   // picture in both axes, so every backdrop arrived cropped into a detail of
   // itself. At 1.15 roughly 87% of the photo is on screen — nearly double the
   // area — and there is still enough spare wall for the parallax sway.
-  // Margin of real picture around the frame, so that moving the eye after the
-  // fit — dollying, raising or lowering it, easing it toward the cursor — does
-  // not run off the photo into stretched edge pixels. The binding case is
-  // dollying all the way out, which widens the shot by about a tenth; the fit
-  // is deliberately not redone on zoom, because a backdrop that resizes itself
-  // as you dolly stops reading as a wall at a distance and starts reading as
-  // wallpaper stuck to the lens. So this is that tenth, and no more: 1.15 was
-  // paying for drift the camera cannot actually make.
-  const SHELL_OVERSCAN = 1.1;
+  // A sliver of picture beyond the frame, so a frame computed a moment ago
+  // still covers the screen a moment later. The fit now follows the camera (see
+  // fitBackdrop), so this no longer has to pay for where the eye might wander —
+  // only for the easing lag between one frame and the next.
+  const SHELL_OVERSCAN = 1.03;
   const SHELL_THETA0 = Math.PI - SHELL_ARC / 2;
 
   // Where a ray lands on the shell, in the geometry's own uv. The shell counts
@@ -1109,32 +1105,42 @@ export function createStudio(canvas) {
     return { u: (th - SHELL_THETA0) / SHELL_ARC, v: (y + SHELL_H / 2) / SHELL_H };
   }
 
-  // Fit the backdrop image to the frame the camera has *right now*, then leave
-  // it there. Re-fitting every frame would glue the picture back to the lens
-  // and undo the parallax; this only runs when the frame itself changes (a new
-  // backdrop, a resize, a different vessel to frame).
+  // Frame the backdrop on the picture, every time the eye moves.
   //
-  // This used to size the fit by pretending the shell were a flat wall at
-  // `SHELL_R + camDistT` and asking how much of it the lens covered. On a
-  // cylinder that is wrong in both axes, and wrong by different amounts: the
-  // corners of the frame look further round the curve than its centre does. The
-  // measured cost was that only 81% of the picture arrived across and 73% of it
-  // down — so every backdrop hung as a blown-up detail of itself, worst on the
-  // busy, finely patterned photographs that had the most to lose.
+  // Two things were wrong here. The fit used to size itself by pretending the
+  // shell were a flat wall at `SHELL_R + camDistT` and asking how much of it
+  // the lens covered; on a cylinder that is wrong in both axes and wrong by
+  // different amounts, because the corners of the frame look further round the
+  // curve than its centre does. And it ran *once*, for the pose the camera
+  // happened to hold at the time.
   //
-  // So ask the shell instead of guessing: cast the frame's corners, edges and
-  // centre at it, and take the box they actually land in.
+  // That second part is what survived the first fix and kept the complaints
+  // coming. A fit is only true for the pose it was taken at, so tilting the eye
+  // afterwards slid the photograph off the frame: the picture arrived looking
+  // like a blown-up crop of itself, its floor sat below the bottom of the
+  // screen where it could not be reached, and looking down far enough ran off
+  // the picture altogether into a smear of stretched edge pixels.
+  //
+  // So the fit follows the eye. It reads the live camera — the one that has
+  // actually been positioned this frame, parallax and easing included — casts
+  // the frame's corners, edges and centre at the shell, and takes the box they
+  // land in. The photograph is then always the thing on screen, whole, at every
+  // pitch and every dolly. What that costs is the backdrop's parallax: it no
+  // longer slides or resizes against the jar as the eye moves. A photograph
+  // that is always framed is the thing that was asked for, and a terrarium on a
+  // table is not a scene that needs the room behind it to swim.
   const FIT_TAPS = [-1, 0, 1];
+  // The eye the current fit was taken from, so the tick can tell when it is
+  // stale. Seeded off-camera so the very first frame always fits.
+  const fitEye = new THREE.Vector3(NaN, NaN, NaN);
+  let fitLookAtY = NaN;
   function fitBackdrop() {
     const tex = shellMat.map;
     if (!tex) return;
-    // The eye this fit is *for* is the one the camera is heading toward — the
-    // target dolly and pitch — not wherever the easing has reached this frame.
-    const elev = clamp(camBaseElev + target.x, ELEV_MIN, ELEV_MAX);
-    const ce = Math.cos(elev);
-    const ox = camFlat.x * ce * camDistT;
-    const oy = Math.sin(elev) * camDistT;
-    const oz = camFlat.z * ce * camDistT;
+    // The live eye, not a reconstruction of it: whatever the tick positioned.
+    const ox = camera.position.x;
+    const oy = camera.position.y;
+    const oz = camera.position.z;
     // Camera basis, built the way camera.lookAt builds it.
     let fx0 = -ox;
     let fy0 = lookAtY - oy;
@@ -1300,6 +1306,21 @@ export function createStudio(canvas) {
       )
       .multiplyScalar(camDist);
     camera.lookAt(0, lookAtY, 0);
+    // The backdrop is framed against the eye that was just positioned. Only
+    // when it has actually moved — a still camera re-uses the last fit, so an
+    // idle scene costs nothing. Nine ray-cylinder intersections is cheap enough
+    // to do on a moving frame and far cheaper than the alternative, which is a
+    // photograph that slides off the screen when you tilt.
+    if (
+      Math.abs(camera.position.x - fitEye.x) > 1e-4 ||
+      Math.abs(camera.position.y - fitEye.y) > 1e-4 ||
+      Math.abs(camera.position.z - fitEye.z) > 1e-4 ||
+      fitLookAtY !== lookAtY
+    ) {
+      fitEye.copy(camera.position);
+      fitLookAtY = lookAtY;
+      fitBackdrop();
+    }
 
     onFrame?.(now);
     renderer.render(scene, camera);
