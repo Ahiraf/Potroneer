@@ -1239,6 +1239,63 @@ textarea.social-input {
    localStorage, so the width someone chose is the width they get next time. */
 .theme-panel {
   width: clamp(300px, var(--theme-panel-w, 520px), calc(100vw - 24px));
+  /* A column bounded by the viewport, not by its own content. The gallery used
+     to size itself (58vh, up to 620px) and everything under it — the table
+     styles, the backdrop slider — was pushed however far down that left them,
+     which on a short window or in landscape was off the bottom of the screen
+     with no way to reach it. Now the panel takes the height it is allowed, the
+     gallery takes what is left, and the controls keep their place.
+     100dvh rather than 100vh so a mobile browser's collapsing toolbar does not
+     leave the footer under it. */
+  display: flex;
+  flex-direction: column;
+  /* --panel-top is where this panel starts; the phone rules move it down, and
+     this stays correct without repeating the sum. --dock-h is the Focus Build
+     bar, measured live by a ResizeObserver and 0 when it is not on screen: the
+     dock sits over the bottom of the viewport and was covering the backdrop
+     slider, so the panel has to stop above it rather than merely above the
+     screen edge. */
+  --panel-top: 62px;
+  max-height: calc(
+    100dvh - var(--panel-top) - 14px - var(--dock-h, 0px) -
+      env(safe-area-inset-bottom, 0px)
+  );
+  overflow: hidden;
+}
+.theme-panel > .cfg-head,
+.theme-panel > .theme-groups,
+.theme-panel > .theme-foot,
+.theme-panel > .theme-more {
+  flex: 0 0 auto;
+}
+/* The one part that gives: it scrolls, everything else stays put.
+   The basis is what the gallery *wants* — enough rows to browse by — while
+   shrink lets a short window take it back rather than pushing the controls
+   below the screen. A min-height floor cannot do both: it would refuse to
+   shrink, and the footer would go under the edge again. min-height: 0 is
+   still needed, or a grid child declines to shrink below its content. */
+.theme-panel > .theme-grid {
+  flex: 1 1 min(420px, 46dvh);
+  min-height: 0;
+}
+/* Controls, pinned under the gallery. The top rule separates them from the
+   cards so a scrolled-up card does not read as part of the footer. */
+.theme-foot {
+  border-top: 1px solid var(--hud-border);
+  margin-top: 10px;
+  padding-top: 8px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Whatever the panel is painted with — the desktop plate and the mobile
+     sheet use different tokens, and a footer that sits over scrolling cards
+     has to be opaque in both. */
+  background: inherit;
+  /* On desktop the panel is a flex column and this is simply the last row. On
+     a phone the whole sheet scrolls, and without this the controls scroll away
+     under the cards: 49 thumbnails will always be taller than the sheet. Stuck
+     to the bottom of the scroll area, they stay put in both layouts. */
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
 }
 .theme-panel,
 .photo-panel {
@@ -1258,10 +1315,20 @@ textarea.social-input {
 /* Family tabs above the gallery — 49 worlds stay browsable. */
 .theme-groups {
   display: flex;
-  flex-wrap: wrap;
+  /* One scrolling row, not a wrapping block. Nine categories wrapped to three
+     rows and took 134px off the top of a panel whose height is now finite —
+     straight out of the gallery's share. A row you swipe costs one row's
+     height at every panel width. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   gap: 4px;
   margin: 4px 0 10px;
+  padding-bottom: 2px;
 }
+.theme-groups::-webkit-scrollbar { height: 0; }
+.theme-group { flex: 0 0 auto; }
 .theme-group {
   display: flex;
   align-items: center;
@@ -1294,11 +1361,29 @@ textarea.social-input {
      every size, each as large as the space allows. */
   grid-template-columns: repeat(auto-fill, minmax(var(--theme-card-min, 148px), 1fr));
   gap: 8px;
-  max-height: min(58vh, 620px);
+  /* Height comes from the flex column above, not from a guess at the viewport.
+     A fixed 58vh is what pushed the footer controls off short screens.
+
+     max-content rows are load-bearing. Taking its height from the flex column
+     gives this grid a *definite* height, and a grid with a definite height and
+     auto rows stretches those rows to fill it — 180 cards divided into a few
+     hundred pixels, which rendered the gallery as a stack of one-pixel
+     stripes. Pinning rows to their content makes the overflow real, which is
+     what `overflow: auto` below is for. */
+  grid-auto-rows: max-content;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 2px;
   scrollbar-width: thin;
 }
+/* Stand-in for a thumbnail that failed to load. Same footprint as the photo,
+   so the gallery's rhythm survives a missing file. */
+.theme-swatch--fallback {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
+    var(--hud-border);
+}
+
 .theme-card {
   position: relative;
   display: flex;
@@ -1376,8 +1461,26 @@ textarea.social-input {
   font-size: calc(12px * var(--text-scale));
   white-space: nowrap;
 }
-.backdrop-calm input[type="range"] { flex: 1; min-width: 0; }
-.theme-more { margin-top: 12px; border-top: 1px solid var(--hud-border); padding-top: 8px; }
+.backdrop-calm input[type="range"] { flex: 1; min-width: 60px; }
+/* The title takes the row above on narrow panels; the two end labels sit
+   either side of the track so which way is which needs no explaining. */
+.backdrop-calm { flex-wrap: wrap; }
+.calm-title { flex: 1 0 100%; }
+.calm-end {
+  flex: 0 0 auto;
+  font-size: calc(11px * var(--text-scale));
+  color: var(--ink-dim);
+  opacity: 0.85;
+}
+.calm-note {
+  margin: 4px 0 0;
+  color: var(--ink-dim);
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.35;
+  opacity: 0.8;
+  white-space: normal;
+}
+.theme-more { margin-top: 10px; border-top: 1px solid var(--hud-border); padding-top: 8px; max-height: 32vh; overflow: auto; }
 .theme-more summary { color: var(--ink-dim); font-size: calc(12px * var(--text-scale)); cursor: pointer; list-style: none; }
 .theme-more summary::marker, .theme-more summary::-webkit-details-marker { display: none; }
 .theme-more summary::before { content: "▸ "; color: var(--accent); }
@@ -2472,6 +2575,14 @@ body.focus-mode .hint {
     font-size: calc(12px * var(--text-scale));
   }
   .scene-panel, .cfg-panel, .theme-panel, .photo-panel { top: 104px; right: 6px; left: 6px; width: auto; }
+  .theme-panel { --panel-top: 104px; }
+  /* The sheet scrolls as a whole here, so the gallery takes the height its
+     cards need instead of being the flexible row. */
+  .theme-panel > .theme-grid {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
   /* Phones: the seven controls drop to glyphs and fill the row, and the name of
      what you are holding takes a line of its own above them. Squeezed onto the
      same row it shrank to nothing but its emoji — and that name is the one
@@ -3882,11 +3993,16 @@ body.focus-tray-open .cam-zoom {
     background: var(--hud-solid);
     position: fixed;
     inset-inline: 0;
-    inset-block: auto 0;
+    /* These sheets rise from the bottom edge — but in Focus Build the dock owns
+       that edge, and a sheet anchored to 0 slid its own footer underneath it.
+       The backdrop slider was the casualty: on screen, but with the dock on
+       top of it. --dock-h is measured live and is 0 when the dock is not
+       there, so this is the same rule in both layouts. */
+    inset-block: auto calc(var(--dock-h, 0px));
     width: auto;
     max-width: none;
     height: auto;
-    max-height: min(82dvh, 680px);
+    max-height: min(calc(82dvh - var(--dock-h, 0px)), 680px);
     overflow-x: hidden;
     overflow-y: auto;
     /* overscroll stays inside the sheet instead of dragging the page behind it */

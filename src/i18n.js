@@ -86,6 +86,10 @@ const EN = {
   "ছেড়ে দিলে বসে যাবে": "Release to place",
   "এখানে বসবে না": "Can\u2019t place here",
   "জারের ভেতরে নিয়ে এসো": "Move inside the jar",
+  "স্পষ্ট": "Clear",
+  "নরম": "Soft",
+  "শুধু পেছনের দৃশ্য বদলায়, জারের ভেতরে কিছু নয়।":
+    "Changes the background only \u2014 never the jar or what is in it.",
   "বসানোর মোড": "Place mode",
   "নির্বাচনের মোড": "Select mode",
   "সরানোর মোড": "Move mode",

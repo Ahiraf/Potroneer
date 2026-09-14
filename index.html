@@ -388,17 +388,29 @@
         </div>
         <div class="theme-groups" id="theme-groups"></div>
         <div class="theme-grid" id="theme-grid"></div>
-        <!-- The furniture. It sits with the theme rather than in a panel of its
-             own: the table and the picture behind it are one decision. -->
-        <div class="table-row">
-          <span data-i18n="টেবিল">টেবিল</span>
-          <div id="table-styles"></div>
+        <!-- Everything below the gallery is a control, not content. It lives in
+             a footer that keeps its place while the cards scroll, because a
+             49-picture gallery will always be taller than the panel and these
+             were the first things to be pushed off the bottom of the screen. -->
+        <div class="theme-foot">
+          <!-- The furniture. It sits with the theme rather than in a panel of
+               its own: the table and the picture behind it are one decision. -->
+          <div class="table-row">
+            <span data-i18n="টেবিল">টেবিল</span>
+            <div id="table-styles"></div>
+          </div>
+          <!-- How far the picture stays behind the glass. The ends are labelled
+               because "calm" alone does not say which way is which, and this
+               control touches only the room behind the jar — never the jar. -->
+          <label class="backdrop-calm">
+            <span class="calm-title" data-i18n="ব্যাকড্রপ শান্ত">ব্যাকড্রপ শান্ত</span>
+            <span class="calm-end" data-i18n="স্পষ্ট">স্পষ্ট</span>
+            <input id="backdrop-calm" type="range" min="0" max="100" value="45"
+                   aria-describedby="calm-note" />
+            <span class="calm-end" data-i18n="নরম">নরম</span>
+          </label>
+          <p class="calm-note" id="calm-note" data-i18n="শুধু পেছনের দৃশ্য বদলায়, জারের ভেতরে কিছু নয়।">শুধু পেছনের দৃশ্য বদলায়, জারের ভেতরে কিছু নয়।</p>
         </div>
-        <!-- The final say on how far the picture stays behind the glass. -->
-        <label class="backdrop-calm">
-          <span data-i18n="ব্যাকড্রপ শান্ত">ব্যাকড্রপ শান্ত</span>
-          <input id="backdrop-calm" type="range" min="0" max="100" value="45" />
-        </label>
         <details class="theme-more">
           <summary data-i18n="ঋতু ও আবহাওয়া">ঋতু ও আবহাওয়া</summary>
           <div class="theme-controls">

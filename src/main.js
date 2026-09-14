@@ -1335,9 +1335,15 @@ function renderThemePanel() {
       button.style.setProperty("--card-accent", theme.accent || "#6d9e4f");
       const thumb = themeThumb(theme);
       // Photo themes preview the real backdrop; painted ones show their swatch.
+      // Painted themes have no photograph and show their gradient swatch. A
+      // photo theme shows its thumbnail — and falls back to the same swatch if
+      // the file ever fails to arrive, so a missing asset costs a picture
+      // rather than leaving a torn-image icon in a gallery of 180 cards.
+      const swatch = `<span class="theme-swatch theme-swatch--${theme.id}"></span>`;
       const art = thumb
-        ? `<img class="theme-thumb" src="${thumb}" alt="" loading="lazy" decoding="async" />`
-        : `<span class="theme-swatch theme-swatch--${theme.id}"></span>`;
+        ? `<img class="theme-thumb" src="${thumb}" alt="" loading="lazy" decoding="async"
+             onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'theme-swatch theme-swatch--fallback'}))" />`
+        : swatch;
       button.innerHTML = `${art}<strong>${bn ? theme.bn : theme.label}</strong>`;
       button.addEventListener("click", () => setTheme(theme.id));
       grid.append(button);
