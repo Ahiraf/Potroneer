@@ -453,6 +453,13 @@
              controls are. On phones main.js moves the focus centre/lock
              buttons into this same cluster, so it keeps their shape. -->
         <button id="cam-reset" class="cam-zoom-btn" type="button" data-i18n-title="ক্যামেরা রিসেট" title="ক্যামেরা রিসেট" aria-label="ক্যামেরা রিসেট">⌖</button>
+        <!-- Named angles. The three-quarter is the building view; front and
+             side read layer thickness and jar depth; top reads the footprint,
+             which is the one thing a three-quarter view cannot show. Pressing
+             the active one again returns the eye to where it was. -->
+        <button id="view-front" class="cam-zoom-btn cam-view-btn" type="button" data-view="front" data-i18n-title="সামনে থেকে" title="সামনে থেকে" aria-label="সামনে থেকে" aria-pressed="false">▣</button>
+        <button id="view-side" class="cam-zoom-btn cam-view-btn" type="button" data-view="side" data-i18n-title="পাশ থেকে" title="পাশ থেকে" aria-label="পাশ থেকে" aria-pressed="false">◨</button>
+        <button id="view-top" class="cam-zoom-btn cam-view-btn" type="button" data-view="top" data-i18n-title="উপর থেকে" title="উপর থেকে" aria-label="উপর থেকে" aria-pressed="false">⬓</button>
       </div>
 
       <!-- A drawer pull on the left edge, for reaching the shelf without

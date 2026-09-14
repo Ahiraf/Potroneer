@@ -800,7 +800,10 @@ export function createStudio(canvas) {
   const rot = { x: 0.05, y: 0.4 };
   const target = { x: 0.05, y: 0.4 };
   const X_MIN = -0.12;
-  const X_MAX = 0.5;
+  // Pitch is added to the camera's base elevation, so this is how far above
+  // that base a drag may climb. It has to reach ELEV_MAX or the top view is a
+  // place only a preset can go and never a place you can drag to.
+  const X_MAX = 1.2;
   let dragging = false;
   let autoSpin = false;
   // Camera lock: detailed work inside a small jar means a lot of short presses
@@ -841,6 +844,59 @@ export function createStudio(canvas) {
     target.y = 0.4;
     frameJar(framed.centerY, framed.height, { radius: framed.radius ?? 0 });
     markInteraction();
+  }
+
+  /**
+   * Named camera angles.
+   *
+   * `target.x` is pitch above the camera's base elevation and `target.y` turns
+   * the world on its turntable, so a preset is just a pair of those plus a
+   * re-frame. The three-quarter view is the one the app opens on and the one
+   * worth building in; front and side are for reading layer thickness and jar
+   * depth; top is for the footprint.
+   *
+   * A preset remembers what it replaced, so leaving one puts the eye back where
+   * the user had it rather than at some canonical pose they never chose.
+   */
+  const VIEWS = {
+    "three-quarter": { x: 0.05, y: 0.4, fill: 0.76 },
+    front: { x: 0.02, y: 0, fill: 0.78 },
+    side: { x: 0.02, y: Math.PI / 2, fill: 0.78 },
+    // Pitch is resolved at call time: it is measured from the camera's base
+    // elevation, which is declared further down this function. Reading it here
+    // would be a TDZ throw during setup — the failure mode that takes the whole
+    // module with it.
+    top: { x: () => ELEV_MAX - camBaseElev - 0.02, y: 0.4, fill: 0.84 },
+  };
+  let restorePose = null;
+
+  function setView(name) {
+    const v = VIEWS[name];
+    if (!v) return false;
+    if (name !== "three-quarter" && !restorePose) {
+      restorePose = { x: target.x, y: target.y };
+    }
+    target.x = clamp(typeof v.x === "function" ? v.x() : v.x, X_MIN, X_MAX);
+    target.y = v.y;
+    // A top-down shot wants the footprint to fill more of the frame than a
+    // three-quarter does, since there is no height in the picture to allow for.
+    frameJar(framed.centerY, framed.height, {
+      radius: framed.radius ?? 0,
+      fill: v.fill,
+    });
+    markInteraction();
+    return true;
+  }
+
+  /** Back to whatever the eye was doing before a preset took over. */
+  function restoreViewPose() {
+    if (!restorePose) return false;
+    target.x = restorePose.x;
+    target.y = restorePose.y;
+    restorePose = null;
+    frameJar(framed.centerY, framed.height, { radius: framed.radius ?? 0 });
+    markInteraction();
+    return true;
   }
 
   function onDown(e) {
@@ -1035,7 +1091,10 @@ export function createStudio(canvas) {
   const camFlat = new THREE.Vector3(camDir.x, 0, camDir.z).normalize();
   const camBaseElev = Math.asin(clamp(camDir.y, -1, 1));
   const ELEV_MIN = 0.04; // never drop the eye to (or below) the tabletop
-  const ELEV_MAX = 1.15;
+  // 1.45 rad is 83°: steep enough to read a jar's footprint from above, and
+  // safely short of 90°, where the eye sits on the axis it is looking down and
+  // camera.lookAt has no up vector left to work with.
+  const ELEV_MAX = 1.45;
   let camDist = camera.position.length();
   let camDistT = camDist;
   canvas.addEventListener(
@@ -1385,6 +1444,9 @@ export function createStudio(canvas) {
     setTable,
     setTimeOfDay,
     resetView,
+    setView,
+    restoreViewPose,
+    hasViewPose: () => Boolean(restorePose),
     capture,
     setTapHandler: (fn) => (tapHandler = fn),
     setOnFrame: (fn) => (onFrame = fn),

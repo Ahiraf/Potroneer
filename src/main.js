@@ -4412,6 +4412,47 @@ try {
 } catch {
   applyBackdropCalm(45, false);
 }
+// --- named camera angles ---------------------------------------------------
+// Front, side and top. Pressing the one you are already in steps back out to
+// wherever the eye was before, so these are a place to visit rather than a mode
+// to escape from. The pressed state is what says which of those two a press
+// will do.
+let activeView = null;
+function setCameraView(name) {
+  if (activeView === name) {
+    studio.restoreViewPose?.();
+    activeView = null;
+  } else if (studio.setView?.(name)) {
+    activeView = name;
+  }
+  document.querySelectorAll(".cam-view-btn").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.view === activeView));
+    b.classList.toggle("is-active", b.dataset.view === activeView);
+  });
+}
+document.querySelectorAll(".cam-view-btn").forEach((b) => {
+  b.addEventListener("click", () => setCameraView(b.dataset.view));
+});
+// Any hand-drag of the camera means the eye is no longer where a preset put it.
+// A *tap* is not that: placing a layer from the top view should leave you in
+// the top view. So this waits for real travel before letting the preset go.
+const VIEW_DRAG_SLOP = 8;
+let viewPressAt = null;
+canvas.addEventListener("pointerdown", (e) => {
+  viewPressAt = activeView ? { x: e.clientX, y: e.clientY } : null;
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!viewPressAt || !activeView) return;
+  if (Math.hypot(e.clientX - viewPressAt.x, e.clientY - viewPressAt.y) < VIEW_DRAG_SLOP) return;
+  viewPressAt = null;
+  activeView = null;
+  document.querySelectorAll(".cam-view-btn").forEach((b) => {
+    b.setAttribute("aria-pressed", "false");
+    b.classList.remove("is-active");
+  });
+});
+canvas.addEventListener("pointerup", () => (viewPressAt = null));
+
 document.getElementById("season-select").addEventListener("change", (event) => setSeason(event.target.value));
 document.getElementById("weather-select").addEventListener("change", (event) => setWeather(event.target.value));
 document.getElementById("time-cycle-toggle").addEventListener("change", (event) => {

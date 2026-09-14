@@ -5070,3 +5070,11 @@ body.panel-resizing .hud-bottom {
     width: auto;
   }
 }
+
+/* The named-angle buttons sit with zoom and reset in the camera cluster. The
+   pressed one is the angle you are in — and the one that will step back out. */
+.cam-view-btn.is-active {
+  color: var(--accent-ink);
+  background: var(--accent-solid);
+  border-color: var(--accent);
+}
