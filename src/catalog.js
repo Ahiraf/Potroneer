@@ -6,6 +6,26 @@
 // Ordered the way a real closed terrarium is built, bottom to top:
 // drainage (LECA/নুড়ি) → sphagnum barrier → activated charcoal → soil,
 // then sands as decorative strata.
+// How many millimetres one world unit is.
+//
+// The app has always known its layers' depths — `layerHeight` below — it just
+// never said them out loud. Fixing a scale turns those numbers into something
+// a builder can reason about, and lets the app hold an opinion: a drainage bed
+// wants depth, a charcoal filter wants almost none.
+//
+// 100 is chosen so the charcoal default lands on 7mm, which is the middle of
+// the quarter-to-half-inch rule real builders quote. Everything else follows
+// from it, and a mason jar comes out about 23cm tall — a believable vessel.
+//
+// The scale is global rather than per-jar on purpose. A 7mm charcoal filter is
+// 7mm in a big jar and in a small one; that is the whole point of saying it in
+// millimetres. What changes with the jar is how much fits, which
+// `remainingHeight` already handles.
+export const MM_PER_UNIT = 100;
+
+export const mmToUnits = (mm) => mm / MM_PER_UNIT;
+export const unitsToMm = (u) => u * MM_PER_UNIT;
+
 export const BASE_LAYERS = [
   {
     id: "leca",
@@ -14,6 +34,9 @@ export const BASE_LAYERS = [
     colors: ["#9c6f48", "#a97c54", "#b78a60", "#8d6540"],
     grain: 1.0,
     layerHeight: 0.2,
+    // Drainage wants depth — this is the reservoir the roots stay out of.
+    minMm: 10,
+    maxMm: 45,
     chunky: true, // clay balls read as round chunks
   },
   {
@@ -23,6 +46,9 @@ export const BASE_LAYERS = [
     colors: ["#736c62", "#8a8378", "#9c948a", "#a89f92"],
     grain: 1.0,
     layerHeight: 0.18,
+    // Same job as leca, heavier.
+    minMm: 10,
+    maxMm: 40,
     chunky: true,
   },
   {
@@ -32,6 +58,9 @@ export const BASE_LAYERS = [
     colors: ["#a89a58", "#b8a86a", "#c9bb80", "#95884e"],
     grain: 0.8,
     layerHeight: 0.08, // thin fibrous barrier
+    // A barrier, not a layer: just enough to stop soil washing down.
+    minMm: 4,
+    maxMm: 14,
   },
   {
     id: "charcoal",
@@ -40,6 +69,9 @@ export const BASE_LAYERS = [
     colors: ["#211f1d", "#2e2b28", "#3a3733", "#161513"],
     grain: 0.9,
     layerHeight: 0.07, // "quarter to half inch maximum" — keep it thin
+    // The one real hard rule in the stack: a filter, never a bed.
+    minMm: 3,
+    maxMm: 12,
   },
   {
     id: "soil",
@@ -48,6 +80,9 @@ export const BASE_LAYERS = [
     colors: ["#4a3324", "#5b4433", "#6b4f3a"],
     grain: 0.9,
     layerHeight: 0.16,
+    // Where things actually grow, so it earns the most depth.
+    minMm: 10,
+    maxMm: 60,
   },
   {
     id: "sand",
@@ -56,6 +91,9 @@ export const BASE_LAYERS = [
     colors: ["#bd9c63", "#c8a970", "#d4b784"],
     grain: 0.45,
     layerHeight: 0.13,
+    // Decorative as much as functional.
+    minMm: 5,
+    maxMm: 30,
   },
   {
     id: "white-sand",
@@ -64,6 +102,9 @@ export const BASE_LAYERS = [
     colors: ["#ded5c3", "#e8e0d0", "#f1eadd"],
     grain: 0.35,
     layerHeight: 0.12,
+    // Decorative as much as functional.
+    minMm: 5,
+    maxMm: 30,
   },
 ];
 

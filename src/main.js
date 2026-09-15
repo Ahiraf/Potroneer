@@ -21,6 +21,7 @@ import {
 import {
   BASE_LAYERS,
   BASE_BY_ID,
+  unitsToMm,
   DECORATIONS,
   CATEGORIES,
   CLEANUP_KINDS,
@@ -42,6 +43,10 @@ import {
   paintMaterial,
   jarRadiusAt,
   clampInsideAt,
+  jarGridR,
+  clampLayerMm,
+  layerMmAdvice,
+  remainingMm,
   insideJarAt,
   jarPointAt,
   jarReach,
@@ -195,6 +200,18 @@ let coopPersistTimer = null;
 let coopLocalBuild = null;
 let coopStatus = "disconnected";
 let coopTimer = null;
+// Chosen pour depth per base material, in millimetres. Declared up here with
+// the other start-up state because `updateToolStatus` reads it through
+// renderDepth() and runs during start-up — a `let` further down the file would
+// be a TDZ throw that silently aborts the rest of main.js.
+const DEPTH_KEY = "potroneer-layer-mm";
+let layerMm = {};
+try {
+  layerMm = JSON.parse(localStorage.getItem(DEPTH_KEY) || "{}");
+} catch {
+  layerMm = {};
+}
+
 const COMFORT_KEY = "potroneer-comfort";
 let savedComfort = {};
 try {
@@ -547,6 +564,7 @@ studio.setOnFrame((now) => {
   baseShadow.update(now, handDt, calmMotion());
   hoverHighlight.update(now, handDt, calmMotion());
   handFrame = now;
+  syncStrata();
   // The wheel and the pinch move the same zoom the buttons do, so the buttons
   // have to notice when a gesture has reached the end of the range — otherwise
   // they sit enabled and do nothing. Four times a second is plenty for a
@@ -2183,15 +2201,210 @@ function dropPiece({ silent = false } = {}) {
 let selected = { group: "base", id: BASE_LAYERS[0].id };
 
 // Drop one substrate layer (used by tap and by drag-from-strip).
+// --- strata labels ---------------------------------------------------------
+// The front and side views exist to read layer thickness. Seeing the bands is
+// not the same as knowing them, so in those two views each band gets its depth
+// written beside it: "35 mm soil". Everywhere else this is off, because a
+// three-quarter view is for building and a label per band in it is clutter.
+const strataEl = document.getElementById("strata");
+let strataShown = false;
+
+function syncStrata() {
+  if (!strataEl) return;
+  const want =
+    (activeView === "front" || activeView === "side") && state.layers.length > 0;
+  if (!want) {
+    if (strataShown) {
+      strataEl.classList.add("hidden");
+      strataEl.replaceChildren();
+      strataShown = false;
+    }
+    return;
+  }
+  // Rebuild only when the stack changes; reposition every frame it is up.
+  const signature = state.layers.map((l) => `${l.type}:${l.height}`).join("|");
+  if (strataEl.dataset.sig !== signature) {
+    strataEl.dataset.sig = signature;
+    strataEl.replaceChildren(
+      ...state.layers.map((l) => {
+        const def = BASE_BY_ID[l.type];
+        const row = document.createElement("span");
+        row.className = "strata-row";
+        row.innerHTML =
+          `<i class="strata-swatch" style="background:${def?.swatch ?? "#888"}"></i>` +
+          `<b>${toUiDigits(Math.round(unitsToMm(l.height)))} ${t("মিমি")}</b>` +
+          `<span>${def ? tLabel(def.label) : ""}</span>`;
+        return row;
+      }),
+    );
+    strataEl.classList.remove("hidden");
+    strataShown = true;
+  }
+  // Put each label at its band's middle, just clear of the jar's right edge.
+  const rect = canvas.getBoundingClientRect();
+  const rows = strataEl.children;
+  const placed = [];
+  let y = substrateBase();
+  for (let i = 0; i < state.layers.length; i++) {
+    const layer = state.layers[i];
+    const mid = y + layer.height / 2;
+    y += layer.height;
+    _strataV.set(jarGridR() * 1.25, mid, 0);
+    studio.world.localToWorld(_strataV).project(studio.camera);
+    placed.push({
+      x: (_strataV.x * 0.5 + 0.5) * rect.width,
+      y: (-_strataV.y * 0.5 + 0.5) * rect.height,
+      // Behind the camera, or off the canvas: say nothing rather than
+      // something in the wrong place.
+      off: _strataV.z > 1,
+    });
+  }
+  // A 6mm filter and a 7mm barrier sit closer together than a label is tall,
+  // so their text lands on top of itself. Walk up the stack pushing each label
+  // clear of the one below: the labels stop being exactly on their bands, but
+  // they stay in order and stay readable, which is the job.
+  // Bottom upward, so each push carries into the next comparison. Running it
+  // the other way settles each pair against a neighbour that has not moved yet,
+  // and the chain comes apart on the third label.
+  const LABEL_GAP = 19;
+  for (let i = 0; i < placed.length - 1; i++) {
+    // Screen Y grows downward, so a *lower* band has the larger y.
+    const below = placed[i];
+    const above = placed[i + 1];
+    if (below.y - above.y < LABEL_GAP) above.y = below.y - LABEL_GAP;
+  }
+  for (let i = 0; i < placed.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const p = placed[i];
+    const offscreen =
+      p.off || p.x < 0 || p.x > rect.width || p.y < 0 || p.y > rect.height;
+    row.style.opacity = offscreen ? "0" : "1";
+    row.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+  }
+}
+
+const _strataV = new THREE.Vector3();
+
+// --- layer depth -----------------------------------------------------------
+// How deep the next pour goes, in millimetres.
+//
+// The app has always known these depths — every material carries one — it just
+// never said them, so "charcoal is thin" was something the code knew and the
+// builder could not see or change. Saying it in millimetres also lets the app
+// hold an opinion worth having: a drainage bed wants depth, a charcoal filter
+// wants almost none, and real builders quote a quarter to half an inch for it.
+//
+// The chosen depth is remembered *per material*, because they are not one
+// setting: someone who likes a deep drainage bed and a thin charcoal filter
+// should not have to re-dial either.
+/** The depth this material is currently set to pour at. */
+function depthFor(id) {
+  const def = BASE_BY_ID[id];
+  if (!def) return 0;
+  const chosen = layerMm[id];
+  return clampLayerMm(def, Number.isFinite(chosen) ? chosen : unitsToMm(def.layerHeight));
+}
+
+/** A step size that suits the material: 1mm for a filter, 2mm for a bed. */
+function depthStep(def) {
+  return Math.max(1, Math.round(unitsToMm(def.layerHeight) / 10));
+}
+
+function setDepthFor(id, mm) {
+  const def = BASE_BY_ID[id];
+  if (!def) return;
+  layerMm[id] = clampLayerMm(def, mm);
+  try {
+    localStorage.setItem(DEPTH_KEY, JSON.stringify(layerMm));
+  } catch {
+    /* private mode: the depth just resets next session */
+  }
+  renderDepth();
+  // The preview answers "will this fit" from the depth, so it has to be retold.
+  updateHint();
+}
+
+// Advice, not enforcement. Outside the band the app says what the material is
+// for and pours anyway — it is not its business to refuse a build.
+function depthAdviceText(def, mm) {
+  const verdict = layerMmAdvice(def, mm);
+  if (!verdict) return "";
+  if (def.id === "charcoal" && verdict === "thick") return t("চারকোল ফিল্টার — পাতলা হলেই চলে");
+  if (def.chunky && verdict === "thin") return t("ড্রেনেজ আরও গভীর হলে ভালো");
+  return t(verdict === "thin" ? "এই স্তরের জন্য বেশি পাতলা" : "এই স্তরের জন্য বেশি মোটা");
+}
+
+function renderDepth() {
+  const row = document.getElementById("tool-depth");
+  const note = document.getElementById("depth-note");
+  if (!row || !note) return;
+  const def = activeTool === "place" && selected.group === "base" ? BASE_BY_ID[selected.id] : null;
+  row.classList.toggle("hidden", !def);
+  if (!def) {
+    note.textContent = "";
+    return;
+  }
+  const mm = depthFor(def.id);
+  const left = remainingMm(state);
+  document.getElementById("depth-value").textContent = `${toUiDigits(mm)} ${t("মিমি")}`;
+  // Two things worth knowing, in priority order: whether it will fit at all,
+  // then whether it is a sensible depth for this material.
+  const advice = mm > left ? t("জারে আর জায়গা নেই") : depthAdviceText(def, mm);
+  note.textContent = advice || `${toUiDigits(left)} ${t("মিমি")} ${t("বাকি")}`;
+  note.classList.toggle("is-warn", Boolean(advice));
+}
+
+document.getElementById("depth-down")?.addEventListener("click", () => {
+  const def = BASE_BY_ID[selected.id];
+  if (def) setDepthFor(def.id, depthFor(def.id) - depthStep(def));
+});
+document.getElementById("depth-up")?.addEventListener("click", () => {
+  const def = BASE_BY_ID[selected.id];
+  if (def) setDepthFor(def.id, depthFor(def.id) + depthStep(def));
+});
+
+// The stack a real guide would tell you to build, poured in one press at the
+// depths those guides quote. It is the fastest way to a jar that is right, and
+// the clearest statement of what the depths are *for* — which is most of why
+// the millimetres are here at all.
+const CLASSIC_STACK = [
+  { id: "leca", mm: 25 },      // drainage reservoir
+  { id: "sphagnum", mm: 6 },   // barrier so soil does not wash into it
+  { id: "charcoal", mm: 7 },   // filter, a quarter inch
+  { id: "soil", mm: 35 },      // where things grow
+];
+
+document.getElementById("depth-recipe")?.addEventListener("click", () => {
+  const needed = CLASSIC_STACK.reduce((sum, l) => sum + l.mm, 0);
+  if (remainingMm(state) < needed) {
+    flashHint(t("জারে আর জায়গা নেই"));
+    return;
+  }
+  snapshot();
+  let poured = 0;
+  for (const step of CLASSIC_STACK) {
+    if (!addLayer(state, step.id, step.mm)) break;
+    poured++;
+  }
+  if (!poured) return;
+  rebuildSubstrate(true);
+  confirmBaseShadow();
+  updateEmptyCall();
+  updateHint();
+  gameAction("layer", CLASSIC_STACK[CLASSIC_STACK.length - 1].id);
+});
+
 function tryAddLayer(id) {
   const def = BASE_LAYERS.find((b) => b.id === id);
   if (!def) return;
-  if (remainingHeight(state) < def.layerHeight) {
+  const mm = depthFor(id);
+  if (remainingMm(state) < mm) {
     flashHint("জার প্রায় ভরে গেছে — এবার সাজানো শুরু করো!");
     return;
   }
   snapshot();
-  addLayer(state, id);
+  addLayer(state, id, mm);
   rebuildSubstrate(true);
   confirmBaseShadow(); // the marker flares and fades rather than blinking off
   updateEmptyCall();
@@ -4159,6 +4372,9 @@ function updateEmptyCall() {
 }
 
 function updateHint() {
+  // The depth readout says how much room is left, which every pour, undo and
+  // reset changes. This is the one call they all already make.
+  renderDepth();
   const laid = new Set(state.layers.map((l) => l.type));
   if (!hasBase(state)) {
     setHint("১", "বেস উপাদান বেছে ট্যাপ করো (গোল স্তর) বা ড্র্যাগ করে ইচ্ছেমতো আকৃতিতে মাটি আঁকো।");
@@ -4193,6 +4409,9 @@ function setHint(step, text) {
 function updateToolStatus() {
   const toolStatusEl = document.getElementById("tool-status");
   if (!toolStatusEl) return;
+  // The depth row lives in this pill and answers the same question it does —
+  // what a press will do — so it is refreshed on the same beat.
+  renderDepth();
   const toolStatusGlyphEl = document.getElementById("tool-status-glyph");
   const toolStatusModeEl = document.getElementById("tool-status-mode");
   const toolStatusDoesEl = document.getElementById("tool-status-does");

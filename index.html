@@ -812,11 +812,29 @@
       </div>
 
       <!-- active-tool readout: what a press will do, always on screen -->
+      <!-- Depth labels beside each band, shown in the front and side views.
+           Those views exist to read layer thickness; this is what makes that
+           readable rather than merely visible. -->
+      <div class="strata hidden" id="strata" aria-hidden="true"></div>
+
       <aside class="tool-status" id="tool-status" aria-live="polite">
         <span class="tool-status-glyph" id="tool-status-glyph">🥢</span>
         <span class="tool-status-body">
           <strong class="tool-status-mode" id="tool-status-mode">বসানোর মোড</strong>
           <span class="tool-status-does" id="tool-status-does"></span>
+          <!-- How deep the next pour goes. Only shown while holding a base
+               material, because it is the only thing it applies to. The app
+               has always known these depths; this is where it says them. -->
+          <span class="tool-depth hidden" id="tool-depth">
+            <button class="depth-step" id="depth-down" type="button"
+              data-i18n-title="পাতলা করো" title="পাতলা করো" aria-label="পাতলা করো">−</button>
+            <output class="depth-value" id="depth-value" for="depth-down depth-up">২০ মিমি</output>
+            <button class="depth-step" id="depth-up" type="button"
+              data-i18n-title="মোটা করো" title="মোটা করো" aria-label="মোটা করো">+</button>
+            <button class="depth-recipe" id="depth-recipe" type="button"
+              data-i18n="ক্লাসিক স্তর">ক্লাসিক স্তর</button>
+          </span>
+          <span class="tool-depth-note" id="depth-note"></span>
         </span>
       </aside>
 

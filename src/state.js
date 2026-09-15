@@ -2,7 +2,7 @@
 // scene is always a pure function of this state, so reset = empty the arrays
 // and rebuild. Nothing visual is the source of truth; the data is.
 
-import { BASE_BY_ID } from "./catalog.js";
+import { BASE_BY_ID, mmToUnits, unitsToMm } from "./catalog.js";
 
 // Interior dimensions of the mason jar, in world units. The shoulder tapers in
 // near the top, but layers/decorations live in the straight cylindrical body.
@@ -329,16 +329,26 @@ export function remainingHeight(state) {
   return JAR.bodyHeight - FLOOR_GAP - used;
 }
 
-export function addLayer(state, typeId) {
+/**
+ * Pour a layer. `mm` is the depth the builder asked for; leaving it out takes
+ * the material's own default.
+ *
+ * Layers are stored in world units, not millimetres. Millimetres are how the
+ * app talks about depth — to the builder, and in the advice it gives — but the
+ * geometry has always been in units and every save ever written holds units.
+ * Converting at the door keeps both true, and keeps old builds loadable.
+ */
+export function addLayer(state, typeId, mm = null) {
   const def = BASE_BY_ID[typeId];
   if (!def) return false;
-  if (remainingHeight(state) < def.layerHeight) return false; // jar is full
+  const height = mm == null ? def.layerHeight : mmToUnits(clampLayerMm(def, mm));
+  if (remainingHeight(state) < height) return false; // jar is full
   // Real builds slope the substrate asymmetrically ("odd numbers and
   // asymmetrical angles"); keep a gentle random tilt per layer, stored in the
   // model so rebuilds don't reshuffle the terrain.
   state.layers.push({
     type: typeId,
-    height: def.layerHeight,
+    height,
     slopeX: (Math.random() - 0.5) * 0.08,
     slopeZ: (Math.random() - 0.5) * 0.08,
     // Fixes this layer's settling pattern once, so rebuilding the scene from
@@ -347,6 +357,41 @@ export function addLayer(state, typeId) {
     seed: (Math.random() * 0x7fffffff) | 0,
   });
   return true;
+}
+
+/**
+ * The depths a material may be poured at, in millimetres.
+ *
+ * `minMm`/`maxMm` in the catalogue are *advice* — the range real builders work
+ * in — and the app says so rather than enforcing it: a charcoal filter thicker
+ * than half an inch does nothing useful, but it is not the app's business to
+ * refuse. What is enforced is the hard floor and whatever the jar has left,
+ * which are physical rather than editorial.
+ */
+export const LAYER_MM_FLOOR = 1;
+export const LAYER_MM_CEILING = 120;
+
+export function clampLayerMm(def, mm) {
+  const v = Math.round(Number(mm) || 0);
+  return Math.max(LAYER_MM_FLOOR, Math.min(LAYER_MM_CEILING, v));
+}
+
+/** Is this depth outside what the material is actually for? */
+export function layerMmAdvice(def, mm) {
+  if (!def) return null;
+  if (def.minMm != null && mm < def.minMm) return "thin";
+  if (def.maxMm != null && mm > def.maxMm) return "thick";
+  return null;
+}
+
+/** How much depth the jar has left, in millimetres. */
+export function remainingMm(state) {
+  return Math.max(0, Math.floor(unitsToMm(remainingHeight(state))));
+}
+
+/** Total substrate poured so far, in millimetres. */
+export function stackMm(state) {
+  return Math.round(unitsToMm(state.layers.reduce((sum, l) => sum + l.height, 0)));
 }
 
 export function addDecoration(state, deco) {
