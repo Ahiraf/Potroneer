@@ -22,7 +22,9 @@ import {
   BASE_LAYERS,
   BASE_BY_ID,
   unitsToMm,
+  mmToUnits,
   DECORATIONS,
+  DECOR_BY_ID,
   CATEGORIES,
   CLEANUP_KINDS,
   HABITATS,
@@ -47,11 +49,33 @@ import {
   clampLayerMm,
   layerMmAdvice,
   remainingMm,
+  stackMm,
+  jarCapacityMm,
+  maxLayerMm,
+  layerBounds,
+  layerDepthMm,
+  setLayerMm,
+  moveLayer,
+  removeLayer,
+  adoptLayers,
+  assertStackOrder,
+  LAYER_MM_COMMIT_MIN,
   insideJarAt,
   jarPointAt,
   jarReach,
   JAR,
 } from "./state.js";
+import {
+  nativeMetrics,
+  normalizeFactor,
+  sizeJitter,
+  bodyFitsAt,
+  clampBodyInside,
+  maxScaleAt,
+  spacingFor,
+  tierNameFor,
+  GLASS_CLEARANCE,
+} from "./sizing.js";
 import { toggleAmbience, playSfx, setVolume, isPlaying } from "./ambience.js";
 import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
@@ -133,6 +157,42 @@ if (import.meta.env.DEV) {
     get pickPlane() { return pickPlane; },
     get baseShadow() { return baseShadow; },
     setJar: (id) => setJar(id),
+    // The layer stack and the sizing system, for driving them from a console.
+    // Every one of these is a getter or a thunk: this block sits above most of
+    // the file's declarations, and naming a `let` directly here is the TDZ
+    // throw that silently aborts the rest of main.js.
+    get layers() { return state.layers; },
+    get stack() {
+      return state.layers.map((l, i) => ({
+        i, type: l.type, mm: layerDepthMm(l), ...layerBounds(state, i),
+      }));
+    },
+    get capacity() {
+      return { stackMm: stackMm(state), leftMm: remainingMm(state), jarMm: jarCapacityMm() };
+    },
+    addLayer: (id, mm) => { const ok = addLayer(state, id, mm); rebuildStack(); return ok; },
+    setLayerMm: (i, mm) => { const ok = setLayerMm(state, i, mm); rebuildStack(); return ok; },
+    moveLayer: (i, dir) => { const ok = moveLayer(state, i, dir); rebuildStack(); return ok; },
+    removeLayer: (i) => { const ok = removeLayer(state, i); rebuildStack(); return ok; },
+    get decor() { return decorGroup; },
+    // Plant something at a point on the substrate, through the same function a
+    // tap goes through. The tap itself cannot be driven from here — it is a
+    // press-move-release on the canvas, detected in scene.js — so this is the
+    // hook a browser check needs to exercise placement, sizing and containment.
+    plant: (id, x, z) => {
+      const def = DECOR_BY_ID[id];
+      if (!def) return null;
+      const p = new THREE.Vector3(x, surfaceY(x, z), z);
+      studio.world.localToWorld(p);
+      placeDecoration(p, def);
+      return state.decorations.at(-1);
+    },
+    itemPanel: (i) => openItemPanel(decorGroup.children[i]),
+    itemSize: (id) => {
+      const def = DECOR_BY_ID[id];
+      const m = def && nativeMetrics(def, null);
+      return m ? { tier: tierNameFor(def), native: m, norm: normalizeFactor(def, null) } : null;
+    },
     // The live interior, reached through *this* module's import. Importing
     // state.js separately from a console gets a second instance with its own
     // JAR — Vite serves versioned module URLs — and measuring the scene
@@ -626,6 +686,13 @@ function placePickPlane(y) {
 let terrainCap = null;
 
 function rebuildSubstrate(animateLast = false) {
+  // The stack invariant, checked on every rebuild in development. This is the
+  // cheapest place to catch a mutation that put a band in the wrong order,
+  // because it runs after every one of them — a pour, an edit, a reorder, a
+  // delete, an undo, a save being loaded. Dropped entirely from a production
+  // build: a thrown assertion there would take the app down over a cosmetic
+  // disagreement, which is worse than the disagreement.
+  if (import.meta.env.DEV) assertStackOrder(state);
   substrateGroup.clear();
   terrainCap = null;
   // The stack starts at the substrate base, not at the jar floor — see
@@ -709,6 +776,30 @@ function snapshot() {
   updateHistoryUi();
 }
 
+// --- one gesture, one undo step --------------------------------------------
+// A slider fires `input` on every pixel. Calling snapshot() from there would
+// bury the history under sixty near-identical entries and make undo useless
+// exactly where it is most wanted. Instead the state is captured before the
+// gesture's first change and filed when the gesture ends — and only if the
+// gesture actually changed something, so a slider touched and released leaves
+// no trace.
+let gestureBefore = null;
+
+function beginGesture() {
+  if (gestureBefore == null) gestureBefore = currentSnapshot();
+}
+
+function endGesture() {
+  if (gestureBefore == null) return;
+  const before = gestureBefore;
+  gestureBefore = null;
+  if (before === currentSnapshot()) return;
+  history.push(before);
+  if (history.length > 60) history.shift();
+  future.length = 0; // a fresh action ends the redo branch
+  updateHistoryUi();
+}
+
 function restoreSnapshot(snap) {
   const d = JSON.parse(snap);
   if (d.jarId && d.jarId !== currentJarId) setJar(d.jarId);
@@ -722,6 +813,10 @@ function restoreSnapshot(snap) {
   rebuildAll();
   studio.markInteraction();
   updateHistoryUi();
+  // Undo can add, remove, re-cut or reorder bands, so both readouts of the
+  // stack have to catch up with the array they describe.
+  renderDepth();
+  renderLayerPanel();
 }
 
 // Undo and redo grey out when there is nothing behind or ahead of you, so the
@@ -741,13 +836,19 @@ function rebuildAll() {
   rebuildSubstrate(false);
   decorGroup.clear();
   state.decorations.forEach((rec) => {
-    const def = DECORATIONS.find((d) => d.id === rec.id);
+    const def = DECOR_BY_ID[rec.id] ?? DECORATIONS.find((d) => d.id === rec.id);
     const obj = getModelClone(rec.kind, rec.id) ?? buildDecoration(rec.kind, def?.variant);
+    // Measuring here as well as at placement is what keeps a *loaded* build
+    // honest: the records came from a save, so nothing in this session has
+    // built this item yet and the metrics cache may be cold. Everything that
+    // follows — containment, spacing, the size slider — reads that cache.
+    if (def) nativeMetrics(def, obj);
+    const scale = finalScale(rec);
     obj.rotation.y = rec.rotation;
     obj.position.set(rec.x, rec.y, rec.z);
-    obj.scale.setScalar(rec.scale);
+    obj.scale.setScalar(scale);
     obj.userData.record = rec;
-    obj.userData.baseScale = rec.scale;
+    obj.userData.baseScale = scale;
     if (rec.tint) applyTint(obj, rec.tint);
     decorGroup.add(obj);
   });
@@ -771,6 +872,58 @@ function redo() {
   restoreSnapshot(snap);
 }
 
+// --- item sizing -----------------------------------------------------------
+// Everything a placed piece needs to know about its own size lives on its
+// record as two numbers that are multiplied, never merged:
+//
+//   rec.norm    what it takes to bring *this builder's output* to the size the
+//               catalogue intends for it, times how big this vessel is.
+//               Measured once per catalogue entry (see sizing.js) and then
+//               written into the save, so a build re-opened years later is the
+//               size it was left at even if the profiles have since moved.
+//   rec.scale   the user's own multiplier. 1 is the intended size, which is
+//               what lets the slider say "100%" and mean something.
+//
+// Records written before this existed have no `norm`. They are read as norm 1,
+// which reproduces exactly what they used to look like: back then `scale` was
+// the whole story, applied straight to the builder's native geometry.
+
+/** How much a vessel of this size shrinks or grows what is planted in it. */
+function jarSizeK() {
+  return Math.min(1.25, Math.max(0.55, JAR.innerRadius / 1.0));
+}
+
+/** The scale actually put on the mesh: the normalisation times the user's. */
+function finalScale(rec) {
+  return (rec.norm ?? 1) * (rec.scale ?? 1);
+}
+
+/**
+ * A fresh mesh for a catalogue entry, plus the sizing facts about it.
+ *
+ * `nativeMetrics` measures the first instance of each entry and remembers it,
+ * so the Box3 is paid once per item per session rather than per placement.
+ */
+function buildItem(def) {
+  const obj = getModelClone(def.kind, def.id) ?? buildDecoration(def.kind, def.variant);
+  const metrics = nativeMetrics(def, obj);
+  return { obj, metrics };
+}
+
+/** The native metrics for whatever a record points at, or a safe guess. */
+function metricsFor(rec) {
+  const def = rec ? DECOR_BY_ID[rec.id] : null;
+  return (def && nativeMetrics(def, null)) ?? { h: 0.3, w: 0.3, r: 0.15, minY: 0 };
+}
+
+/** The upright cylinder a placed piece occupies, at its current scale. */
+function bodyOf(objOrRec) {
+  const rec = objOrRec?.userData?.record ?? objOrRec;
+  const s = objOrRec?.userData?.baseScale ?? finalScale(rec);
+  const m = metricsFor(rec);
+  return { r: m.r * s, h: m.h * s };
+}
+
 // --- placement -------------------------------------------------------------
 function placeDecoration(worldPoint, def) {
   if (state.decorations.length >= (window.innerWidth < 700 ? 72 : 120)) {
@@ -778,29 +931,45 @@ function placeDecoration(worldPoint, def) {
     return;
   }
   const local = studio.world.worldToLocal(worldPoint.clone());
-  const obj = getModelClone(def.kind, def.id) ?? buildDecoration(def.kind, def.variant);
+  const { obj, metrics } = buildItem(def);
 
-  // items scale with the vessel: a small jar gets proportionally small plants
-  const jarK = Math.min(1.25, Math.max(0.55, JAR.innerRadius / 1.0));
-  const targetScale = (0.85 + Math.random() * 0.5) * jarK;
-  const rotation = Math.random() * Math.PI * 2;
-  obj.rotation.y = rotation;
-  obj.rotation.x = (Math.random() - 0.5) * 0.14; // slight hand-placed lean
-  obj.rotation.z = (Math.random() - 0.5) * 0.14;
-  obj.position.set(local.x, surfaceY(local.x, local.z), local.z);
-  obj.scale.setScalar(0.001);
-  decorGroup.add(obj);
-
+  // The size is the profile's, not a dice roll. What is left of the old random
+  // spread is ±6%, applied on top of a size that is already right — enough
+  // that three ferns in a row are not three copies of one fern, small enough
+  // that it can never be mistaken for the size system itself.
+  const norm = normalizeFactor(def, obj) * jarSizeK();
   const record = {
     id: def.id,
     kind: def.kind,
     x: local.x,
     z: local.z,
-    y: obj.position.y,
-    rotation,
-    scale: targetScale,
+    y: 0,
+    rotation: Math.random() * Math.PI * 2,
+    norm,
+    scale: sizeJitter(),
     tint: null,
   };
+
+  // Where it may actually stand, judged on the whole piece rather than on its
+  // origin: a fern planted legally at the rim of a bowl still has its fronds
+  // outside the glass, because the interior up at frond height is narrower
+  // than it is at the soil.
+  const spot = snapPlacement(null, local.x, local.z, {
+    r: metrics.r * finalScale(record),
+    h: metrics.h * finalScale(record),
+  });
+  record.x = spot.x;
+  record.z = spot.z;
+  record.y = surfaceY(spot.x, spot.z);
+
+  obj.rotation.y = record.rotation;
+  obj.rotation.x = (Math.random() - 0.5) * 0.14; // slight hand-placed lean
+  obj.rotation.z = (Math.random() - 0.5) * 0.14;
+  obj.position.set(record.x, record.y, record.z);
+  obj.scale.setScalar(0.001);
+  decorGroup.add(obj);
+
+  const targetScale = finalScale(record);
   addDecoration(state, record);
   // Link mesh ↔ model so dragging can keep the data in sync.
   obj.userData.record = record;
@@ -862,33 +1031,44 @@ function liftPiece(obj, base) {
  * partial, so a crowded jar still lets you push things past each other rather
  * than fighting you — this is a gentle settle, not a collision system.
  */
-function snapPlacement(obj, x, z) {
+function snapPlacement(obj, x, z, body = null) {
   let nx = x;
   let nz = z;
-  // 1. Inside the glass. The margin keeps a plant's leaves off the wall rather
-  //    than letting its origin sit exactly on it.
-  const scale = obj.userData.baseScale ?? 1;
-  const clamped = clampInsideAt(surfaceY(nx, nz), nx, nz, 0.06 + scale * 0.05);
-  if (clamped) {
-    nx = clamped.x;
-    nz = clamped.z;
-  }
+  // 1. Inside the glass — the *whole* piece, not its origin.
+  //
+  //    Clamping the origin was never the right question. It put a plant's
+  //    stem legally inside a bowl and its crown out through the side, because
+  //    the interior at crown height is narrower than the interior at soil
+  //    height and nothing was asking about crown height. `clampBodyInside`
+  //    asks about every height the piece occupies, in every direction it
+  //    reaches, against the vessel's own measured section — so it holds for
+  //    curved, tapered, bottle-shaped and rectangular vessels alike, and for
+  //    a loaded GLB exactly as for a procedural build, because both are
+  //    described by the same measured box.
+  const { r, h } = body ?? bodyOf(obj);
+  const inside = clampBodyInside(nx, nz, surfaceY(nx, nz), r, h, GLASS_CLEARANCE);
+  nx = inside.x;
+  nz = inside.z;
   // 2. Out of a neighbour's footprint, by a little each frame rather than all
-  //    at once, so the piece slides clear instead of snapping away.
-  const near = 0.17 * scale;
+  //    at once, so the piece slides clear instead of snapping away. The
+  //    spacing comes from the two measured footprints: a temple and a
+  //    springtail no longer claim the same patch of ground.
   for (const other of decorGroup.children) {
     if (other === obj || other.userData.dying) continue;
     const dx = nx - other.position.x;
     const dz = nz - other.position.z;
     const d = Math.hypot(dx, dz);
-    const want = near + 0.17 * (other.userData.baseScale ?? 1);
+    const want = spacingFor(r, bodyOf(other).r);
     if (d > 0.0001 && d < want) {
       const push = (want - d) * 0.5;
       nx += (dx / d) * push;
       nz += (dz / d) * push;
     }
   }
-  return { x: nx, z: nz };
+  // Pushing clear of a neighbour can push back into the glass, so the
+  // containment gets the last word — it is the rule that cannot be bent.
+  const held = clampBodyInside(nx, nz, surfaceY(nx, nz), r, h, GLASS_CLEARANCE);
+  return { x: held.x, z: held.z };
 }
 
 // --- tap and hold ----------------------------------------------------------
@@ -1258,6 +1438,7 @@ function currentBuildData() {
     jarLight: { ...jarLight },
     wetLevel,
     layers: state.layers,
+    layerOrder: "bottom-to-top", // said out loud, so a reader never guesses
     decorations: state.decorations,
     terrain: Array.from(state.terrain),
     terrainMat: Array.from(state.terrainMat),
@@ -2299,11 +2480,15 @@ const _strataV = new THREE.Vector3();
 // setting: someone who likes a deep drainage bed and a thin charcoal filter
 // should not have to re-dial either.
 /** The depth this material is currently set to pour at. */
+/** The depth this material is currently set to pour at, in millimetres. */
 function depthFor(id) {
   const def = BASE_BY_ID[id];
   if (!def) return 0;
   const chosen = layerMm[id];
-  return clampLayerMm(def, Number.isFinite(chosen) ? chosen : unitsToMm(def.layerHeight));
+  const want = Number.isFinite(chosen) ? chosen : unitsToMm(def.layerHeight);
+  // Held to what the jar can still take, never to a fixed 120mm ceiling. The
+  // usable interior *is* the limit, and it is different in every vessel.
+  return clampLayerMm(want, maxLayerMm(state, -1));
 }
 
 /** A step size that suits the material: 1mm for a filter, 2mm for a bed. */
@@ -2314,7 +2499,7 @@ function depthStep(def) {
 function setDepthFor(id, mm) {
   const def = BASE_BY_ID[id];
   if (!def) return;
-  layerMm[id] = clampLayerMm(def, mm);
+  layerMm[id] = clampLayerMm(mm, maxLayerMm(state, -1));
   try {
     localStorage.setItem(DEPTH_KEY, JSON.stringify(layerMm));
   } catch {
@@ -2323,10 +2508,13 @@ function setDepthFor(id, mm) {
   renderDepth();
   // The preview answers "will this fit" from the depth, so it has to be retold.
   updateHint();
+  refreshBaseShadow();
 }
 
 // Advice, not enforcement. Outside the band the app says what the material is
-// for and pours anyway — it is not its business to refuse a build.
+// for and pours anyway — it is not its business to refuse a build. The one
+// thing it does refuse is a depth the jar physically cannot hold, and a depth
+// of zero, which would be a band you could never see or select again.
 function depthAdviceText(def, mm) {
   const verdict = layerMmAdvice(def, mm);
   if (!verdict) return "";
@@ -2335,26 +2523,76 @@ function depthAdviceText(def, mm) {
   return t(verdict === "thin" ? "এই স্তরের জন্য বেশি পাতলা" : "এই স্তরের জন্য বেশি মোটা");
 }
 
+/**
+ * Draw the depth row: the number, the slider, the advice and the two totals
+ * that give the number its meaning.
+ *
+ * Everything here reads `depthFor` — the same function the preview marker and
+ * the pour itself read — so the displayed millimetres, the ghost on the
+ * substrate and the band that actually lands cannot disagree. They used to:
+ * the marker asked the material for its *default* depth while the number on
+ * screen showed the user's choice, so a jar with room for a default but not
+ * for a chosen 60mm previewed green and then refused.
+ */
 function renderDepth() {
   const row = document.getElementById("tool-depth");
+  const sliderRow = document.getElementById("tool-depth-slider");
+  const range = document.getElementById("depth-range");
   const note = document.getElementById("depth-note");
+  const totals = document.getElementById("depth-total");
   if (!row || !note) return;
   const def = activeTool === "place" && selected.group === "base" ? BASE_BY_ID[selected.id] : null;
   row.classList.toggle("hidden", !def);
+  sliderRow?.classList.toggle("hidden", !def);
+  totals?.classList.toggle("hidden", !def);
   if (!def) {
     note.textContent = "";
     return;
   }
   const mm = depthFor(def.id);
   const left = remainingMm(state);
+  const ceiling = maxLayerMm(state, -1);
   document.getElementById("depth-value").textContent = `${toUiDigits(mm)} ${t("মিমি")}`;
-  // Two things worth knowing, in priority order: whether it will fit at all,
-  // then whether it is a sensible depth for this material.
-  const advice = mm > left ? t("জারে আর জায়গা নেই") : depthAdviceText(def, mm);
+  if (range) {
+    // The slider's own range carries the jar's remaining capacity, so the
+    // control cannot express a value the vessel cannot hold. Zero is
+    // deliberately reachable — the *commit* is what refuses it, not the dial.
+    range.min = "0";
+    range.max = String(Math.max(1, ceiling));
+    range.value = String(mm);
+    range.setAttribute("aria-valuetext", `${mm} mm`);
+  }
+  // Three things worth knowing, in priority order: whether this depth is a
+  // layer at all, whether it will fit, then whether it suits the material.
+  let advice = "";
+  if (mm < LAYER_MM_COMMIT_MIN) advice = t("০ মিমি স্তর হয় না");
+  else if (mm > left) advice = t("জারে আর জায়গা নেই");
+  else advice = depthAdviceText(def, mm);
   note.textContent = advice || `${toUiDigits(left)} ${t("মিমি")} ${t("বাকি")}`;
   note.classList.toggle("is-warn", Boolean(advice));
+  if (totals) {
+    totals.textContent =
+      `${t("মোট")} ${toUiDigits(stackMm(state))} / ${toUiDigits(jarCapacityMm())} ${t("মিমি")}` +
+      ` · ${toUiDigits(left)} ${t("মিমি")} ${t("বাকি")}`;
+  }
+  // A pour of nothing is not a pour. The tray chip stays live — picking the
+  // material is still fine — but the recipe button and the marker both know.
+  row.classList.toggle("is-nil", mm < LAYER_MM_COMMIT_MIN);
 }
 
+/** Re-ask the placement marker, which reads the depth to decide if it fits. */
+function refreshBaseShadow() {
+  if (activeTool === "place" && selected.group === "base" && lastHover) {
+    showBaseShadow(lastHover);
+  }
+}
+
+// The + / − pair and the slider are three ways to set one number, so they all
+// go through setDepthFor and all of them are reachable by mouse, by touch and
+// by keyboard — the buttons are real <button>s and the slider a real
+// <input type=range>, which is what gives them focus, Enter/Space and the
+// arrow keys for free. What they were missing was not wiring but hit-testing:
+// see the pointer-events note on `.tool-depth` in style.css.
 document.getElementById("depth-down")?.addEventListener("click", () => {
   const def = BASE_BY_ID[selected.id];
   if (def) setDepthFor(def.id, depthFor(def.id) - depthStep(def));
@@ -2362,6 +2600,10 @@ document.getElementById("depth-down")?.addEventListener("click", () => {
 document.getElementById("depth-up")?.addEventListener("click", () => {
   const def = BASE_BY_ID[selected.id];
   if (def) setDepthFor(def.id, depthFor(def.id) + depthStep(def));
+});
+document.getElementById("depth-range")?.addEventListener("input", (e) => {
+  const def = BASE_BY_ID[selected.id];
+  if (def) setDepthFor(def.id, Number(e.target.value));
 });
 
 // The stack a real guide would tell you to build, poured in one press at the
@@ -2392,6 +2634,8 @@ document.getElementById("depth-recipe")?.addEventListener("click", () => {
   confirmBaseShadow();
   updateEmptyCall();
   updateHint();
+  renderDepth(); // the jar has less room than it did a moment ago
+  renderLayerPanel();
   gameAction("layer", CLASSIC_STACK[CLASSIC_STACK.length - 1].id);
 });
 
@@ -2399,6 +2643,13 @@ function tryAddLayer(id) {
   const def = BASE_LAYERS.find((b) => b.id === id);
   if (!def) return;
   const mm = depthFor(id);
+  // Zero is a legal thing to dial and an illegal thing to pour: a band with no
+  // height would be invisible, and therefore unselectable and undeletable. The
+  // control goes to zero so the range is honest; the commit is what refuses.
+  if (mm < LAYER_MM_COMMIT_MIN) {
+    flashHint(t("০ মিমি স্তর হয় না — একটু গভীরতা দাও"));
+    return;
+  }
   if (remainingMm(state) < mm) {
     flashHint("জার প্রায় ভরে গেছে — এবার সাজানো শুরু করো!");
     return;
@@ -2413,6 +2664,8 @@ function tryAddLayer(id) {
     burst(lastPress.x, lastPress.y, { count: particleBudget(10), spread: 44, colors: def.colors ?? ["#8a6b47", "#a9895f"] });
   }
   updateHint();
+  renderDepth(); // the jar has less room than it did a moment ago
+  renderLayerPanel();
   gameAction("layer", id);
 }
 
@@ -2447,15 +2700,23 @@ function tryPlaceDecoration(screen, id) {
 // A miniature of the item, pinched between the tweezer tips while the hand
 // carries it to the spot it will be planted.
 function handPreview(def) {
-  const obj = getModelClone(def.kind, def.id) ?? buildDecoration(def.kind, def.variant);
-  const jarK = Math.min(1.25, Math.max(0.55, JAR.innerRadius / 1.0));
-  obj.scale.setScalar(0.72 * jarK);
+  const { obj } = buildItem(def);
+  // The same normalisation the real placement uses, so what is pinched in the
+  // tweezers is the piece that lands — a preview at a different size is a
+  // preview of something else.
+  obj.scale.setScalar(normalizeFactor(def, obj) * jarSizeK());
   return obj;
 }
 
 // Where the pointer last went down, so feedback can land where you pressed even
 // when the action itself only knows about the world.
 let lastPress = null;
+// Where it last hovered, so a control that changes what a press *would* do —
+// the depth dial — can re-ask the preview marker without waiting for the
+// pointer to move again. Without it, stepping the depth up past what the jar
+// has left left a stale green marker on screen promising a pour that would be
+// refused.
+let lastHover = null;
 canvas.addEventListener("pointerdown", (e) => {
   lastPress = { x: e.clientX, y: e.clientY };
 });
@@ -2534,7 +2795,14 @@ function showBaseShadow(screen, holding = false) {
     hideReleaseHint();
     return false;
   }
-  const fits = remainingHeight(state) >= def.layerHeight;
+  // The depth the user chose, not the material's factory default. These were
+  // two different numbers: the pill said "60 মিমি" while the marker asked
+  // whether 16mm would fit, so a nearly full jar drew a green marker for a
+  // pour it was about to refuse. depthFor() is the single source of truth for
+  // how deep the next band goes, and the preview, the capacity note and the
+  // pour itself all read it.
+  const mm = depthFor(def.id);
+  const fits = mm >= LAYER_MM_COMMIT_MIN && remainingHeight(state) + 1e-9 >= mmToUnits(mm);
   const y = Math.min(substrateTop(state), JAR.floorY + JAR.bodyHeight);
   const point = aimInsideJar(screen);
   if (!point && !holding) {
@@ -2583,6 +2851,7 @@ function hideReleaseHint() {
 canvas.addEventListener("pointermove", (e) => {
   if (e.buttons) return; // mid-drag: the stroke itself is the feedback
   const screen = { x: e.clientX, y: e.clientY };
+  lastHover = screen;
 
   // Sculpt and paint tools: ring the exact patch the stroke would touch.
   if (BRUSH_TOOLS.has(activeTool)) {
@@ -2672,7 +2941,14 @@ function aimTweezers(screen) {
   // itself will give — rather than looking willing and then refusing.
   const inside = insideJarAt(local.y, local.x, local.z, 0.04);
   cursorGhost.setValid(inside);
-  cursorGhost.showAt(local, 0.34 * Math.min(1.25, Math.max(0.55, JAR.innerRadius)));
+  // The footprint ring is the piece's own measured footprint, not a constant.
+  // A ring that is the same size for a springtail and a temple is decoration;
+  // this one tells you how much ground the thing you are holding will take.
+  const metrics = def ? nativeMetrics(def, null) : null;
+  const ring = metrics
+    ? Math.max(0.08, metrics.r * normalizeFactor(def, null) * jarSizeK() * 1.25)
+    : 0.34 * jarSizeK();
+  cursorGhost.showAt(local, ring);
   return inside ? hit : null;
 }
 
@@ -3649,7 +3925,12 @@ function loadBuildDataNow(build, { history = true } = {}) {
   Object.assign(jarCustom, { frame: null, glass: null, w: 1, h: 1 }, build.custom ?? {});
   Object.assign(jarLight, { on: false, height: 0.55, bright: 0.6, color: 0xffe4bc }, build.jarLight ?? {});
   state.layers.length = 0;
-  state.layers.push(...(build.layers ?? []));
+  // Through adoptLayers, not straight in: this payload came from a gallery
+  // entry, a share link or a co-op peer, and it may predate fields the
+  // renderer now expects or carry a band the renderer cannot draw. It keeps
+  // the order it arrived in — saves have always been written bottom-first, and
+  // "helpfully" flipping one would turn every correct build upside down.
+  state.layers.push(...adoptLayers(build.layers, build.layerOrder));
   state.decorations.length = 0;
   state.decorations.push(...(build.decorations ?? []));
   state.terrain.fill(0);
@@ -3715,6 +3996,7 @@ function saveTerrarium() {
       jarId: currentJarId,
       custom: { ...jarCustom },
       layers: state.layers,
+      layerOrder: "bottom-to-top", // said out loud, so a reader never guesses
       decorations: state.decorations,
       terrain: Array.from(state.terrain),
       terrainMat: Array.from(state.terrainMat),
@@ -4007,6 +4289,232 @@ document.getElementById("jar-custom-btn").addEventListener("click", () => {
   refreshJarSwatches();
   jarPanelEl.classList.toggle("hidden");
 });
+
+// ---------------------------------------------------------------------------
+// Layer editor
+// ---------------------------------------------------------------------------
+// Pouring used to be a one-way door. A band set too deep, or dropped in the
+// wrong order, could only be taken back by undoing everything poured after it
+// — and once a plant was standing on top, not even then. This makes the stack
+// an editable list.
+//
+// It owns no geometry and no measurements of its own. Every action here is a
+// mutation of `state.layers` through the four functions in state.js that keep
+// the bottom-to-top invariant, followed by one `rebuildStack()`. That is what
+// keeps the terrain, the decorations, the pick plane, the strata labels and
+// the saved build correct without any of them being mentioned here: they are
+// all functions of the array, and the array is the only thing that changed.
+
+const layerPanelEl = document.getElementById("layer-panel");
+// Which band is being edited. An index rather than a reference, because
+// moving and deleting reshuffle the array under it — and it is followed
+// through a move so the selection stays on the band you are dragging about,
+// not on whatever slid into its place.
+let layerSel = -1;
+
+/**
+ * Put the scene back in step with `state.layers`, whatever just changed.
+ *
+ * Order matters here and it is not arbitrary:
+ *   1. the bands and the terrain cap are rebuilt, which moves substrateTop;
+ *   2. every decoration is re-seated on the new surface, because a plant that
+ *      was standing on 60mm of soil and is now standing on 30mm has to come
+ *      down with it — otherwise deleting a band leaves a garden floating;
+ *   3. the pick plane follows (rebuildSubstrate does this), so the next tap
+ *      lands on the new surface rather than the old one;
+ *   4. the readouts catch up.
+ */
+function rebuildStack() {
+  rebuildSubstrate(false);
+  reseatDecorations();
+  updateEmptyCall();
+  updateHint();
+  renderDepth();
+  renderLayerPanel();
+  studio.markInteraction();
+  if (import.meta.env.DEV) assertStackOrder(state);
+}
+
+/**
+ * Sit every placed piece back down on the surface.
+ *
+ * Decorations store the height they were placed at, which is the right thing
+ * to store — it survives a save and it survives the terrain being sculpted
+ * under them. But it is a height on a *particular* substrate, so the moment
+ * the stack changes depth it is a height in mid-air. Re-seating is one pass:
+ * take each piece's x/z, ask the surface how high it is there now, and drop
+ * the piece onto it. Containment is re-checked at the same time, because a
+ * taller stack means a narrower jar up where the piece now stands.
+ */
+function reseatDecorations() {
+  for (const obj of decorGroup.children) {
+    const rec = obj.userData.record;
+    if (!rec || obj.userData.dying) continue;
+    const body = bodyOf(obj);
+    const spot = snapPlacement(obj, rec.x, rec.z, body);
+    rec.x = spot.x;
+    rec.z = spot.z;
+    rec.y = surfaceY(spot.x, spot.z);
+    obj.position.set(rec.x, rec.y, rec.z);
+  }
+}
+
+function openLayerPanel() {
+  itemPanelEl.classList.add("hidden");
+  jarPanelEl.classList.add("hidden");
+  if (layerSel < 0 || layerSel >= state.layers.length) {
+    layerSel = state.layers.length - 1; // the band you just poured
+  }
+  // Unhide *before* drawing. `renderLayerPanel` returns immediately when the
+  // panel is hidden — it is called from every stack mutation, and redrawing a
+  // list nobody is looking at is wasted work — so rendering first and showing
+  // second opened an empty panel.
+  layerPanelEl.classList.remove("hidden");
+  renderLayerPanel();
+  studio.markInteraction();
+}
+
+/** Draw the list, the editor for the selected band, and the totals. */
+function renderLayerPanel() {
+  if (!layerPanelEl || layerPanelEl.classList.contains("hidden")) return;
+  const list = document.getElementById("layer-list");
+  const empty = document.getElementById("layer-empty");
+  const edit = document.getElementById("layer-edit");
+  const totals = document.getElementById("layer-totals");
+  if (!list) return;
+
+  const n = state.layers.length;
+  if (layerSel >= n) layerSel = n - 1;
+  empty?.classList.toggle("hidden", n > 0);
+  edit?.classList.toggle("hidden", n === 0 || layerSel < 0);
+
+  // Rendered top band first, so the list reads the way the jar looks. The
+  // *data* stays bottom-first — see the invariant in state.js — and the row's
+  // `data-index` carries the real index, so nothing downstream has to know
+  // that this one list is drawn upside down.
+  list.replaceChildren(
+    ...state.layers
+      .map((layer, i) => ({ layer, i }))
+      .reverse()
+      .map(({ layer, i }) => {
+        const def = BASE_BY_ID[layer.type];
+        const row = document.createElement("li");
+        row.className = "layer-row";
+        row.classList.toggle("is-on", i === layerSel);
+        row.dataset.index = String(i);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "layer-row-btn";
+        btn.setAttribute("aria-pressed", String(i === layerSel));
+        btn.innerHTML =
+          `<i class="layer-swatch" style="background:${def?.swatch ?? "#888"}"></i>` +
+          `<span class="layer-name">${def ? tLabel(def.label) : layer.type}</span>` +
+          `<span class="layer-mm">${toUiDigits(layerDepthMm(layer))} ${t("মিমি")}</span>`;
+        btn.addEventListener("click", () => {
+          layerSel = i;
+          renderLayerPanel();
+        });
+        row.appendChild(btn);
+        return row;
+      }),
+  );
+
+  const ctx = document.getElementById("layer-context");
+  const range = document.getElementById("layer-depth");
+  const value = document.getElementById("layer-depth-value");
+  const note = document.getElementById("layer-note");
+  if (n && layerSel >= 0) {
+    const layer = state.layers[layerSel];
+    const def = BASE_BY_ID[layer.type];
+    const mm = layerDepthMm(layer);
+    // The ceiling includes this band's own depth: re-cutting a 30mm band to
+    // 40mm asks the jar for 10mm more, not for 40mm it has already given.
+    const ceiling = maxLayerMm(state, layerSel);
+    if (ctx) ctx.textContent = def ? tLabel(def.label) : layer.type;
+    if (range) {
+      range.min = "0";
+      range.max = String(Math.max(1, ceiling));
+      range.value = String(mm);
+    }
+    if (value) value.textContent = `${toUiDigits(mm)} ${t("মিমি")}`;
+    if (note) {
+      const advice =
+        mm < LAYER_MM_COMMIT_MIN
+          ? t("০ মিমি স্তর হয় না")
+          : mm > ceiling
+            ? t("জারে আর জায়গা নেই")
+            : depthAdviceText(def, mm);
+      note.textContent = advice || `${t("সর্বোচ্চ")} ${toUiDigits(ceiling)} ${t("মিমি")}`;
+      note.classList.toggle("is-warn", Boolean(advice));
+    }
+    document.getElementById("layer-down")?.classList.toggle("is-disabled", layerSel === 0);
+    document.getElementById("layer-up")?.classList.toggle("is-disabled", layerSel === n - 1);
+  } else if (ctx) {
+    ctx.textContent = "";
+  }
+
+  if (totals) {
+    totals.textContent =
+      `${t("মোট")} ${toUiDigits(stackMm(state))} ${t("মিমি")}` +
+      ` · ${toUiDigits(remainingMm(state))} ${t("মিমি")} ${t("বাকি")}` +
+      ` (${t("জারের ধারণক্ষমতা")} ${toUiDigits(jarCapacityMm())} ${t("মিমি")})`;
+  }
+}
+
+document.getElementById("layer-btn")?.addEventListener("click", () => {
+  document.getElementById("more-menu")?.classList.add("hidden");
+  layerPanelEl.classList.contains("hidden")
+    ? openLayerPanel()
+    : layerPanelEl.classList.add("hidden");
+});
+document.getElementById("depth-edit")?.addEventListener("click", openLayerPanel);
+
+// Re-cutting a band. The slider is live so the stack moves under your thumb,
+// and the whole drag is one undo step — see beginGesture/endGesture.
+document.getElementById("layer-depth")?.addEventListener("input", (e) => {
+  if (layerSel < 0 || !state.layers[layerSel]) return;
+  beginGesture();
+  const mm = clampLayerMm(e.target.value, maxLayerMm(state, layerSel));
+  // Zero is reachable on the dial and refused at the commit, exactly as for a
+  // fresh pour: a band with no height cannot be seen, selected or removed.
+  if (mm >= LAYER_MM_COMMIT_MIN && setLayerMm(state, layerSel, mm)) rebuildStack();
+  else {
+    e.target.value = String(mm);
+    renderLayerPanel();
+  }
+});
+document.getElementById("layer-depth")?.addEventListener("change", endGesture);
+document.getElementById("layer-depth")?.addEventListener("blur", endGesture);
+
+document.getElementById("layer-up")?.addEventListener("click", () => {
+  if (!moveLayerBy(1)) flashHint(t("এটাই সবার উপরে"));
+});
+document.getElementById("layer-down")?.addEventListener("click", () => {
+  if (!moveLayerBy(-1)) flashHint(t("এটাই সবার নিচে"));
+});
+
+function moveLayerBy(dir) {
+  if (layerSel < 0) return false;
+  snapshot();
+  if (!moveLayer(state, layerSel, dir)) {
+    history.pop(); // nothing happened, so nothing to step back to
+    updateHistoryUi();
+    return false;
+  }
+  layerSel += dir < 0 ? -1 : 1; // follow the band, not the slot
+  rebuildStack();
+  return true;
+}
+
+document.getElementById("layer-del")?.addEventListener("click", () => {
+  if (layerSel < 0 || !state.layers[layerSel]) return;
+  snapshot();
+  removeLayer(state, layerSel);
+  // Keep a band selected if there is one left, so the panel does not collapse
+  // to its empty state after every delete.
+  layerSel = Math.min(layerSel, state.layers.length - 1);
+  rebuildStack();
+});
 document.querySelectorAll(".cfg-close").forEach((b) =>
   b.addEventListener("click", () => {
     document.getElementById(b.dataset.close).classList.add("hidden");
@@ -4068,6 +4576,7 @@ function openItemPanel(obj) {
   const definition = DECORATIONS.find((item) => item.id === rec.id);
   if (context) context.textContent = definition ? tLabel(definition.label) : t("নির্বাচিত আইটেম");
   document.getElementById("item-size").value = Math.round((rec.scale ?? 1) * 100);
+  renderItemSize();
   const deg = ((rec.rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   document.getElementById("item-rot").value = Math.round((deg / (Math.PI * 2)) * 360);
   buildSwatches("item-swatches", ITEM_TINTS, () => rec.tint ?? null, (hex) => {
@@ -4078,13 +4587,86 @@ function openItemPanel(obj) {
   studio.markInteraction();
 }
 
+// --- resizing a placed piece ----------------------------------------------
+// The slider is a percentage of the item's *intended* size now that every
+// model is normalised, so 100 means the same thing for a bonsai and a bench
+// and the number is worth putting on screen.
+//
+// It is also the one control that can push a model through the glass, because
+// growing a plant that is already against the wall has nowhere to go. So the
+// value the user asks for is held against the same whole-object containment
+// the placement uses, and the piece stops at the largest size that still fits
+// where it stands rather than growing out of the vessel.
+
+/** Update the percentage readout and which preset reads as current. */
+function renderItemSize() {
+  const slider = document.getElementById("item-size");
+  const out = document.getElementById("item-size-value");
+  if (!slider || !out) return;
+  const pct = Math.round(Number(slider.value));
+  out.textContent = `${toUiDigits(pct)}%`;
+  document.querySelectorAll(".size-preset").forEach((b) => {
+    b.classList.toggle("is-on", Math.abs(Number(b.dataset.size) - pct) < 6);
+  });
+}
+
+/**
+ * Resize the selected piece to `pct` percent of its intended size, as far as
+ * the glass allows. Returns the percentage actually applied.
+ */
+function applyItemSize(pct) {
+  if (!adjTarget) return 100;
+  const rec = adjTarget.userData.record;
+  const m = metricsFor(rec);
+  const norm = rec.norm ?? 1;
+  const want = Math.max(0.05, Number(pct) / 100);
+  const ground = surfaceY(rec.x, rec.z);
+  // Measured against the native box, so the search is over the same numbers
+  // the placement clamp uses and the two can never disagree about a fit.
+  const allowed = maxScaleAt(
+    rec.x, rec.z, ground,
+    m.r * norm, m.h * norm,
+    want, GLASS_CLEARANCE,
+  );
+  const sc = Math.max(0.05, allowed);
+  rec.scale = sc;
+  const applied = finalScale(rec);
+  adjTarget.userData.baseScale = applied;
+  adjTarget.scale.setScalar(applied);
+  // A bigger piece needs more elbow room, and its base has to stay on the
+  // surface it grew from — both are placement facts, so they are re-settled
+  // here rather than left until the next time it is dragged.
+  const spot = snapPlacement(adjTarget, rec.x, rec.z, { r: m.r * applied, h: m.h * applied });
+  rec.x = spot.x;
+  rec.z = spot.z;
+  rec.y = surfaceY(spot.x, spot.z);
+  adjTarget.position.set(rec.x, rec.y, rec.z);
+  return Math.round(sc * 100);
+}
+
 document.getElementById("item-size").addEventListener("input", (e) => {
   if (!adjTarget) return;
-  const sc = Number(e.target.value) / 100;
-  const rec = adjTarget.userData.record;
-  rec.scale = sc;
-  adjTarget.userData.baseScale = sc;
-  adjTarget.scale.setScalar(sc);
+  beginGesture();
+  const applied = applyItemSize(e.target.value);
+  // Snap the control back when the glass refused the last few percent, so the
+  // slider never sits somewhere the model is not.
+  if (applied < Math.round(Number(e.target.value)) - 1) e.target.value = applied;
+  renderItemSize();
+});
+// A drag is one undo step, not sixty of them. `beginGesture` is called from
+// the first `input` — so the state it captures is the state *before* the drag
+// — and the entry is only filed when the gesture ends, and only if anything
+// actually changed.
+document.getElementById("item-size").addEventListener("change", endGesture);
+document.getElementById("item-size").addEventListener("blur", endGesture);
+document.querySelectorAll(".size-preset").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (!adjTarget) return;
+    snapshot();
+    const applied = applyItemSize(btn.dataset.size);
+    document.getElementById("item-size").value = applied;
+    renderItemSize();
+  });
 });
 document.getElementById("item-rot").addEventListener("input", (e) => {
   if (!adjTarget) return;
@@ -4171,17 +4753,19 @@ document.getElementById("item-dupe").addEventListener("click", () => {
   }
   snapshot();
   const rec = source.userData.record;
-  const def = DECORATIONS.find((d) => d.id === rec.id);
+  const def = DECOR_BY_ID[rec.id] ?? DECORATIONS.find((d) => d.id === rec.id);
   const copy = getModelClone(rec.kind, rec.id) ?? buildDecoration(rec.kind, def?.variant);
 
-  // Offset by a little over its own footprint, then let the same spacing rule
-  // the drag uses push it the rest of the way clear.
+  // Offset by a little over its own footprint, then let the same containment
+  // and spacing rule the drag uses carry it the rest of the way. The step is
+  // the piece's own measured radius, so a temple steps clear of a temple and a
+  // springtail steps clear of a springtail.
+  const body = bodyOf(source);
   const a = Math.random() * Math.PI * 2;
-  const step = 0.2 * (rec.scale ?? 1);
-  const spot = snapPlacement(copy, rec.x + Math.cos(a) * step, rec.z + Math.sin(a) * step);
-  const inside = clampInsideAt(rec.y, spot.x, spot.z, 0.08);
-  const x = inside ? inside.x : spot.x;
-  const z = inside ? inside.z : spot.z;
+  const step = Math.max(0.06, body.r * 1.4);
+  const spot = snapPlacement(copy, rec.x + Math.cos(a) * step, rec.z + Math.sin(a) * step, body);
+  const x = spot.x;
+  const z = spot.z;
 
   const record = {
     id: rec.id,
@@ -4190,6 +4774,7 @@ document.getElementById("item-dupe").addEventListener("click", () => {
     z,
     y: surfaceY(x, z),
     rotation: rec.rotation + (Math.random() - 0.5) * 0.5, // never a perfect twin
+    norm: rec.norm,
     scale: rec.scale,
     tint: rec.tint ?? null,
   };
@@ -4197,14 +4782,15 @@ document.getElementById("item-dupe").addEventListener("click", () => {
   copy.rotation.x = source.rotation.x;
   copy.rotation.z = source.rotation.z;
   copy.position.set(record.x, record.y, record.z);
+  const copyScale = finalScale(record);
   copy.userData.record = record;
-  copy.userData.baseScale = record.scale;
+  copy.userData.baseScale = copyScale;
   if (record.tint) applyTint(copy, record.tint);
   decorGroup.add(copy);
   addDecoration(state, record);
 
-  if (calmMotion()) copy.scale.setScalar(record.scale);
-  else tween(380, (k) => copy.scale.setScalar(0.001 + k * record.scale));
+  if (calmMotion()) copy.scale.setScalar(copyScale);
+  else tween(380, (k) => copy.scale.setScalar(0.001 + k * copyScale));
   confirmPlacement(copy);
   // The menu follows the copy: duplicating twice in a row should make two
   // copies of what you were looking at, not a copy of a copy of a copy.

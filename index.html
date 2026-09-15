@@ -283,6 +283,7 @@
           <span class="more-menu-title" data-i18n="বানানো">বানানো</span>
           <div class="more-row">
             <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
+            <button id="layer-btn" class="nav-btn" data-i18n="স্তর সাজাও">স্তর সাজাও</button>
             <button id="bg-btn" class="nav-btn" data-i18n="পরিবেশ">পরিবেশ</button>
           </div>
           <span class="more-menu-title" data-i18n="সংগ্রহ">সংগ্রহ</span>
@@ -502,6 +503,36 @@
         <div class="cfg-row"><span class="cfg-label" data-i18n="উজ্জ্বলতা">উজ্জ্বলতা</span><input id="light-b" type="range" min="10" max="100" value="60" /></div>
       </div>
 
+      <!-- Layer editor: the stack you have already poured, as a list you can
+           act on. Pouring was a one-way door before this — a band set too deep
+           or dropped in the wrong order could only be undone by undoing
+           everything after it. Each row is one band, bottom of the list is the
+           bottom of the jar, matching both the stack invariant in state.js and
+           what you see through the glass. -->
+      <div class="cfg-panel hidden" id="layer-panel">
+        <div class="cfg-head">
+          <div><span data-i18n="স্তর সাজাও">স্তর সাজাও</span><small id="layer-context"></small></div>
+          <button class="hud-btn cfg-close" data-close="layer-panel">✕</button>
+        </div>
+        <ol class="layer-list" id="layer-list" aria-label="স্তরের তালিকা"></ol>
+        <p class="layer-empty hidden" id="layer-empty" data-i18n="এখনো কোনো স্তর নেই — ট্রে থেকে বেস ঢালো।">এখনো কোনো স্তর নেই — ট্রে থেকে বেস ঢালো।</p>
+        <div class="layer-edit hidden" id="layer-edit">
+          <div class="cfg-row">
+            <span class="cfg-label" data-i18n="গভীরতা">গভীরতা</span>
+            <input id="layer-depth" type="range" min="0" max="120" step="1" value="20"
+              data-i18n-aria-label="স্তরের গভীরতা" aria-label="স্তরের গভীরতা" />
+            <output class="cfg-value" id="layer-depth-value" for="layer-depth">২০ মিমি</output>
+          </div>
+          <p class="layer-note" id="layer-note"></p>
+          <div class="layer-acts" role="group" aria-label="স্তরের কাজ">
+            <button type="button" class="item-act" id="layer-down"><span class="item-act-ico" aria-hidden="true">▼</span><span data-i18n="নিচে">নিচে</span></button>
+            <button type="button" class="item-act" id="layer-up"><span class="item-act-ico" aria-hidden="true">▲</span><span data-i18n="উপরে">উপরে</span></button>
+            <button type="button" class="item-act item-act--danger" id="layer-del"><span class="item-act-ico" aria-hidden="true">🗑</span><span data-i18n="মুছে ফেলো">মুছে ফেলো</span></button>
+          </div>
+        </div>
+        <p class="layer-totals" id="layer-totals"></p>
+      </div>
+
       <!-- item adjuster: opens when a placed decoration is tapped -->
       <div class="cfg-panel hidden" id="item-panel">
         <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context">নির্বাচিত আইটেম</small></div><button class="hud-btn cfg-close" data-close="item-panel">✕</button></div>
@@ -513,7 +544,24 @@
           <button type="button" class="item-act" id="item-dupe"><span class="item-act-ico" aria-hidden="true">⧉</span><span data-i18n="নকল করো">নকল করো</span></button>
           <button type="button" class="item-act item-act--danger" id="item-del"><span class="item-act-ico" aria-hidden="true">🗑</span><span data-i18n="মুছে ফেলো">মুছে ফেলো</span></button>
         </div>
-        <div class="cfg-row"><span class="cfg-label" data-i18n="সাইজ">সাইজ</span><input id="item-size" type="range" min="30" max="220" value="100" /></div>
+        <!-- Size. 100% is the item's intended default, not an arbitrary
+             point on a slider, so the number is worth showing and the presets
+             are worth having: the three sizes people actually reach for are a
+             tap away, and the slider is there when they want a fourth. -->
+        <div class="cfg-row">
+          <span class="cfg-label" data-i18n="সাইজ">সাইজ</span>
+          <input id="item-size" type="range" min="30" max="220" value="100"
+                 aria-describedby="item-size-value" />
+          <output class="cfg-value" id="item-size-value" for="item-size">১০০%</output>
+        </div>
+        <div class="cfg-row cfg-row--presets">
+          <span class="cfg-label" aria-hidden="true"></span>
+          <div class="size-presets" role="group" aria-label="সাইজ প্রিসেট">
+            <button type="button" class="size-preset" data-size="60" data-i18n="ছোট">ছোট</button>
+            <button type="button" class="size-preset" data-size="100" data-i18n="স্বাভাবিক">স্বাভাবিক</button>
+            <button type="button" class="size-preset" data-size="150" data-i18n="বড়">বড়</button>
+          </div>
+        </div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="ঘোরাও">ঘোরাও</span><input id="item-rot" type="range" min="0" max="360" value="0" /></div>
         <div class="cfg-row"><span class="cfg-label" data-i18n="রং">রং</span><div class="swatches" id="item-swatches"></div></div>
       </div>
@@ -833,8 +881,21 @@
               data-i18n-title="মোটা করো" title="মোটা করো" aria-label="মোটা করো">+</button>
             <button class="depth-recipe" id="depth-recipe" type="button"
               data-i18n="ক্লাসিক স্তর">ক্লাসিক স্তর</button>
+            <button class="depth-recipe" id="depth-edit" type="button"
+              data-i18n="স্তর সাজাও">স্তর সাজাও</button>
+          </span>
+          <!-- The same number as a slider, because stepping from 5mm to 60mm
+               one press at a time is not a control, it is a chore. Its max is
+               whatever the jar has left, so the track itself says how much
+               room there is: a nearly full jar has a nearly full slider. -->
+          <span class="tool-depth-slider hidden" id="tool-depth-slider">
+            <input type="range" id="depth-range" min="0" max="120" step="1" value="20"
+              data-i18n-aria-label="স্তরের গভীরতা" aria-label="স্তরের গভীরতা" />
           </span>
           <span class="tool-depth-note" id="depth-note"></span>
+          <!-- Total poured and room left, always visible while pouring. The
+               depth of one band means little without them. -->
+          <span class="tool-depth-total hidden" id="depth-total"></span>
         </span>
       </aside>
 

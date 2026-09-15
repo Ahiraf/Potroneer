@@ -8,7 +8,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "audit:themes": "node scripts/audit-themes.mjs"
+    "audit:themes": "node scripts/audit-themes.mjs",
+    "check:layers": "node tools/check-layer-order.mjs",
+    "check:sizes": "node tools/check-item-sizes.mjs",
+    "check:fit": "node tools/check-item-fit.mjs",
+    "check:substrate": "node tools/check-substrate-fit.mjs",
+    "check": "npm run check:layers && npm run check:sizes && npm run check:substrate && npm run check:fit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",

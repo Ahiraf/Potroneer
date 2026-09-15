@@ -4620,8 +4620,15 @@ body.perf-low .bump {
    The tab strip already says which tool is armed, but only to someone looking
    at the tab strip — and while you are building, your eyes are on the glass.
    This pill sits at the edge of that gaze, naming the mode and, under it, the
-   thing the very next press will do. It is deliberately not a button: nothing
-   here is clickable, so it never competes with the controls around it. */
+   thing the very next press will do.
+
+   The pill *itself* is not a button — reading it must never be mistaken for
+   pressing something, and it sits over the canvas where a stray hit would turn
+   into a failed drag of the jar. So it stays `pointer-events: none` and the
+   few things inside it that really are controls opt back in individually
+   (`.tool-depth` below). Making the whole panel interactive to fix the depth
+   buttons would hand the pill's dead area a claim on every press that lands
+   near the tray. */
 .tool-status {
   position: absolute;
   left: var(--tray-x);
@@ -5133,8 +5140,15 @@ body.photo-mode .release-hint {
 .tool-depth {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
+  /* The one live control inside an otherwise inert pill. Without this the
+     + / − buttons were unclickable: `.tool-status` sets `pointer-events: none`
+     and that inherits, so the buttons rendered, focused and did nothing to a
+     mouse or a finger. Keyboard activation still worked, which is what made it
+     look like a 3D bug rather than a CSS one. */
+  pointer-events: auto;
 }
 .tool-depth.hidden { display: none; }
 .depth-step {
@@ -5182,6 +5196,155 @@ body.photo-mode .release-hint {
   opacity: 0.85;
 }
 .tool-depth-note.is-warn { color: var(--accent); opacity: 1; }
+
+/* The depth as a slider, under the stepper that sets the same number. Stepping
+   from 5mm to 60mm one press at a time is a chore, not a control. Its track is
+   the jar's remaining capacity (renderDepth sets the max), so a nearly full
+   jar shows a nearly full slider and the room left is readable without doing
+   arithmetic on the note below it. */
+.tool-depth-slider {
+  display: block;
+  margin-top: 5px;
+  pointer-events: auto; /* the pill itself is inert — see .tool-depth */
+}
+.tool-depth-slider.hidden { display: none; }
+.tool-depth-slider input[type="range"] {
+  display: block;
+  width: 100%;
+  margin: 0;
+  accent-color: var(--green);
+}
+.tool-depth-slider input[type="range"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* Total poured and room left. Quieter than the note above it — this is
+   standing context, not something that just changed. */
+.tool-depth-total {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-dim);
+  font-size: calc(10.5px * var(--text-scale));
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+.tool-depth-total.hidden { display: none; }
+/* A depth of zero is not a pour. The dial is allowed there; the row says so. */
+.tool-depth.is-nil .depth-value { color: var(--accent); }
+
+/* ============ layer editor ============
+   The poured stack as a list you can act on. Drawn top band first, because
+   that is how the jar reads through the glass — the data stays bottom-first,
+   and each row carries its real index. */
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 34vh;
+  margin: 2px 0 8px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.layer-row { display: block; }
+.layer-row-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--hud-border);
+  border-radius: 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: calc(11.5px * var(--text-scale));
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.13s ease, border-color 0.13s ease;
+}
+.layer-row-btn:hover { background: rgba(255, 255, 255, 0.11); }
+.layer-row-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.layer-row.is-on .layer-row-btn {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--accent, #6d9e4f);
+}
+.layer-swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.layer-mm {
+  flex: none;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.layer-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.layer-note {
+  margin: 5px 0 0;
+  color: var(--ink-dim);
+  font-size: calc(11px * var(--text-scale));
+}
+.layer-note.is-warn { color: var(--accent); opacity: 1; }
+.layer-empty,
+.layer-totals {
+  margin: 6px 0 0;
+  color: var(--ink-dim);
+  font-size: calc(11px * var(--text-scale));
+  font-variant-numeric: tabular-nums;
+}
+.layer-empty.hidden,
+.layer-edit.hidden { display: none; }
+
+/* ============ item size ============
+   100% is the item's intended default now that every model is normalised, so
+   the number means something and is worth showing beside the slider. */
+.cfg-value {
+  flex: none;
+  min-width: 44px;
+  color: var(--ink);
+  font-size: calc(11.5px * var(--text-scale));
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cfg-row--presets { margin-top: 4px; }
+.size-presets {
+  display: flex;
+  flex: 1;
+  gap: 5px;
+}
+.size-preset {
+  flex: 1;
+  padding: 5px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--control-border);
+  border-radius: 7px;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: calc(10.5px * var(--text-scale));
+  cursor: pointer;
+  transition: background 0.13s ease, color 0.13s ease, border-color 0.13s ease;
+}
+.size-preset:hover { color: var(--ink); background: rgba(255, 255, 255, 0.11); }
+.size-preset:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.size-preset.is-on {
+  color: var(--ink);
+  border-color: var(--accent, #6d9e4f);
+  background: rgba(255, 255, 255, 0.14);
+}
 
 /* ============ strata labels ============
    One per band, parked at the band's middle on the jar's right edge. The

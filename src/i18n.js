@@ -101,6 +101,29 @@ const EN = {
   "এই স্তরের জন্য বেশি পাতলা": "Thinner than this material usually goes",
   "এই স্তরের জন্য বেশি মোটা": "Thicker than this material usually goes",
   "জারে আর জায়গা নেই": "No room left in the jar",
+  // depth, capacity and the layer editor
+  "স্তরের গভীরতা": "Layer depth",
+  "০ মিমি স্তর হয় না": "0 mm is not a layer",
+  "০ মিমি স্তর হয় না — একটু গভীরতা দাও": "0 mm is not a layer \u2014 give it some depth",
+  "মোট": "Total",
+  "সর্বোচ্চ": "Max",
+  // not the tray category "জার" (Jars) — this one names the vessel's capacity
+  "জারের ধারণক্ষমতা": "Jar holds",
+  "স্তর সাজাও": "Edit layers",
+  "স্তরের তালিকা": "Layer list",
+  "স্তরের কাজ": "Layer actions",
+  "গভীরতা": "Depth",
+  "উপরে": "Up",
+  "নিচে": "Down",
+  "এটাই সবার উপরে": "That is already the top layer",
+  "এটাই সবার নিচে": "That is already the bottom layer",
+  "এখনো কোনো স্তর নেই — ট্রে থেকে বেস ঢালো।":
+    "No layers yet \u2014 pour a base from the tray.",
+  // item size
+  "সাইজ প্রিসেট": "Size presets",
+  // "ছোট" and "বড়" are already in this table further down, shared with the
+  // brush-size labels — same words, same translations.
+  "স্বাভাবিক": "Default",
   "স্পষ্ট": "Clear",
   "নরম": "Soft",
   "শুধু পেছনের দৃশ্য বদলায়, জারের ভেতরে কিছু নয়।":

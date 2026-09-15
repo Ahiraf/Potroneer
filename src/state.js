@@ -329,9 +329,87 @@ export function remainingHeight(state) {
   return JAR.bodyHeight - FLOOR_GAP - used;
 }
 
+// ---------------------------------------------------------------------------
+// The stack invariant
+// ---------------------------------------------------------------------------
+// Said once, here, because six other places are written against it and a
+// disagreement between any two of them shows up as a jar built upside down:
+//
+//   state.layers[0]                       is the BOTTOM band — it sits on the
+//                                         jar floor, at substrateBase()
+//   state.layers[state.layers.length - 1] is the TOP band — its top is the
+//                                         surface everything else rides on
+//   band n sits directly on band n-1, with no gap and no overlap
+//
+// So a new pour is `push`, never `unshift`, and everything that walks the
+// stack walks it forwards while adding heights. `layerBounds` is the single
+// answer to "where is band n", and `assertStackOrder` is that invariant made
+// executable — `tools/check-layer-order.mjs` and the dev build both run it.
+
+/** Where band `index` starts and ends, in world Y. */
+export function layerBounds(state, index) {
+  let bottom = substrateBase();
+  for (let i = 0; i < index; i++) bottom += state.layers[i].height;
+  return { bottom, top: bottom + (state.layers[index]?.height ?? 0) };
+}
+
 /**
- * Pour a layer. `mm` is the depth the builder asked for; leaving it out takes
- * the material's own default.
+ * Throw if the stack has stopped being a bottom-to-top stack. Cheap enough to
+ * call after every mutation, and only wired up in development — in production
+ * a thrown assertion here would take the whole build down over a cosmetic
+ * disagreement, which is a worse outcome than the disagreement.
+ */
+export function assertStackOrder(state) {
+  let y = substrateBase();
+  state.layers.forEach((layer, i) => {
+    if (!BASE_BY_ID[layer.type]) throw new Error(`layer ${i}: unknown material ${layer.type}`);
+    if (!(layer.height > 0)) throw new Error(`layer ${i}: height ${layer.height} is not positive`);
+    const { bottom, top } = layerBounds(state, i);
+    if (Math.abs(bottom - y) > 1e-6) {
+      throw new Error(`layer ${i}: starts at ${bottom}, but band ${i - 1} ends at ${y}`);
+    }
+    if (!(top > bottom)) throw new Error(`layer ${i}: does not rise`);
+    y = top;
+  });
+  if (Math.abs(substrateTop(state) - y) > 1e-6) {
+    throw new Error(`substrateTop ${substrateTop(state)} disagrees with the walked stack ${y}`);
+  }
+  return true;
+}
+
+/**
+ * Take an array of layer records from a save, a share link or a co-op peer and
+ * make it safe to stack.
+ *
+ * Saves have always been written bottom-first, so the order is left alone
+ * unless the payload explicitly says otherwise — flipping an old build "to be
+ * safe" would turn every correct save upside down, which is the failure this
+ * function exists to prevent, not cause. What it does do is drop records the
+ * renderer cannot use (unknown material, zero or negative depth — see
+ * `addLayer`: the app never creates an invisible band, so one in a save is
+ * corruption) and fill in the fields that post-date the oldest saves.
+ */
+export function adoptLayers(raw, order = "bottom-to-top") {
+  const list = Array.isArray(raw) ? raw.slice() : [];
+  if (order === "top-to-bottom") list.reverse();
+  return list
+    .filter((l) => l && BASE_BY_ID[l.type] && Number(l.height) > 0)
+    .map((l) => ({
+      type: l.type,
+      height: Number(l.height),
+      slopeX: Number(l.slopeX) || 0,
+      slopeZ: Number(l.slopeZ) || 0,
+      seed: Number.isFinite(l.seed) ? l.seed : (Math.random() * 0x7fffffff) | 0,
+    }));
+}
+
+/**
+ * Pour a layer *on top of* everything already poured.
+ *
+ * `mm` is the depth the builder asked for; leaving it out takes the material's
+ * own default. Returns false without touching the stack when the pour cannot
+ * happen — nothing left in the jar, or a depth of zero, which would be an
+ * invisible band you could never see to select or delete again.
  *
  * Layers are stored in world units, not millimetres. Millimetres are how the
  * app talks about depth — to the builder, and in the advice it gives — but the
@@ -341,8 +419,10 @@ export function remainingHeight(state) {
 export function addLayer(state, typeId, mm = null) {
   const def = BASE_BY_ID[typeId];
   if (!def) return false;
-  const height = mm == null ? def.layerHeight : mmToUnits(clampLayerMm(def, mm));
-  if (remainingHeight(state) < height) return false; // jar is full
+  const want = mm == null ? unitsToMm(def.layerHeight) : Math.round(Number(mm) || 0);
+  if (want < LAYER_MM_COMMIT_MIN) return false; // no invisible bands
+  const height = mmToUnits(want);
+  if (remainingHeight(state) + 1e-9 < height) return false; // jar is full
   // Real builds slope the substrate asymmetrically ("odd numbers and
   // asymmetrical angles"); keep a gentle random tilt per layer, stored in the
   // model so rebuilds don't reshuffle the terrain.
@@ -356,24 +436,87 @@ export function addLayer(state, typeId, mm = null) {
     // reproduce this one's top exactly when it builds its own underside.
     seed: (Math.random() * 0x7fffffff) | 0,
   });
+  return true; // pushed, so the newest band is the top one — see the invariant
+}
+
+// ---------------------------------------------------------------------------
+// Editing a band that is already poured
+// ---------------------------------------------------------------------------
+// All three of these only touch `state.layers`. Everything downstream — the
+// bands themselves, the terrain cap, the decorations sitting on it, the pick
+// plane, the strata labels — is rebuilt from the array afterwards, so there is
+// exactly one thing to get right here and it is the array.
+
+/** Re-cut band `index` to `mm` millimetres. False if it will not fit. */
+export function setLayerMm(state, index, mm) {
+  const layer = state.layers[index];
+  if (!layer) return false;
+  const want = Math.round(Number(mm) || 0);
+  if (want < LAYER_MM_COMMIT_MIN) return false;
+  if (want > maxLayerMm(state, index)) return false;
+  layer.height = mmToUnits(want);
   return true;
 }
 
+/** Slide band `index` one place down (-1) or up (+1) the stack. */
+export function moveLayer(state, index, dir) {
+  const to = index + (dir < 0 ? -1 : 1);
+  if (index < 0 || index >= state.layers.length) return false;
+  if (to < 0 || to >= state.layers.length) return false;
+  const [layer] = state.layers.splice(index, 1);
+  state.layers.splice(to, 0, layer);
+  return true;
+}
+
+/** Take band `index` out; everything above it drops by that much. */
+export function removeLayer(state, index) {
+  if (index < 0 || index >= state.layers.length) return false;
+  state.layers.splice(index, 1);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Depth, in millimetres
+// ---------------------------------------------------------------------------
 /**
- * The depths a material may be poured at, in millimetres.
+ * The depths a material may be poured at.
  *
  * `minMm`/`maxMm` in the catalogue are *advice* — the range real builders work
  * in — and the app says so rather than enforcing it: a charcoal filter thicker
  * than half an inch does nothing useful, but it is not the app's business to
- * refuse. What is enforced is the hard floor and whatever the jar has left,
- * which are physical rather than editorial.
+ * refuse. What is enforced is physical rather than editorial, and there are
+ * only two of those rules:
+ *
+ *   • the control may sit at 0mm, but 0mm is not a layer. Committing it would
+ *     make a band with no height: invisible, unselectable, undeletable. So the
+ *     slider goes to zero and the *commit* is what refuses.
+ *   • the committed stack may never be deeper than the jar's usable interior.
+ *     That is not a fixed 120mm — it is whatever this vessel has left, and
+ *     when an existing band is being edited it is that plus the band's own
+ *     depth, because re-cutting a 30mm band to 40mm only needs 10mm more.
  */
-export const LAYER_MM_FLOOR = 1;
-export const LAYER_MM_CEILING = 120;
+export const LAYER_MM_MIN = 0;
+export const LAYER_MM_COMMIT_MIN = 1;
 
-export function clampLayerMm(def, mm) {
+/** Every millimetre this vessel could ever hold, empty. */
+export function jarCapacityMm() {
+  return Math.max(0, Math.floor(unitsToMm(JAR.bodyHeight - FLOOR_GAP)));
+}
+
+/**
+ * The most a band may be set to. `index` is the band being edited, or -1 for a
+ * fresh pour — the difference is whether the band's current depth counts as
+ * already spent.
+ */
+export function maxLayerMm(state, index = -1) {
+  const own = index >= 0 ? state.layers[index]?.height ?? 0 : 0;
+  return Math.max(0, Math.floor(unitsToMm(remainingHeight(state) + own)));
+}
+
+/** Hold `mm` to the physical range; `maxMm` is whatever the jar allows. */
+export function clampLayerMm(mm, maxMm = jarCapacityMm()) {
   const v = Math.round(Number(mm) || 0);
-  return Math.max(LAYER_MM_FLOOR, Math.min(LAYER_MM_CEILING, v));
+  return Math.max(LAYER_MM_MIN, Math.min(Math.max(LAYER_MM_MIN, maxMm), v));
 }
 
 /** Is this depth outside what the material is actually for? */
@@ -392,6 +535,11 @@ export function remainingMm(state) {
 /** Total substrate poured so far, in millimetres. */
 export function stackMm(state) {
   return Math.round(unitsToMm(state.layers.reduce((sum, l) => sum + l.height, 0)));
+}
+
+/** Depth of one band, in millimetres — what the editor and the labels show. */
+export function layerDepthMm(layer) {
+  return Math.round(unitsToMm(layer?.height ?? 0));
 }
 
 export function addDecoration(state, deco) {

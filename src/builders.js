@@ -6780,17 +6780,28 @@ function buildParkBench(v = {}) {
     stile.castShadow = true;
     g.add(stile);
   }
-  // seat slats between the standards
-  for (let i = 0; i < 3; i++) {
-    const slat = new THREE.Mesh(new THREE.BoxGeometry(0.031, 0.009, w), wood);
-    slat.position.set(front + 0.022 + i * 0.038, seatY + 0.005, 0);
+  // Seat slats between the standards.
+  //
+  // Four of them rather than three, and half again as thick. From above — the
+  // one view where a bench had nothing to say — a seat is read by its slats
+  // and the gaps between them, and three thin boards over a 107mm span came
+  // out as a single smudged strip. Four thicker boards with clear gaps give
+  // the top view a grain to read, and the extra thickness is what keeps them
+  // from disappearing at the camera distance the jar is actually viewed from.
+  const SLAT = 0.013; // thick enough to catch light on its edge
+  for (let i = 0; i < 4; i++) {
+    const slat = new THREE.Mesh(new THREE.BoxGeometry(0.03, SLAT, w), wood);
+    slat.position.set(front + 0.02 + i * 0.038, seatY + 0.007, 0);
     slat.castShadow = true;
     g.add(slat);
   }
-  // back slats, raked with the stiles
+  // Back slats, raked with the stiles. Three, so the back never reads as the
+  // same thing as the seat: from above the eye separates a bench from a bare
+  // plank by seeing *two* surfaces at different angles, and the raked back
+  // sitting proud of the seat is that second surface.
   for (let i = 0; i < 3; i++) {
-    const up = 0.026 + i * 0.038;
-    const slat = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.009, w), wood);
+    const up = 0.028 + i * 0.04;
+    const slat = new THREE.Mesh(new THREE.BoxGeometry(0.03, SLAT, w), wood);
     slat.position.set(back + Math.sin(rake) * up + 0.008, seatY + Math.cos(rake) * up, 0);
     slat.rotation.z = Math.PI / 2 - rake;
     slat.castShadow = true;
