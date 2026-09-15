@@ -610,6 +610,15 @@
       <div class="photo-panel hidden" id="photo-panel">
         <div class="cfg-head"><span data-i18n="ফটো মোড">ফটো মোড</span><button class="hud-btn" id="photo-close">✕</button></div>
         <div id="photo-filters" class="photo-filters"></div>
+        <!-- The four angles worth shooting. They drive the same camera presets
+             the build view uses, so a photograph is taken from an angle you
+             can also work in rather than from a private one. -->
+        <div class="photo-angles" id="photo-angles" role="group" data-i18n-title="কোণ" title="কোণ">
+          <button class="photo-angle" data-view="three-quarter" data-i18n="তিন-চতুর্থাংশ">তিন-চতুর্থাংশ</button>
+          <button class="photo-angle" data-view="front" data-i18n="সামনে থেকে">সামনে থেকে</button>
+          <button class="photo-angle" data-view="side" data-i18n="পাশ থেকে">পাশ থেকে</button>
+          <button class="photo-angle" data-view="top" data-i18n="উপর থেকে">উপর থেকে</button>
+        </div>
         <button id="photo-capture" class="social-primary" data-i18n="ছবি সেভ করো">ছবি সেভ করো</button>
       </div>
 

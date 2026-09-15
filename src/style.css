@@ -5078,3 +5078,49 @@ body.panel-resizing .hud-bottom {
   background: var(--accent-solid);
   border-color: var(--accent);
 }
+
+/* ============ photo mode ============
+   The building interface stands down so the picture is of the terrarium and
+   not of the workbench around it. The photo panel itself stays, because that
+   is where the shutter is. */
+body.photo-mode .rail,
+body.photo-mode .hud-bottom,
+body.photo-mode .tabs,
+body.photo-mode .hud-tools,
+body.photo-mode .tool-status,
+body.photo-mode .hint,
+body.photo-mode .game-panel,
+body.photo-mode .cat-flyout,
+body.photo-mode .tray-show,
+body.photo-mode .rail-show,
+body.photo-mode .cam-zoom,
+body.photo-mode .focus-hud,
+body.photo-mode .release-hint {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.photo-angles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.photo-angle {
+  flex: 1 1 auto;
+  padding: 6px 10px;
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: calc(12px * var(--text-scale));
+  cursor: pointer;
+}
+.photo-angle:hover { color: var(--ink); }
+.photo-angle.is-active {
+  color: var(--accent-ink);
+  background: var(--accent-solid);
+  border-color: var(--accent);
+}

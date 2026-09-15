@@ -4373,11 +4373,57 @@ async function captureFilteredPhoto() {
   }
   return output.toDataURL("image/png");
 }
+// --- photo mode ------------------------------------------------------------
+// The filters and the save button were already here; what was missing is the
+// *mode* around them. A photograph of a terrarium should not have the shelf,
+// the mode tabs and a tool pill in it, and it should not be framed for
+// building — which leaves room above the jar for the tweezers to come down.
+//
+// So opening photo mode clears the building chrome away, pulls the camera in,
+// and offers the four angles. Closing it puts all of that back, including the
+// camera pose, so stepping in to take a picture never costs you the view you
+// were working in.
+// A photograph is framed tighter than a workbench. 0.76 leaves headroom for
+// the tweezers to come down into; nothing reaches into a picture.
+const PHOTO_FILL = 0.9;
+
+function setPhotoMode(on) {
+  document.body.classList.toggle("photo-mode", on);
+  if (on) {
+    clearHover(); // no marker, ghost or tweezers in the shot
+    photoReturnView = activeView;
+    studio.setView?.("three-quarter", { fill: PHOTO_FILL });
+    activeView = null;
+  } else {
+    // Back to the angle the build was in, or out of presets entirely.
+    if (photoReturnView) setCameraView(photoReturnView);
+    else if (activeView) setCameraView(activeView);
+    photoReturnView = null;
+  }
+  updateHint();
+}
+let photoReturnView = null;
+
 document.getElementById("photo").addEventListener("click", () => {
   document.getElementById("photo-panel").classList.remove("hidden");
   renderPhotoFilters();
+  setPhotoMode(true);
 });
-document.getElementById("photo-close").addEventListener("click", () => document.getElementById("photo-panel").classList.add("hidden"));
+document.getElementById("photo-close").addEventListener("click", () => {
+  document.getElementById("photo-panel").classList.add("hidden");
+  setPhotoMode(false);
+});
+document.querySelectorAll(".photo-angle").forEach((b) => {
+  b.addEventListener("click", () => {
+    // The three-quarter entry is the way *out* of a preset, so asking for it
+    // when it is already active would toggle it off. Name it explicitly.
+    studio.setView?.(b.dataset.view, { fill: PHOTO_FILL });
+    activeView = b.dataset.view === "three-quarter" ? null : b.dataset.view;
+    document.querySelectorAll(".photo-angle").forEach((other) => {
+      other.classList.toggle("is-active", other === b);
+    });
+  });
+});
 document.getElementById("photo-capture").addEventListener("click", async () => {
   const a = document.createElement("a");
   a.href = await captureFilteredPhoto();

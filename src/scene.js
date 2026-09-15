@@ -875,7 +875,7 @@ export function createStudio(canvas) {
   };
   let restorePose = null;
 
-  function setView(name) {
+  function setView(name, opts = {}) {
     const v = VIEWS[name];
     if (!v) return false;
     if (name !== "three-quarter" && !restorePose) {
@@ -885,9 +885,11 @@ export function createStudio(canvas) {
     target.y = v.y;
     // A top-down shot wants the footprint to fill more of the frame than a
     // three-quarter does, since there is no height in the picture to allow for.
+    // Photo mode asks for a tighter fill: a picture of a terrarium wants the
+    // terrarium in it, not the room it was built in.
     frameJar(framed.centerY, framed.height, {
       radius: framed.radius ?? 0,
-      fill: v.fill,
+      fill: opts.fill ?? v.fill,
     });
     markInteraction();
     return true;
