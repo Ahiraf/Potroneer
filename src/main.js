@@ -4608,6 +4608,8 @@ const PHOTO_FILL = 0.9;
 
 function setPhotoMode(on) {
   document.body.classList.toggle("photo-mode", on);
+  // Softer key-to-fill and a firmer contact shadow — see setPhotoLighting.
+  studio.setPhotoLighting?.(on);
   if (on) {
     clearHover(); // no marker, ghost or tweezers in the shot
     photoReturnView = activeView;

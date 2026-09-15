@@ -257,6 +257,52 @@ export function createStudio(canvas) {
   rim.position.set(-2, 3, -5);
   scene.add(rim);
 
+  // --- photo lighting ------------------------------------------------------
+  // A building light rig and a photographic one want different things. The
+  // build rig is bright and high-contrast so you can see what you are doing;
+  // a photograph of a terrarium wants the light softer and the jar's contact
+  // with the table firmer, because that contact is what stops the whole thing
+  // reading as a cut-out pasted onto a tabletop.
+  //
+  // Softer here means a smaller key-to-fill ratio, not a dimmer scene: the key
+  // comes down and the ambient and fill come up, so the exposure holds while
+  // the shadows open. Firmer contact means a tighter shadow frustum — the same
+  // map over a smaller area is a sharper map — a larger map since a still shot
+  // can afford one, and a darker shadow.
+  // Shadow settings only. Intensity belongs to the theme and is softened
+  // separately (see applyLightIntensities) so the two cannot fight.
+  const BUILD_LIGHT = { shadowIntensity: 1, shadowRadius: 1, frustum: 3, mapSize: 1024 };
+  const PHOTO_LIGHT = { shadowIntensity: 1, shadowRadius: 2.5, frustum: 2.1, mapSize: 2048 };
+  let photoLit = false;
+
+  function applyLightRig(rig) {
+    key.shadow.intensity = rig.shadowIntensity;
+    key.shadow.radius = rig.shadowRadius;
+    key.shadow.camera.left = -rig.frustum;
+    key.shadow.camera.right = rig.frustum;
+    key.shadow.camera.top = rig.frustum;
+    key.shadow.camera.bottom = -rig.frustum;
+    key.shadow.camera.updateProjectionMatrix();
+    // A shadow map keeps the resolution it was allocated at until the texture
+    // is thrown away, so a new size only lands once three rebuilds it.
+    const size = quality === "low" ? Math.min(512, rig.mapSize) : rig.mapSize;
+    if (key.shadow.mapSize.x !== size) {
+      key.shadow.mapSize.set(size, size);
+      key.shadow.map?.dispose();
+      key.shadow.map = null;
+    }
+    renderer.shadowMap.needsUpdate = true;
+  }
+
+  /** Light the scene for a photograph, or put the building rig back. */
+  function setPhotoLighting(on) {
+    const want = Boolean(on);
+    if (want === photoLit) return;
+    photoLit = want;
+    applyLightRig(want ? PHOTO_LIGHT : BUILD_LIGHT);
+    applyLightIntensities();
+  }
+
   // --- render quality ------------------------------------------------------
   // Weaker machines can trade fidelity for a steady frame. What gets cut is
   // everything passive — pixel density, shadow resolution, the soft-shadow
@@ -270,7 +316,8 @@ export function createStudio(canvas) {
     const low = quality === "low";
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, low ? 1 : DPR_CAP()));
     renderer.shadowMap.type = low ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
-    const size = low ? 512 : 1024;
+    // Whichever rig is in force decides the map's size; quality only caps it.
+    const size = low ? 512 : photoLit ? PHOTO_LIGHT.mapSize : BUILD_LIGHT.mapSize;
     if (key.shadow.mapSize.x !== size) {
       key.shadow.mapSize.set(size, size);
       // A shadow map that has already been allocated keeps its old resolution
@@ -536,14 +583,37 @@ export function createStudio(canvas) {
   // Photo themes scale the room light so the table never out-shines the picture.
   // setTimeOfDay() honours it too, otherwise the day-night slider would undo it.
   let photoLight = 1;
+
+  // Every relight goes through here, and there are three of them: the mood
+  // scale, a painted mood, and the time-of-day slider. Routing them through
+  // one setter is what lets photo mode soften the rig *on top of* whatever the
+  // theme asked for, rather than overwriting it — a midnight room should still
+  // photograph like a midnight room.
+  //
+  // Softening is a smaller key-to-ambient ratio, not a dimmer scene: the key
+  // comes down and the ambient and fill come up, so exposure holds while the
+  // shadows open. Held as the theme's own numbers plus a factor, so it cannot
+  // compound when a relight happens while photo mode is already on.
+  const themeLight = { key: 1.4, hemi: 0.7, fill: 0.32, rim: 0.8 };
+  const PHOTO_SOFTEN = { key: 0.72, hemi: 1.34, fill: 1.5, rim: 0.82 };
+
+  function applyLightIntensities() {
+    const f = photoLit ? PHOTO_SOFTEN : null;
+    key.intensity = themeLight.key * (f ? f.key : 1);
+    hemi.intensity = themeLight.hemi * (f ? f.hemi : 1);
+    fill.intensity = themeLight.fill * (f ? f.fill : 1);
+    rim.intensity = themeLight.rim * (f ? f.rim : 1);
+  }
+
   function applyLightScale() {
     if (!moodDef) return;
-    key.intensity = (moodDef.keyI ?? 1.4) * photoLight;
-    hemi.intensity = (moodDef.hemiI ?? 0.7) * photoLight;
+    themeLight.key = (moodDef.keyI ?? 1.4) * photoLight;
+    themeLight.hemi = (moodDef.hemiI ?? 0.7) * photoLight;
     // Fill and rim were left at full strength, which put a bright edge on the
     // tabletop no matter how dark the world behind it was.
-    fill.intensity = 0.32 * photoLight;
-    rim.intensity = 0.8 * photoLight;
+    themeLight.fill = 0.32 * photoLight;
+    themeLight.rim = 0.8 * photoLight;
+    applyLightIntensities();
     // The environment map is a room's worth of ambient light that the lamps
     // above don't control, so a polished top kept reflecting a bright studio
     // into a midnight photo — the table read as the only lit thing in the shot.
@@ -590,8 +660,9 @@ export function createStudio(canvas) {
     }
     key.color.set(m.key);
     photoLight = 1; // painted moods light the room at full strength
-    key.intensity = m.keyI;
-    hemi.intensity = m.hemiI;
+    themeLight.key = m.keyI;
+    themeLight.hemi = m.hemiI;
+    applyLightIntensities();
     renderer.toneMappingExposure = m.exposure;
     layoutBase();
   }
@@ -778,10 +849,11 @@ export function createStudio(canvas) {
   function setTimeOfDay(value) {
     const phase = ((Number(value) || 0) % 1 + 1) % 1;
     const daylight = Math.max(0, Math.sin((phase - 0.25) * Math.PI * 2) * 0.5 + 0.5);
-    key.intensity = (0.58 + daylight * 1.15) * photoLight;
-    hemi.intensity = (0.25 + daylight * 0.65) * photoLight;
-    fill.intensity = (0.1 + daylight * 0.28) * photoLight;
-    rim.intensity = (0.5 + (1 - daylight) * 0.85) * photoLight;
+    themeLight.key = (0.58 + daylight * 1.15) * photoLight;
+    themeLight.hemi = (0.25 + daylight * 0.65) * photoLight;
+    themeLight.fill = (0.1 + daylight * 0.28) * photoLight;
+    themeLight.rim = (0.5 + (1 - daylight) * 0.85) * photoLight;
+    applyLightIntensities();
     renderer.toneMappingExposure = (0.82 + daylight * 0.3) * clamp(0.8 + photoLight * 0.24, 0.8, 1.06);
   }
   // Snapshot the current frame as a PNG data-URL (photo mode).
@@ -1451,6 +1523,7 @@ export function createStudio(canvas) {
     setTable,
     setTimeOfDay,
     resetView,
+    setPhotoLighting,
     setView,
     restoreViewPose,
     hasViewPose: () => Boolean(restorePose),
