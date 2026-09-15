@@ -640,7 +640,10 @@ function rebuildSubstrate(animateLast = false) {
     const topDef = state.layers.length
       ? BASE_BY_ID[state.layers[state.layers.length - 1].type]
       : BASE_BY_ID.soil;
-    terrainCap = buildTerrainCap(topDef, substrateTop(state));
+    // The cap rides the top layer, so it needs that layer's depth to know how
+    // far its skirt may reach without covering the band underneath.
+    const topLayer = state.layers[state.layers.length - 1];
+    terrainCap = buildTerrainCap(topDef, substrateTop(state), topLayer?.height ?? 0.16);
     updateTerrainCap(terrainCap, state, substrateTop(state));
     substrateGroup.add(terrainCap);
   }

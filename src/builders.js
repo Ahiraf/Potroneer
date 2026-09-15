@@ -156,11 +156,9 @@ function hash2(seed, i, j) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-const NOISE_SCALE = 1.9; // how many bumps across a unit of world space
-
 function surfaceBump(seed, x, z) {
-  const fx = x * NOISE_SCALE;
-  const fz = z * NOISE_SCALE;
+  const fx = x;
+  const fz = z;
   const i = Math.floor(fx);
   const j = Math.floor(fz);
   const tx = fx - i;
@@ -178,6 +176,27 @@ function surfaceBump(seed, x, z) {
 }
 
 /**
+ * How a material settles, from what the catalogue already says about it.
+ *
+ * `grain` runs 0.35 (fine white sand) to 1.0 (clay balls), and `chunky` marks
+ * the materials made of pieces you can see. Sand poured into a jar finds a
+ * near-flat surface; leca balls pile into visible lumps a centimetre across.
+ * Giving every layer the same gentle noise made them all read as the same
+ * beige substance in different colours, which is the flaw this addresses.
+ */
+function settleProfile(def) {
+  const grain = def?.grain ?? 0.8;
+  const chunky = Boolean(def?.chunky);
+  return {
+    // Lump height, as a fraction of the layer's own depth.
+    amp: (chunky ? 0.42 : 0.2) * (0.45 + grain * 0.75),
+    // Lump *width*: coarse material makes fewer, broader piles; fine material
+    // ripples. Below ~1.2 the bumps get wider than a small jar.
+    scale: chunky ? 1.35 : 1.4 + (1 - grain) * 2.6,
+  };
+}
+
+/**
  * The height of a layer's own surface at (x, z): its bank plus its settling.
  * `layer` carries the bank and the seed, so a rebuild reproduces the surface
  * exactly and two neighbouring layers can agree on the seam between them.
@@ -186,8 +205,10 @@ function layerSurface(layer, x, z) {
   if (!layer) return 0;
   const sx = layer.slopeX || 0;
   const sz = layer.slopeZ || 0;
-  const amp = Math.min((layer.height || 0.1) * 0.3, 0.04);
-  return x * sx + z * sz + surfaceBump(layerSeed(layer), x, z) * amp;
+  const def = BASE_BY_ID[layer.type];
+  const { amp, scale } = settleProfile(def);
+  const lift = Math.min((layer.height || 0.1) * amp, 0.06);
+  return x * sx + z * sz + surfaceBump(layerSeed(layer), x * scale, z * scale) * lift;
 }
 
 /** A stable seed per layer, including for builds saved before seeds existed. */
@@ -317,6 +338,13 @@ export function buildLayer(layer, baseY, isTop, below = null) {
 
   geo.computeVertexNormals();
   speckleColors(geo, def.colors);
+  // Shade each layer down toward its own base. Light reaching into a bed of
+  // material falls off with depth, and without it the strata washed together
+  // into one pale mass through the glass — the bands were there in the
+  // geometry but nothing separated them to the eye. This is also what makes a
+  // seam read as a seam: the bright top of one layer meets the dark underside
+  // of the next.
+  shadeByDepth(geo, baseY, topY);
 
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -331,8 +359,77 @@ export function buildLayer(layer, baseY, isTop, below = null) {
   solid.receiveShadow = true;
   group.add(solid);
 
+  // The top surface gets loose material scattered over it. Chunky layers also
+  // get pieces around their rim: leca and gravel are seen edge-on through the
+  // glass for the whole life of the build, and a smooth wall there is the
+  // clearest tell that this is one moulded solid rather than a bed of pieces.
   if (isTop) group.add(scatterGrains(def, layer, topY));
+  if (def.chunky) group.add(rimPieces(def, layer, baseY, topY));
   return group;
+}
+
+/** Darken a layer's vertices toward its base. */
+function shadeByDepth(geo, baseY, topY) {
+  const pos = geo.attributes.position;
+  const col = geo.attributes.color;
+  if (!col) return;
+  const span = Math.max(1e-4, topY - baseY);
+  for (let i = 0; i < pos.count; i++) {
+    // 1 at the surface, 0 at the floor of this layer.
+    const t = Math.min(1, Math.max(0, (pos.getY(i) - baseY) / span));
+    // Weighted to the bottom of the band rather than spread over all of it.
+    // A linear ramp from 0.58 darkened the whole layer and, under a dim theme
+    // with the wetness tint on top, took the lower strata to black — the bands
+    // separated by disappearing, which is not the same as reading clearly.
+    // This leaves most of the layer at its own colour and shades the last
+    // quarter into the seam below it.
+    const shade = Math.pow(1 - t, 3);
+    const k = 1 - 0.26 * shade;
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
+  }
+  col.needsUpdate = true;
+}
+
+/**
+ * Individual pieces pressed against the inside of the glass, around a chunky
+ * layer's rim. Instanced, and only for material that is actually made of
+ * visible pieces, so this costs one draw call on two of the seven substrates.
+ */
+function rimPieces(def, layer, baseY, topY) {
+  const count = 54;
+  const size = 0.055;
+  const geo = new THREE.IcosahedronGeometry(size, 0);
+  speckleColors(geo, def.colors);
+  const mesh = new THREE.InstancedMesh(
+    geo,
+    new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.88,
+      flatShading: true,
+    }),
+    count,
+  );
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const sc = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    // Spread around the rim with a little scatter, so they do not read as a
+    // bead necklace laid on at even spacing.
+    const a = ((i + Math.random() * 0.6) / count) * Math.PI * 2;
+    const y = baseY + (topY - baseY) * (0.15 + Math.random() * 0.7);
+    // Sitting *in* the wall of the layer: far enough out to touch the glass,
+    // far enough in that half the piece stays buried in its own bed.
+    const [x, z] = jarPointAt(y, a, 1, GLASS_MARGIN + size * 0.45);
+    e.set(jitter(Math.PI), jitter(Math.PI), jitter(Math.PI));
+    q.setFromEuler(e);
+    const k = 0.62 + Math.random() * 0.75;
+    sc.set(k, k * 0.82, k);
+    m.compose(_v.set(x, y, z), q, sc);
+    mesh.setMatrixAt(i, m);
+  }
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 // Scatter little instanced stones/grains across a layer surface.
@@ -382,14 +479,21 @@ function scatterGrains(def, layer, topY) {
 
 // A polar-grid disc that sits on top of the substrate and deforms live as the
 // user sculpts. Dense enough (rings × sectors) to take smooth brush strokes.
-export function buildTerrainCap(def, surfaceY = JAR.floorY) {
+export function buildTerrainCap(def, surfaceY = JAR.floorY, topLayerHeight = 0.16) {
   const rings = 14;
   const sectors = 48;
   // The cap takes the jar's own outline at the height it sits, not a circle.
   // Its rim and its skirt are measured separately: the skirt hangs below the
   // surface, and in a bowl or a bottle the interior there is *narrower*, so a
   // skirt cut to the rim's width would hang straight through the glass.
-  const skirtDrop = 0.12;
+  // The skirt exists to close the seam where the cap meets the solid beneath
+  // it, so it only has to reach a little way down. At a fixed 0.12 it reached
+  // far further than that: a charcoal band is 0.07 deep, so the cap — painted
+  // in the *top* layer's colour — hung straight over it and the layer below,
+  // and the strata that were correctly built simply could not be seen. It is a
+  // fraction of the layer it rides on now, and never more than a few
+  // millimetres of world.
+  const skirtDrop = Math.min(0.03, Math.max(0.008, topLayerHeight * 0.22));
   const rim = [];
   const skirt = [];
   for (let s = 0; s < sectors; s++) {
@@ -481,7 +585,7 @@ export function updateTerrainCap(mesh, state, baseY) {
   const jitters = mesh.userData.jitters;
   const ringT = mesh.userData.ringT;
   const angles = mesh.userData.angles;
-  const drop = mesh.userData.skirtDrop ?? 0.12;
+  const drop = mesh.userData.skirtDrop ?? 0.03;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);

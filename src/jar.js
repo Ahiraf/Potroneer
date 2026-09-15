@@ -984,6 +984,29 @@ export function buildJar(typeId, envMap, itOverride) {
     if (model) {
       model.position.y = bottomY;
       group.add(model);
+      // Find the model's own panes and register them as glass. Without this a
+      // loaded terrarium had *no* glass as far as the rest of the app was
+      // concerned: its interior could not be measured (so the substrate fell
+      // back to a plain cylinder at innerRadius), and the customiser had
+      // nothing to tint. A GLB names its materials, and the one we want says
+      // so — failing that, a nearly see-through material is a pane whatever it
+      // is called.
+      model.traverse((o) => {
+        if (!o.isMesh) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => {
+          if (!m) return;
+          const looksLikeGlass =
+            /glass|pane|vitre/i.test(m.name || "") ||
+            (m.transparent === true && m.opacity < 0.5) ||
+            (m.transmission ?? 0) > 0.2;
+          if (!looksLikeGlass) return;
+          // Panes do not occlude what is inside them — the same reason the
+          // lathed jars stopped writing depth.
+          m.depthWrite = false;
+          regGlass(m);
+        });
+      });
     } else {
       const plinth = new THREE.Mesh(
         new THREE.CylinderGeometry(0.9, 1.0, 0.12, 24),
@@ -1143,10 +1166,18 @@ function makeGlassMaterial(envMap) {
     metalness: 0,
     roughness: 0.04,
     transmission: 1.0,
-    thickness: 0.9,
+    // Thin glass. `thickness` drives both the volumetric attenuation and how
+    // far refraction displaces what is behind the pane, and at 0.9 — most of
+    // the jar's own radius — it displaced the contents into a smear. On a
+    // bright room that smear is white, and the whole vessel read as an opaque
+    // white cylinder with the terrarium lost inside it. A real jar's wall is a
+    // couple of millimetres; this is closer to that.
+    thickness: 0.25,
     ior: 1.5,
     envMap: envMap || null,
-    envMapIntensity: 1.15,
+    // A white room reflected at full strength is the other half of the same
+    // problem: the surface blows out and there is nothing to see through.
+    envMapIntensity: 0.55,
     transparent: true,
     // Glass does not occlude what is inside it. Transmissive materials are
     // rendered in their own pass *before* the transparent one, so a pane that
@@ -1157,11 +1188,11 @@ function makeGlassMaterial(envMap) {
     // are drawn first and the glass still depth-*tests*.
     depthWrite: false,
     side: THREE.DoubleSide,
-    clearcoat: 0.5,
-    clearcoatRoughness: 0.06,
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.12,
     attenuationColor: new THREE.Color(0xd6efe4),
-    attenuationDistance: 4.0,
-    specularIntensity: 1.0,
+    attenuationDistance: 2.0,
+    specularIntensity: 0.7,
   });
 }
 
