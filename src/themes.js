@@ -79,7 +79,6 @@ const PHOTO = [
   // windows. Two new groups carry them: anything else would have left "Places"
   // holding two thirds of the whole catalogue behind one tab.
   { id: "aurora-lake", label: "Aurora Lake", bn: "মেরুজ্যোতির হ্রদ", group: "nature", photo: true, mood: "space", weather: "stars", pack: "cosmic", accent: "#4ebb98", tone: "#305058", lum: 0.289 },
-  { id: "teal-arcade", label: "Teal Arcade", bn: "ফিরোজা খিলান", group: "palace", photo: true, mood: "lantern", weather: "sparkle", pack: "lantern", accent: "#b87251", tone: "#1d1d15", lum: 0.111 },
   { id: "golden-maples", label: "Golden Maples", bn: "সোনালি ম্যাপল", group: "nature", photo: true, mood: "day", weather: "leaves", pack: "village", accent: "#e09e29", tone: "#b28659", lum: 0.55 },
   { id: "autumn-leaf-glow", label: "Autumn Leaf", bn: "শরতের পাতা", group: "nature", photo: true, mood: "dusk", weather: "leaves", pack: "village", accent: "#d66d33", tone: "#ae8a5c", lum: 0.559 },
   { id: "frozen-bubble", label: "Frozen Bubble", bn: "বরফের বুদবুদ", group: "nature", photo: true, mood: "mountain", weather: "snow", pack: "alpine", accent: "#5177b8", tone: "#677ba3", lum: 0.477 },
@@ -107,7 +106,6 @@ const PHOTO = [
   { id: "zellij-alcove", label: "Zellij Alcove", bn: "জেলিজ কুলুঙ্গি", group: "sacred", photo: true, mood: "day", weather: "clear", pack: "lantern", accent: "#b87f51", tone: "#b19075", lum: 0.586 },
   { id: "bookshelf-window", label: "Bookshelf Window", bn: "বইয়ের তাক", group: "cozy", photo: true, mood: "library", weather: "clear", pack: "starter", accent: "#b89251", tone: "#71755f", lum: 0.45 },
   { id: "white-arch-stair", label: "White Arch Stair", bn: "সাদা খিলানের সিঁড়ি", group: "cozy", photo: true, mood: "day", weather: "clear", pack: "starter", accent: "#b87c51", tone: "#9d958e", lum: 0.59 },
-  { id: "misty-pines", label: "Misty Pines", bn: "কুয়াশার পাইন", group: "nature", photo: true, mood: "night", weather: "mist", pack: "jungle", accent: "#517fb8", tone: "#727980", lum: 0.47 },
   { id: "bougainvillea-door", label: "Bougainvillea Door", bn: "বোগেনভিলিয়ার দরজা", group: "window", photo: true, mood: "beach", weather: "breeze", pack: "starter", accent: "#8ba8d0", tone: "#6c6a71", lum: 0.42 },
   { id: "moorish-gold-hall", label: "Moorish Gold Hall", bn: "মূরিশ সোনালি হল", group: "palace", photo: true, mood: "lantern", weather: "sparkle", pack: "lantern", accent: "#c09459", tone: "#b58e61", lum: 0.576 },
   { id: "stone-arcade-walk", label: "Stone Arcade", bn: "পাথরের বারান্দা", group: "sacred", photo: true, mood: "day", weather: "clear", pack: "lantern", accent: "#ba8357", tone: "#847060", lum: 0.453 },
@@ -121,7 +119,6 @@ const PHOTO = [
   { id: "lone-tree-snow", label: "Lone Tree in Snow", bn: "বরফে একলা গাছ", group: "nature", photo: true, mood: "mountain", weather: "snow", pack: "alpine", accent: "#8c968c", tone: "#eaeaea", lum: 0.919 },
   { id: "autumn-bay-window", label: "Autumn Bay Window", bn: "শরতের জানালা", group: "window", photo: true, mood: "day", weather: "leaves", pack: "village", accent: "#d19e39", tone: "#75643f", lum: 0.397 },
   { id: "alpine-sill-flowers", label: "Alpine Sill", bn: "পাহাড়ের জানালা", group: "window", photo: true, mood: "mountain", weather: "breeze", pack: "alpine", accent: "#d37537", tone: "#534b40", lum: 0.298 },
-  { id: "pink-palace-hall", label: "Pink Palace", bn: "গোলাপি প্রাসাদ", group: "palace", photo: true, mood: "lantern", weather: "sparkle", pack: "lantern", accent: "#c27947", tone: "#aa6e43", lum: 0.469 },
   { id: "painted-parlour", label: "Painted Parlour", bn: "আঁকা বৈঠকখানা", group: "cozy", photo: true, mood: "day", weather: "clear", pack: "starter", accent: "#b87651", tone: "#755a45", lum: 0.37 },
   { id: "lattice-room-mono", label: "Lattice Room", bn: "জালির ঘর", group: "places", photo: true, mood: "studio", weather: "clear", pack: "urban", accent: "#8c968c", tone: "#757575", lum: 0.458 },
   { id: "haveli-doorway", label: "Haveli Doorway", bn: "হাভেলির দরজা", group: "palace", photo: true, mood: "day", weather: "clear", pack: "lantern", accent: "#d0933a", tone: "#4b3619", lum: 0.222 },
@@ -149,7 +146,6 @@ const PHOTO = [
   { id: "lilac-blooms", label: "Lilac Blooms", bn: "বেগুনি ফুল", group: "bloom", photo: true, mood: "garden", weather: "petals", pack: "blossom", accent: "#b851b8", tone: "#6e5a72", lum: 0.377 },
   { id: "night-prayer-glass", label: "Night Prayer Glass", bn: "রাতের রঙিন কাচ", group: "sacred", photo: true, mood: "night", weather: "sparkle", pack: "lantern", accent: "#b88e51", tone: "#1c1b16", lum: 0.106 },
   { id: "brick-gothic-nave", label: "Brick Gothic Nave", bn: "ইটের গথিক গির্জা", group: "sacred", photo: true, mood: "library", weather: "clear", pack: "wizarding", accent: "#b88b51", tone: "#9f8d79", lum: 0.562 },
-  { id: "stone-hall-chandelier", label: "Stone Hall", bn: "পাথরের হল", group: "magic", photo: true, mood: "library", weather: "sparkle", pack: "wizarding", accent: "#bf8f4b", tone: "#42331e", lum: 0.205 },
   { id: "bright-grid-window", label: "Bright Grid Window", bn: "উজ্জ্বল জানালা", group: "window", photo: true, mood: "studio", weather: "clear", pack: "starter", accent: "#82c3d9", tone: "#aeb2aa", lum: 0.693 },
   { id: "sunlit-book-shelf", label: "Sunlit Shelf", bn: "রোদে ভরা তাক", group: "cozy", photo: true, mood: "day", weather: "clear", pack: "starter", accent: "#b97c50", tone: "#6d5a4b", lum: 0.364 },
   { id: "chapel-green-drapes", label: "Chapel Drapes", bn: "গির্জার পর্দা", group: "sacred", photo: true, mood: "dusk", weather: "sparkle", pack: "wizarding", accent: "#be8e4c", tone: "#8c6d44", lum: 0.44 },

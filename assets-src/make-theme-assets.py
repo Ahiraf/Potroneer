@@ -54,7 +54,6 @@ T = [
  # real slugs so the build owns that directory again, and downsized to 3200px
  # on the way, since nothing downstream ever reads more than 2560.
  ("aurora-lake.jpg","aurora-lake","Aurora Lake","মেরুজ্যোতির হ্রদ","nature","space","stars","cosmic"),
- ("teal-arcade.jpg","teal-arcade","Teal Arcade","ফিরোজা খিলান","palace","lantern","sparkle","lantern"),
  ("golden-maples.jpg","golden-maples","Golden Maples","সোনালি ম্যাপল","nature","day","leaves","village"),
  ("autumn-leaf-glow.jpg","autumn-leaf-glow","Autumn Leaf","শরতের পাতা","nature","dusk","leaves","village"),
  ("frozen-bubble.jpg","frozen-bubble","Frozen Bubble","বরফের বুদবুদ","nature","mountain","snow","alpine"),
@@ -82,7 +81,6 @@ T = [
  ("zellij-alcove.jpg","zellij-alcove","Zellij Alcove","জেলিজ কুলুঙ্গি","sacred","day","clear","lantern"),
  ("bookshelf-window.jpg","bookshelf-window","Bookshelf Window","বইয়ের তাক","cozy","library","clear","starter"),
  ("white-arch-stair.jpg","white-arch-stair","White Arch Stair","সাদা খিলানের সিঁড়ি","cozy","day","clear","starter"),
- ("misty-pines.jpg","misty-pines","Misty Pines","কুয়াশার পাইন","nature","night","mist","jungle"),
  ("bougainvillea-door.jpg","bougainvillea-door","Bougainvillea Door","বোগেনভিলিয়ার দরজা","window","beach","breeze","starter"),
  ("moorish-gold-hall.jpg","moorish-gold-hall","Moorish Gold Hall","মূরিশ সোনালি হল","palace","lantern","sparkle","lantern"),
  ("stone-arcade-walk.jpg","stone-arcade-walk","Stone Arcade","পাথরের বারান্দা","sacred","day","clear","lantern"),
@@ -96,7 +94,6 @@ T = [
  ("lone-tree-snow.jpg","lone-tree-snow","Lone Tree in Snow","বরফে একলা গাছ","nature","mountain","snow","alpine"),
  ("autumn-bay-window.jpg","autumn-bay-window","Autumn Bay Window","শরতের জানালা","window","day","leaves","village"),
  ("alpine-sill-flowers.jpg","alpine-sill-flowers","Alpine Sill","পাহাড়ের জানালা","window","mountain","breeze","alpine"),
- ("pink-palace-hall.jpg","pink-palace-hall","Pink Palace","গোলাপি প্রাসাদ","palace","lantern","sparkle","lantern"),
  ("painted-parlour.jpg","painted-parlour","Painted Parlour","আঁকা বৈঠকখানা","cozy","day","clear","starter"),
  ("lattice-room-mono.jpg","lattice-room-mono","Lattice Room","জালির ঘর","places","studio","clear","urban"),
  ("haveli-doorway.jpg","haveli-doorway","Haveli Doorway","হাভেলির দরজা","palace","day","clear","lantern"),
@@ -124,7 +121,6 @@ T = [
  ("lilac-blooms.jpg","lilac-blooms","Lilac Blooms","বেগুনি ফুল","bloom","garden","petals","blossom"),
  ("night-prayer-glass.jpg","night-prayer-glass","Night Prayer Glass","রাতের রঙিন কাচ","sacred","night","sparkle","lantern"),
  ("brick-gothic-nave.jpg","brick-gothic-nave","Brick Gothic Nave","ইটের গথিক গির্জা","sacred","library","clear","wizarding"),
- ("stone-hall-chandelier.jpg","stone-hall-chandelier","Stone Hall","পাথরের হল","magic","library","sparkle","wizarding"),
  ("bright-grid-window.jpg","bright-grid-window","Bright Grid Window","উজ্জ্বল জানালা","window","studio","clear","starter"),
  ("sunlit-book-shelf.jpg","sunlit-book-shelf","Sunlit Shelf","রোদে ভরা তাক","cozy","day","clear","starter"),
  ("chapel-green-drapes.jpg","chapel-green-drapes","Chapel Drapes","গির্জার পর্দা","sacred","dusk","sparkle","wizarding"),
