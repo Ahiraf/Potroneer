@@ -3,6 +3,7 @@
 // and rebuild. Nothing visual is the source of truth; the data is.
 
 import { BASE_BY_ID, mmToUnits, unitsToMm } from "./catalog.js";
+import { grainSettings } from "./grain-settings.js";
 
 // Interior dimensions of the mason jar, in world units. The shoulder tapers in
 // near the top, but layers/decorations live in the straight cylindrical body.
@@ -237,9 +238,37 @@ export function heightAt(state, x, z) {
   const fu = u - u0;
   const fv = v - v0;
   const t = state.terrain;
-  const a = t[v0 * n + u0] * (1 - fu) + t[v0 * n + u1] * fu;
-  const b = t[v1 * n + u0] * (1 - fu) + t[v1 * n + u1] * fu;
-  return a * (1 - fv) + b * fv;
+  // Smooth the existing saved grid without changing its dimensions. Clamp the
+  // cubic sample to its neighbours so a steep bank cannot overshoot the lid.
+  const sample = (i, j) => t[Math.max(0, Math.min(n - 1, j)) * n + Math.max(0, Math.min(n - 1, i))];
+  const cubic = (a, b, c, d, f) => b + 0.5 * f * (c - a + f * (2*a - 5*b + 4*c - d + f * (3*(b-c) + d-a)));
+  const rows = [];
+  for (let j = -1; j <= 2; j++) {
+    rows.push(cubic(sample(u0-1,v0+j), sample(u0,v0+j), sample(u0+1,v0+j), sample(u0+2,v0+j), fu));
+  }
+  const corners = [sample(u0,v0), sample(u1,v0), sample(u0,v1), sample(u1,v1)];
+  return Math.max(Math.min(...corners), Math.min(Math.max(...corners), cubic(...rows, fv)));
+}
+
+/** Highest soil surface at this point, bounded by the actual vessel. */
+export function terrainCeilingAt(baseY, x, z, margin = 0.025) {
+  const ceiling = Math.max(baseY, JAR.floorY + JAR.bodyHeight - 0.045);
+  if (insideJarAt(ceiling, x, z, margin)) return ceiling;
+  let lo = baseY, hi = ceiling;
+  for (let i = 0; i < 14; i++) {
+    const mid = (lo + hi) / 2;
+    if (insideJarAt(mid, x, z, margin)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** Same edge falloff for the visible hill, its grains and planted items. */
+export function terrainOffsetAt(state, x, z, margin = 0.012) {
+  const reach = Math.max(0.02, jarReach(substrateTop(state), Math.atan2(z, x)) - margin);
+  const t = Math.hypot(x, z) / reach;
+  const f = Math.max(0, Math.min(1, (1 - t) / 0.14));
+  return heightAt(state, x, z) * f * f * (3 - 2*f);
 }
 
 // Apply a soft gaussian brush to the heightfield. Positive = mound up,
@@ -280,8 +309,8 @@ export function sculpt(state, x, z, amount, radius = 0.3, falloff = 0.8) {
   const R = jarGridR();
   const n = TERRAIN_N;
   const cell = (2 * R) / (n - 1);
-  const maxUp = 0.34;
-  const maxDown = -0.1;
+  const baseY = substrateTop(state);
+  const maxDown = -Math.max(0, (state.layers.at(-1)?.height ?? 0) - 0.02);
   const r2 = radius * radius;
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
@@ -292,6 +321,7 @@ export function sculpt(state, x, z, amount, radius = 0.3, falloff = 0.8) {
       if (!cellInsideJar(state, wx, wz)) continue;
       const fall = Math.exp(-d2 / (r2 * falloff));
       const k = j * n + i;
+      const maxUp = Math.max(0, terrainCeilingAt(baseY, wx, wz) - baseY);
       state.terrain[k] = Math.min(
         maxUp,
         Math.max(maxDown, state.terrain[k] + amount * fall),
@@ -400,6 +430,7 @@ export function adoptLayers(raw, order = "bottom-to-top") {
       slopeX: Number(l.slopeX) || 0,
       slopeZ: Number(l.slopeZ) || 0,
       seed: Number.isFinite(l.seed) ? l.seed : (Math.random() * 0x7fffffff) | 0,
+      ...grainSettings(l),
     }));
 }
 
@@ -416,7 +447,7 @@ export function adoptLayers(raw, order = "bottom-to-top") {
  * geometry has always been in units and every save ever written holds units.
  * Converting at the door keeps both true, and keeps old builds loadable.
  */
-export function addLayer(state, typeId, mm = null) {
+export function addLayer(state, typeId, mm = null, grain = {}) {
   const def = BASE_BY_ID[typeId];
   if (!def) return false;
   const want = mm == null ? unitsToMm(def.layerHeight) : Math.round(Number(mm) || 0);
@@ -428,6 +459,7 @@ export function addLayer(state, typeId, mm = null) {
   // model so rebuilds don't reshuffle the terrain.
   state.layers.push({
     type: typeId,
+    ...grainSettings(grain),
     height,
     slopeX: (Math.random() - 0.5) * 0.08,
     slopeZ: (Math.random() - 0.5) * 0.08,
@@ -437,6 +469,16 @@ export function addLayer(state, typeId, mm = null) {
     seed: (Math.random() * 0x7fffffff) | 0,
   });
   return true; // pushed, so the newest band is the top one — see the invariant
+}
+
+/** Appearance only: never change depth, slopes, ordering or decoration data. */
+export function setLayerGrain(state, index, settings) {
+  const layer = state.layers[index];
+  if (!layer) return false;
+  const next = grainSettings({ ...layer, ...settings });
+  if ((layer.grainAmount ?? 0) === next.grainAmount && (layer.grainColor ?? "matching") === next.grainColor) return false;
+  Object.assign(layer, next);
+  return true;
 }
 
 // ---------------------------------------------------------------------------

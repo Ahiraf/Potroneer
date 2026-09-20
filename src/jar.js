@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { JAR, jarPointAt } from "./state.js";
 import { getJarModelClone } from "./models.js";
+import { grainMaps, substrateUVs } from "./natural-materials.js";
 
 // ---------------------------------------------------------------------------
 // Jar shapes
@@ -11,6 +12,19 @@ import { getJarModelClone } from "./models.js";
 // so builders always read the current jar's dimensions.
 
 const BASE_JARS = [
+  // Reference collection: usable height ends at the mouth. Both the glass
+  // and stopper derive from the same dimensions, including custom resizing.
+  ...[
+    ["cork-cylinder", "সোজা কর্ক জার", .94, 2.35, "straight", 1],
+    ["cork-low", "চওড়া কর্ক জার", 1.10, 1.80, "straight", 1],
+    ["cork-tall", "সরু কর্ক জার", .78, 2.85, "straight", 1],
+    ["cork-taper", "ঢালু কর্ক জার", 1.15, 2.20, "taper", .70],
+    ["cork-shoulder", "গোল কাঁধের কর্ক জার", 1.16, 2.15, "shoulder", .76],
+  ].map(([id, label, r, h, shape, mouth]) => ({
+    id, label, glyph: "🫙", lid: "cork", referenceJar: true, mouth,
+    interior: { innerRadius: r, bodyHeight: h, floorY: -h / 2, wallThickness: .035 },
+    profile: it => referenceJarProfile(it, shape, mouth),
+  })),
   {
     id: "cork",
     label: "কর্ক জার",
@@ -729,6 +743,20 @@ function latheRadiusAt(pts, y) {
 
 // The hero jar from the reference: a tall apothecary jar — straight body,
 // short shoulder easing into a wide neck, cork stopper on top.
+function referenceJarProfile(it, shape, mouth) {
+  const r = it.innerRadius + it.wallThickness;
+  const f = it.floorY, h = it.bodyHeight;
+  const side = shape === "taper"
+    ? [[1, .06], [1, .20], [.98, .36], [.92, .53], [.83, .72], [.73, .91], [mouth, 1]]
+    : shape === "shoulder"
+      ? [[1, .07], [1, .63], [.995, .71], [.975, .77], [.92, .83], [.84, .88], [mouth, .93], [mouth, 1]]
+      : [[1, .04], [1, 1]];
+  return [[0, f - it.wallThickness], [.90*r, f - it.wallThickness], [.98*r, f],
+    ...side.map(([radius,y]) => [radius*r, f+y*h]),
+    [mouth*r+.009, f+h+.008], [mouth*r+.009, f+h+.022], [mouth*r-.012, f+h+.022],
+  ].map(([x,y]) => new THREE.Vector2(x,y));
+}
+
 function corkJarProfile(it) {
   const rOuter = it.innerRadius + it.wallThickness;
   const floor = it.floorY - it.wallThickness;
@@ -1004,6 +1032,10 @@ export function buildJar(typeId, envMap, itOverride) {
           // Panes do not occlude what is inside them — the same reason the
           // lathed jars stopped writing depth.
           m.depthWrite = false;
+          if (m.isMeshPhysicalMaterial && m.transmission > 0) {
+            m.roughness = Math.min(m.roughness, 0.006);
+            m.thickness = Math.min(m.thickness, 0.025);
+          }
           regGlass(m);
         });
       });
@@ -1051,6 +1083,12 @@ export function buildJar(typeId, envMap, itOverride) {
   const glassMat = regGlass(
     type.clay ? makeClayMaterial(type.clay) : makeGlassMaterial(envMap),
   );
+  if (type.referenceJar) {
+    // Keep bright room highlights from hiding the small leaves at the centre.
+    glassMat.specularIntensity = .28;
+    glassMat.envMapIntensity = .16;
+    glassMat.clearcoat = .08;
+  }
 
   const glass = new THREE.Mesh(glassGeo, glassMat);
   group.add(glass);
@@ -1075,7 +1113,7 @@ export function buildJar(typeId, envMap, itOverride) {
 
   // Closed (lidded) jars mist up: fine condensation droplets cling to the
   // lower third of the inner wall, like a real sealed terrarium mid-morning.
-  if (type.lid) {
+  if (type.lid && !type.referenceJar) {
     group.add(buildCondensation(it, envMap));
   }
 
@@ -1100,9 +1138,28 @@ export function buildJar(typeId, envMap, itOverride) {
 
   // Cork stopper (apothecary jar) — a fat tan plug sitting in the neck with a
   // wider cap proud of the rim, slightly domed.
-  if (type.lid === "cork") {
+  if (type.referenceJar) {
+    const neckR = (it.innerRadius + it.wallThickness) * type.mouth;
+    const corkMat = regFrame(new THREE.MeshStandardMaterial({
+      color: "#bd8e57", ...grainMaps("cork"), bumpScale: .009,
+      roughness: .96, envMapIntensity: .25,
+    }));
+    const h = Math.min(.20, it.bodyHeight * .075);
+    const addCork = (rt, rb, height, y) => {
+      const source = new THREE.CylinderGeometry(rt, rb, height, 96);
+      const part = new THREE.Mesh(substrateUVs(source, .30), corkMat);
+      source.dispose();
+      part.position.y = y;
+      part.castShadow = part.receiveShadow = true;
+      group.add(part);
+    };
+    addCork(neckR*.976, neckR*.96, h*.50, bodyTop - h*.18);
+    addCork(neckR*1.03, neckR*1.016, h, bodyTop + h*.5 + .022);
+  } else if (type.lid === "cork") {
     const corkMat = regFrame(new THREE.MeshStandardMaterial({
       color: "#b98e5f",
+      ...grainMaps("cork"),
+      bumpScale: .008,
       roughness: 0.95,
       metalness: 0,
       flatShading: true,
@@ -1161,10 +1218,10 @@ export function buildJar(typeId, envMap, itOverride) {
 // (`transmission` + `ior` + `thickness`), with a faint green tint from
 // attenuation — what sells the jar as a real object.
 function makeGlassMaterial(envMap) {
-  return new THREE.MeshPhysicalMaterial({
+  const material = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     metalness: 0,
-    roughness: 0.04,
+    roughness: 0.006,
     transmission: 1.0,
     // Thin glass. `thickness` drives both the volumetric attenuation and how
     // far refraction displaces what is behind the pane, and at 0.9 — most of
@@ -1172,12 +1229,14 @@ function makeGlassMaterial(envMap) {
     // bright room that smear is white, and the whole vessel read as an opaque
     // white cylinder with the terrarium lost inside it. A real jar's wall is a
     // couple of millimetres; this is closer to that.
-    thickness: 0.25,
+    thickness: 0.025,
     ior: 1.5,
     envMap: envMap || null,
     // A white room reflected at full strength is the other half of the same
     // problem: the surface blows out and there is nothing to see through.
-    envMapIntensity: 0.55,
+    // Keep reflections present but stop them from whitening the terrarium
+    // layers. The contents should be the visual focus, not the room reflection.
+    envMapIntensity: 0.28,
     transparent: true,
     // Glass does not occlude what is inside it. Transmissive materials are
     // rendered in their own pass *before* the transparent one, so a pane that
@@ -1189,11 +1248,12 @@ function makeGlassMaterial(envMap) {
     depthWrite: false,
     side: THREE.DoubleSide,
     clearcoat: 0.2,
-    clearcoatRoughness: 0.12,
-    attenuationColor: new THREE.Color(0xd6efe4),
-    attenuationDistance: 2.0,
+    clearcoatRoughness: 0.015,
+    attenuationColor: new THREE.Color(0xf4fff9),
+    attenuationDistance: 12.0,
     specularIntensity: 0.7,
   });
+  return material;
 }
 
 // The opaque counterpart to the glass: fired clay, stone or timber. Registered
@@ -1299,7 +1359,7 @@ function buildGreenhouse(it, envMap, group) {
   const ridgeY = wallTop + roofH;
 
   const glassMat = regGlass(makeGlassMaterial(envMap));
-  glassMat.thickness = 0.25;
+  glassMat.thickness = 0.018;
   const frameMat = regFrame(new THREE.MeshStandardMaterial({
     color: 0x232323,
     roughness: 0.45,
@@ -1501,16 +1561,17 @@ function buildPolyJar(it, envMap, group, kind) {
 // healthy closed terrarium actually mists. A few are stretched vertically to
 // read as runs/drips.
 function buildCondensation(it, envMap) {
-  const count = 340;
-  const geo = new THREE.SphereGeometry(0.011, 6, 5);
+  const count = 85;
+  const geo = new THREE.SphereGeometry(0.0045, 6, 5);
   const mat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     roughness: 0.05,
     metalness: 0,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.20,
+    depthWrite: false,
     envMap: envMap || null,
-    envMapIntensity: 1.6,
+    envMapIntensity: 0.35,
     clearcoat: 1.0,
   });
   const mesh = new THREE.InstancedMesh(geo, mat, count);
@@ -1755,7 +1816,7 @@ function buildGeoJar(it, envMap, group, spec, closedLid) {
   }));
 
   const glassMat = regGlass(makeGlassMaterial(envMap));
-  glassMat.thickness = 0.3;
+  glassMat.thickness = 0.018;
   const frameMat = regFrame(
     new THREE.MeshStandardMaterial({
       color: 0x1e1e20,

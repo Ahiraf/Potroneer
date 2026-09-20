@@ -80,9 +80,13 @@ function verify(x, z, groundY, r, h, margin) {
 useJar("mason");
 const items = [];
 const seen = new Set();
+// Optional kinds allow a fast targeted recheck after editing one builder.
+// With no arguments (npm run check) the complete catalogue is still tested.
+const requestedKinds = new Set(process.argv.slice(2));
 for (const d of DECORATIONS) {
   if (seen.has(d.kind)) continue;
   seen.add(d.kind);
+  if (requestedKinds.size && !requestedKinds.has(d.kind)) continue;
   let obj;
   try {
     obj = buildDecoration(d.kind, d.variant);

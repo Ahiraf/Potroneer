@@ -22,7 +22,10 @@ const MODEL_FILES = {
   ladybug: { file: "ladybug.glb", size: 0.09 },
   shell: { file: "snail.glb", size: 0.2 },
   fern: { file: "fern.glb", size: 0.5 },
-  leafy: { file: "leafy.glb", size: 0.45 },
+  // The bundled leafy.glb includes its own glass display case. It must not
+  // replace a plant placed *inside* another jar. Keep per-variant overrides
+  // available, and keep the original file untouched on disk.
+  leafy: { file: null, size: 0.45 },
   snakeplant: { file: "snakeplant.glb", size: 0.7 },
   mushroom: { file: "mushroom.glb", size: 0.25 },
   driftwood: { file: "driftwood.glb", size: 0.5 },
@@ -69,7 +72,7 @@ function asGlb(buffer) {
 export function preloadModels(onLoaded) {
   const loader = new GLTFLoader();
   const all = { ...MODEL_FILES, ...variantSlots(), ...JAR_MODEL_FILES };
-  Object.entries(all).forEach(([kind, { file, size }]) => {
+  Object.entries(all).filter(([, entry]) => entry.file).forEach(([kind, { file, size }]) => {
     const accept = (gltf) => {
       const scene = gltf.scene;
       // normalise: sit on y=0, scale to the target size

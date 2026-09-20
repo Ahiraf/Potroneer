@@ -1,7 +1,12 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { BASE_BY_ID, BASE_LAYERS, DECOR_BY_ID } from "./catalog.js";
-import { JAR, heightAt, jarGridR, jarPointAt, TERRAIN_N } from "./state.js";
+import { JAR, substrateTop, terrainOffsetAt, terrainCeilingAt, jarGridR, jarPointAt, TERRAIN_N } from "./state.js";
+import { grainMaps, substrateMaps, substrateUVs } from "./natural-materials.js";
+import { naturalGrass, naturalMoss, naturalCanopy, naturalStone } from "./natural-foliage.js";
+import { referenceFittonia, referenceAralia, referenceCrag, referenceGravel } from "./reference-botany.js";
+import { grainSettings, grainRandom, extraGrainColor } from "./grain-settings.js";
+import { naturalRock } from "./natural-rocks.js";
 
 // ---------------------------------------------------------------------------
 // Small shared helpers
@@ -201,14 +206,19 @@ function settleProfile(def) {
  * `layer` carries the bank and the seed, so a rebuild reproduces the surface
  * exactly and two neighbouring layers can agree on the seam between them.
  */
-function layerSurface(layer, x, z) {
+export function layerSurface(layer, x, z) {
   if (!layer) return 0;
   const sx = layer.slopeX || 0;
   const sz = layer.slopeZ || 0;
   const def = BASE_BY_ID[layer.type];
   const { amp, scale } = settleProfile(def);
   const lift = Math.min((layer.height || 0.1) * amp, 0.06);
-  return x * sx + z * sz + surfaceBump(layerSeed(layer), x * scale, z * scale) * lift;
+  const raw = x * sx + z * sz + surfaceBump(layerSeed(layer), x * scale, z * scale) * lift;
+  // Stored random tilts were larger than thin decorative bands, causing one
+  // colour to cut through its neighbour. Bound the shared interface below
+  // the smallest supported pour; sculpting still controls the top landscape.
+  const limit = Math.min((layer.height || 0.1) * 0.22, 0.006);
+  return limit * Math.tanh(raw / Math.max(limit, 0.0001));
 }
 
 /** A stable seed per layer, including for builds saved before seeds existed. */
@@ -295,7 +305,7 @@ function loftInterior(baseY, topY, {
 // uneven, with speckled vertex colours. `isTop` layers get scattered
 // grains/pebbles on their surface for texture; buried layers stay smooth to
 // save geometry.
-export function buildLayer(layer, baseY, isTop, below = null) {
+export function buildLayer(layer, baseY, isTop, below = null, coveredByTerrain = false) {
   const def = BASE_BY_ID[layer.type];
   const group = new THREE.Group();
   const topY = baseY + layer.height;
@@ -336,8 +346,11 @@ export function buildLayer(layer, baseY, isTop, below = null) {
   pos.setY(topCentre, topY + layerSurface(layer, 0, 0));
   pos.needsUpdate = true;
 
+  if (coveredByTerrain) geo.setIndex(Array.from(geo.index.array).slice(0, -sectors * 3));
   geo.computeVertexNormals();
-  speckleColors(geo, def.colors);
+  // Large vertex speckles looked like marbled stripes. Fine detail now comes
+  // from a tiled grain map, while vertices keep the material's actual colour.
+  speckleColors(geo, [def.swatch]);
   // Shade each layer down toward its own base. Light reaching into a bed of
   // material falls off with depth, and without it the strata washed together
   // into one pale mass through the glass — the bands were there in the
@@ -348,13 +361,23 @@ export function buildLayer(layer, baseY, isTop, below = null) {
 
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
+    ...substrateMaps(def),
+    bumpScale: def.chunky ? 0.012 : def.id === "soil" ? 0.007 : 0.0025,
     // Wet-looking soil and dry sand should not share a sheen. Chunky material
     // (leca, pebbles) catches a little more light off its facets.
-    roughness: def.chunky ? 0.86 : 0.97,
+    roughness: def.chunky ? 0.92 : 0.98,
     metalness: 0,
-    flatShading: true,
+    // Smooth the broad body so the material colour reads as a real packed
+    // layer. The separate grains below keep the surface from becoming plastic.
+    flatShading: false,
   });
-  const solid = new THREE.Mesh(geo, mat);
+
+  // A second top face underneath the sculptable cap intersects it, producing
+  // a dark slit around the soil. Keep the volume's walls, but let the cap be
+  // the only visible top in the editor. Standalone thumbnails remain closed.
+  const texturedGeo = substrateUVs(geo);
+  geo.dispose();
+  const solid = new THREE.Mesh(texturedGeo, mat);
   solid.castShadow = false;
   solid.receiveShadow = true;
   group.add(solid);
@@ -363,9 +386,59 @@ export function buildLayer(layer, baseY, isTop, below = null) {
   // get pieces around their rim: leca and gravel are seen edge-on through the
   // glass for the whole life of the build, and a smooth wall there is the
   // clearest tell that this is one moulded solid rather than a bed of pieces.
-  if (isTop) group.add(scatterGrains(def, layer, topY));
+  if (isTop && !coveredByTerrain) group.add(scatterGrains(def, layer, topY));
   if (def.chunky) group.add(rimPieces(def, layer, baseY, topY));
+  if (grainSettings(layer).grainAmount > 0) {
+    group.add(layerExtraGrains(def, layer, baseY, below));
+  }
   return group;
+}
+
+function extraGrainMesh(count, name) {
+  const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0),
+    new THREE.MeshStandardMaterial({ roughness: .98 }), count);
+  mesh.name = name;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// Particles are packed into each band's visible wall, not a floating shell.
+// Clamp them between the two actual sloped interfaces, even for 1mm stripes.
+function layerExtraGrains(def, layer, baseY, below) {
+  const amount = grainSettings(layer).grainAmount / 100;
+  const count = Math.ceil(Math.min(2400, Math.max(180, JAR.innerRadius * Math.PI * 2 * layer.height * 1550)) * amount);
+  const mesh = extraGrainMesh(count, "layer-side-grains"), obj = new THREE.Object3D();
+  for (let i = 0; i < count; i++) {
+    const a = grainRandom(layer.seed, i, 0) * Math.PI * 2;
+    const t = grainRandom(layer.seed, i, 1);
+    const size = Math.min(.006 + grainRandom(layer.seed, i, 2) * .007, layer.height * .13);
+    let y = baseY + layer.height * t, x, z;
+    for (let pass = 0; pass < 3; pass++) {
+      [x, z] = jarPointAt(y, a, 1, GLASS_MARGIN + size * .10);
+      const low = baseY + layerSurface(below, x, z) + size;
+      const high = baseY + layer.height + layerSurface(layer, x, z) - size;
+      y = low + Math.max(0, high - low) * t;
+    }
+    [x, z] = jarPointAt(y, a, 1, GLASS_MARGIN + size * .10);
+    // A sideways bottle narrows quickly above/below the grain's centre. Fit
+    // its whole height to the narrowest of those wall sections as well.
+    const radius = Math.hypot(x, z);
+    let safeRadius = radius;
+    for (const dy of [-size, size]) {
+      const edge = jarPointAt(y + dy, a, 1, GLASS_MARGIN + size * .10);
+      safeRadius = Math.min(safeRadius, Math.hypot(...edge));
+    }
+    const fit = safeRadius / Math.max(radius, .0001);
+    x *= fit; z *= fit;
+    obj.position.set(x, y, z);
+    obj.rotation.set(0, Math.PI / 2 - a, 0);
+    obj.rotateZ(grainRandom(layer.seed, i, 3) * Math.PI * 2);
+    obj.scale.set(size, size * .72, size * .36);
+    obj.updateMatrix(); mesh.setMatrixAt(i, obj.matrix);
+    mesh.setColorAt(i, extraGrainColor(_c, def, layer, i));
+  }
+  mesh.computeBoundingSphere();
+  return mesh;
 }
 
 /** Darken a layer's vertices toward its base. */
@@ -396,16 +469,16 @@ function shadeByDepth(geo, baseY, topY) {
  * visible pieces, so this costs one draw call on two of the seven substrates.
  */
 function rimPieces(def, layer, baseY, topY) {
-  const count = 54;
-  const size = 0.055;
-  const geo = new THREE.IcosahedronGeometry(size, 0);
+  const count = 360;
+  const size = Math.min(def.granule ?? 0.042, layer.height * 0.22);
+  const geo = new THREE.SphereGeometry(size, 8, 6);
   speckleColors(geo, def.colors);
   const mesh = new THREE.InstancedMesh(
     geo,
     new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.88,
-      flatShading: true,
+      flatShading: false,
     }),
     count,
   );
@@ -437,11 +510,11 @@ const _v = new THREE.Vector3();
 
 function scatterGrains(def, layer, topY) {
   const chunky = def.chunky;
-  const count = chunky ? 90 : 140;
-  const size = chunky ? 0.07 : 0.03;
+  const count = chunky ? 170 : def.id === "soil" ? 480 : 300;
+  const size = def.granule ?? (chunky ? 0.044 : def.organic || def.id === "soil" ? 0.008 : 0.004);
   const geo = chunky
-    ? new THREE.IcosahedronGeometry(size, 0)
-    : new THREE.TetrahedronGeometry(size, 0);
+    ? new THREE.SphereGeometry(size, 8, 6)
+    : new THREE.IcosahedronGeometry(size, 0);
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.95,
@@ -480,8 +553,8 @@ function scatterGrains(def, layer, topY) {
 // A polar-grid disc that sits on top of the substrate and deforms live as the
 // user sculpts. Dense enough (rings × sectors) to take smooth brush strokes.
 export function buildTerrainCap(def, surfaceY = JAR.floorY, topLayerHeight = 0.16) {
-  const rings = 14;
-  const sectors = 48;
+  const rings = 32;
+  const sectors = 96;
   // The cap takes the jar's own outline at the height it sits, not a circle.
   // Its rim and its skirt are measured separately: the skirt hangs below the
   // surface, and in a bowl or a bottle the interior there is *narrower*, so a
@@ -512,7 +585,7 @@ export function buildTerrainCap(def, surfaceY = JAR.floorY, topLayerHeight = 0.1
       // Interpolating toward the measured rim keeps every inner ring inside the
       // outline too, whatever shape that outline is.
       positions.push(rim[s][0] * t, 0, rim[s][1] * t);
-      jitters.push(jitter(0.012));
+      jitters.push(jitter(0.003));
       ringT.push(t);
       angles.push((s / sectors) * Math.PI * 2);
     }
@@ -555,15 +628,23 @@ export function buildTerrainCap(def, surfaceY = JAR.floorY, topLayerHeight = 0.1
   );
   geo.setIndex(indices);
   speckleColors(geo, def.colors);
+  const uv = new Float32Array(positions.length / 3 * 2);
+  for (let i = 0; i < positions.length / 3; i++) {
+    uv[i * 2] = positions[i * 3] / 0.24;
+    uv[i * 2 + 1] = positions[i * 3 + 2] / 0.24;
+  }
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   geo.computeVertexNormals();
 
   const mesh = new THREE.Mesh(
     geo,
     new THREE.MeshStandardMaterial({
       vertexColors: true,
+      ...substrateMaps(def),
+      bumpScale: 0.006,
       roughness: 0.97,
       metalness: 0,
-      flatShading: true,
+      flatShading: false,
       side: THREE.DoubleSide,
     }),
   );
@@ -573,41 +654,72 @@ export function buildTerrainCap(def, surfaceY = JAR.floorY, topLayerHeight = 0.1
   mesh.userData.ringT = ringT;
   mesh.userData.angles = angles;
   mesh.userData.skirtDrop = skirtDrop;
+  mesh.userData.sectors = sectors;
   // per-vertex random seeds so painted materials keep a stable grain
   mesh.userData.seeds = jitters.map(() => (Math.random() * 1024) | 0);
   mesh.userData.fallbackDef = def;
+  // Keep loose grains with the editable cap instead of burying them under it.
+  // Their transforms are updated with the heightfield, never in the frame loop.
+  const grains = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0),
+    new THREE.MeshStandardMaterial({ roughness: 0.98 }), def.granule ? 1400 : 420);
+  grains.name = "surface-grains";
+  grains.receiveShadow = true;
+  grains.userData.samples = Array.from({ length: grains.count }, (_, i) => ({
+    a: i * 2.399963 + (hash2(71, i, 2) - .5) * .55,
+    t: Math.sqrt((i + 0.5) / grains.count) * 0.98,
+    k: 0.65 + hash2(47, i, 1) * 0.8,
+  }));
+  mesh.add(grains);
   return mesh;
 }
 
 // Re-project the cap's vertices from the current heightfield.
+export function terrainSurfaceY(state, x, z) {
+  const baseY = substrateTop(state);
+  const y = baseY + layerSurface(state.layers.at(-1), x, z) + terrainOffsetAt(state, x, z, GLASS_MARGIN);
+  return Math.min(y, terrainCeilingAt(baseY, x, z, GLASS_MARGIN));
+}
+
 export function updateTerrainCap(mesh, state, baseY) {
   const pos = mesh.geometry.attributes.position;
-  const jitters = mesh.userData.jitters;
   const ringT = mesh.userData.ringT;
   const angles = mesh.userData.angles;
   const drop = mesh.userData.skirtDrop ?? 0.03;
+  const topLayer = state.layers.at(-1);
+  const margin = topLayer ? GLASS_MARGIN : GLASS_MARGIN + 0.008;
+  // When there is a real layer below, join its wall directly instead of
+  // drawing a second, inset wall (which read as a black ring around the soil).
+  // Free-painted terrain still needs its original skirt to have thickness.
+  if (topLayer && !mesh.userData.joinedLayer) {
+    mesh.geometry.setIndex(Array.from(mesh.geometry.index.array).slice(0, -mesh.userData.sectors * 6));
+    mesh.userData.joinedLayer = true;
+  }
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
+    const [x, z] = i === 0 ? [0, 0] : jarPointAt(baseY, angles[i], Math.min(1, ringT[i]), margin);
     if (ringT[i] === 2) {
       // skirt: tuck well below the surface so the side wall closes any gap
-      pos.setY(i, baseY - drop);
+      const y = baseY + layerSurface(topLayer, x, z) - drop;
+      const [nx, nz] = jarPointAt(y, angles[i], 1, GLASS_MARGIN + 0.008);
+      pos.setXYZ(i, nx, y, nz);
       continue;
     }
-    // fade sculpted height to zero at the rim so the edge always sits flush
-    // on the layer beneath — no more floating sheet
-    const fade = ringT[i] <= 0.82 ? 1 : Math.max(0, (1 - ringT[i]) / 0.18);
-    const y = baseY + 0.005 + heightAt(state, x, z) * fade + jitters[i];
+    const y = terrainSurfaceY(state, x, z);
     pos.setY(i, y);
     if (i === 0) continue; // the centre vertex has no heading to re-measure
-    // Sculpting lifts the surface, and lifting it moves it to a height where
-    // the vessel may be narrower. Without this the rim of a mounded-up terrain
-    // pushes out through the shoulder of a globe or an egg.
-    const [nx, nz] = jarPointAt(y, angles[i], ringT[i], GLASS_MARGIN + 0.008);
-    pos.setXYZ(i, nx, y, nz);
+    // Only pull in vertices which actually reach the glass; moving every ring
+    // sideways with height would disagree with the placement heightfield.
+    const [rimX, rimZ] = jarPointAt(y, angles[i], 1, margin);
+    const ratio = Math.min(1, Math.hypot(rimX, rimZ) / Math.max(0.00001, Math.hypot(x, z)));
+    pos.setXYZ(i, x * ratio, y, z * ratio);
   }
   pos.needsUpdate = true;
+  const uv = mesh.geometry.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / 0.24, pos.getZ(i) / 0.24);
+  uv.needsUpdate = true;
   mesh.geometry.computeVertexNormals();
+  // Raycasting must see the growing hill above the cap's original bounds.
+  mesh.geometry.computeBoundingSphere();
+  mesh.geometry.computeBoundingBox();
 
   // recolor vertices from the painted-material map, so soil brushed here and
   // sand brushed there each show their own grain
@@ -624,12 +736,71 @@ export function updateTerrainCap(mesh, state, baseY) {
       const mi = state.terrainMat[gj * n + gi];
       if (mi !== 255 && BASE_LAYERS[mi]) def = BASE_LAYERS[mi];
     }
-    const hex = def.colors[seeds[i] % def.colors.length];
+    const hex = def.swatch;
     _c.set(hex);
-    const k = 0.9 + ((seeds[i] % 37) / 37) * 0.2;
+    const k = 0.96 + ((seeds[i] % 37) / 37) * 0.08;
     colors.setXYZ(i, _c.r * k, _c.g * k, _c.b * k);
   }
   colors.needsUpdate = true;
+  const grains = mesh.getObjectByName("surface-grains");
+  if (grains) {
+    const dummy = new THREE.Object3D();
+    grains.userData.samples.forEach(({ a, t, k }, i) => {
+      let [x, z] = jarPointAt(baseY, a, t, GLASS_MARGIN + 0.028);
+      const gi = Math.round(((x + R) / (2 * R)) * (n - 1));
+      const gj = Math.round(((z + R) / (2 * R)) * (n - 1));
+      const mi = gi >= 0 && gj >= 0 && gi < n && gj < n ? state.terrainMat[gj * n + gi] : 255;
+      const def = BASE_LAYERS[mi] ?? fallback;
+      const size = (def.granule ?? (def.chunky ? 0.033 : def.organic || def.id === "soil" ? 0.009 : 0.0035)) * k;
+      const y = terrainSurfaceY(state, x, z);
+      const reach = Math.hypot(...jarPointAt(y, a, 1, GLASS_MARGIN + size * 1.8));
+      const ratio = Math.min(1, reach / Math.max(.00001, Math.hypot(x,z)));
+      x *= ratio; z *= ratio;
+      dummy.position.set(x, y + size * 0.3, z);
+      dummy.rotation.set(a * 0.7, a, k * 4);
+      dummy.scale.set(size, size * 0.65, size);
+      dummy.updateMatrix();
+      grains.setMatrixAt(i, dummy.matrix);
+      grains.setColorAt(i, _c.set(def.colors[i % def.colors.length]).multiplyScalar(0.75 + k * 0.25));
+    });
+    grains.instanceMatrix.needsUpdate = true;
+    grains.instanceColor.needsUpdate = true;
+    grains.computeBoundingSphere();
+  }
+  updateExtraSurfaceGrains(mesh, state, baseY, topLayer, fallback);
+}
+
+function updateExtraSurfaceGrains(cap, state, baseY, layer, fallback) {
+  const { grainAmount } = grainSettings(layer);
+  const count = Math.round(grainAmount * 18);
+  let grains = cap.getObjectByName("layer-top-grains");
+  if (grains && grains.count !== count) {
+    cap.remove(grains); grains.geometry.dispose(); grains.material.dispose(); grains = null;
+  }
+  if (!count) return;
+  if (!grains) { grains = extraGrainMesh(count, "layer-top-grains"); cap.add(grains); }
+  const obj = new THREE.Object3D(), R = jarGridR(), n = TERRAIN_N;
+  for (let i = 0; i < count; i++) {
+    const a = grainRandom(layer.seed, i, 4) * Math.PI * 2;
+    const t = Math.sqrt(grainRandom(layer.seed, i, 5)) * .98;
+    const size = .006 + grainRandom(layer.seed, i, 6) * .009;
+    let [x, z] = jarPointAt(baseY, a, t, GLASS_MARGIN + size * 1.8);
+    const gi = Math.round(((x + R) / (2 * R)) * (n - 1));
+    const gj = Math.round(((z + R) / (2 * R)) * (n - 1));
+    const mi = gi >= 0 && gj >= 0 && gi < n && gj < n ? state.terrainMat[gj*n+gi] : 255;
+    const def = BASE_LAYERS[mi] ?? fallback;
+    const y = terrainSurfaceY(state, x, z);
+    const reach = Math.hypot(...jarPointAt(y, a, 1, GLASS_MARGIN + size * 1.8));
+    const ratio = Math.min(1, reach / Math.max(.00001, Math.hypot(x,z)));
+    x *= ratio; z *= ratio;
+    obj.position.set(x, y + size * .32, z);
+    obj.rotation.set(a*.7, a, i); obj.scale.set(size, size*.62, size*.85);
+    obj.updateMatrix(); grains.setMatrixAt(i, obj.matrix);
+    grains.setColorAt(i, extraGrainColor(_c, def, layer, i));
+  }
+  grains.instanceMatrix.needsUpdate = true;
+  grains.instanceColor.needsUpdate = true;
+  grains.computeBoundingSphere();
 }
 
 // ---------------------------------------------------------------------------
@@ -701,7 +872,15 @@ function buildDecorationParts(kind, v = {}) {
     case "fern":
       return buildFern(v);
     case "pink":
-      return buildPink(v);
+      return referenceFittonia({ ...v, compact: true });
+    case "fittoniabush":
+      return referenceFittonia(v);
+    case "aralia":
+      return referenceAralia();
+    case "crag":
+      return referenceCrag(v);
+    case "mineralpatch":
+      return referenceGravel(v);
     case "succulent":
       return buildSucculent(v);
     case "airplant":
@@ -714,6 +893,13 @@ function buildDecorationParts(kind, v = {}) {
       return buildCrystal(v);
     case "stone":
       return buildStone(v);
+    case "riverpebble":
+    case "steppingstone":
+    case "slatechip":
+    case "granite":
+    case "lavastone":
+    case "sandstone":
+      return naturalRock(kind, v);
     case "slate":
       return buildSlate(v);
     case "bonsai":
@@ -1023,7 +1209,7 @@ function buildSnakePlant() {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({
     map: getSnakeLeafTexture(),
-    transparent: true,
+    transparent: false,
     alphaTest: 0.5,
     roughness: 0.6,
     side: THREE.DoubleSide,
@@ -1582,6 +1768,7 @@ function getButterflyWingTexture(hex) {
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   butterflyTextures.set(hex, tex);
   return tex;
 }
@@ -1601,7 +1788,7 @@ function buildButterfly(v = {}) {
   const hue = v.wing ?? hues[(Math.random() * hues.length) | 0];
   const wingMat = new THREE.MeshStandardMaterial({
     map: getButterflyWingTexture(hue),
-    transparent: true,
+    transparent: false,
     alphaTest: 0.5,
     roughness: 0.6,
     side: THREE.DoubleSide,
@@ -1761,215 +1948,15 @@ function buildLadybug(v = {}) {
 
 // A small tuft of grass blades — spawned by the paint brush, not the tray.
 function buildGrassTuft() {
-  const g = new THREE.Group();
-  const greens = ["#7a9c40", "#8bad4e", "#6b8c36", "#9cbb5e"];
-  const blades = 5 + ((Math.random() * 4) | 0);
-  for (let i = 0; i < blades; i++) {
-    const h = 0.08 + Math.random() * 0.1;
-    const blade = new THREE.Mesh(
-      new THREE.ConeGeometry(0.008, h, 4),
-      craftMaterial(greens[(Math.random() * greens.length) | 0], {
-        rough: 0.85,
-      }),
-    );
-    blade.position.set(jitter(0.04), h / 2, jitter(0.04));
-    blade.rotation.set(jitter(0.4), Math.random() * Math.PI, jitter(0.4));
-    blade.castShadow = true;
-    g.add(blade);
-  }
-  return g;
+  return naturalGrass();
 }
 
 function buildMoss(v = {}) {
-  const g = new THREE.Group();
-  const greens = v.colors ?? ["#5f8330", "#6f9a3a", "#7faa4a", "#557a2c"];
-  // A low cushion: many small bumpy blobs packed into a rounded mound, densest
-  // in the middle, so it reads as a soft pillow of moss rather than lumps.
-  const blobs = 30 + ((Math.random() * 10) | 0);
-  for (let i = 0; i < blobs; i++) {
-    const rad = 0.03 + Math.random() * 0.038;
-    const geo = new THREE.IcosahedronGeometry(rad, 2);
-    const p = geo.attributes.position;
-    for (let v = 0; v < p.count; v++) {
-      p.setXYZ(
-        v,
-        p.getX(v) + jitter(0.018),
-        p.getY(v) + jitter(0.018),
-        p.getZ(v) + jitter(0.018),
-      );
-    }
-    geo.computeVertexNormals();
-    const m = new THREE.Mesh(
-      geo,
-      craftMaterial(greens[(Math.random() * greens.length) | 0], {
-        rough: 1.0,
-      }),
-    );
-    const a = Math.random() * Math.PI * 2;
-    const rr = Math.pow(Math.random(), 0.7) * 0.17;
-    const mound = 1 - rr / 0.2; // taller toward the centre
-    m.position.set(Math.cos(a) * rr, rad * 0.4 + mound * 0.05, Math.sin(a) * rr);
-    m.scale.y = 0.8;
-    m.castShadow = true;
-    g.add(m);
-  }
-  // A few pale spore stalks (setae) poking up — a signature moss detail.
-  const stalkMat = craftMaterial("#c7c98a", { rough: 0.9 });
-  for (let s = 0; s < 3 + ((Math.random() * 3) | 0); s++) {
-    const h = 0.1 + Math.random() * 0.08;
-    const stalk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.004, 0.006, h, 5),
-      stalkMat,
-    );
-    const a = Math.random() * Math.PI * 2;
-    const rr = Math.random() * 0.12;
-    stalk.position.set(Math.cos(a) * rr, 0.08 + h / 2, Math.sin(a) * rr);
-    stalk.rotation.z = jitter(0.25);
-    g.add(stalk);
-    const cap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.014, 8, 6),
-      craftMaterial("#a98f52", { rough: 0.85 }),
-    );
-    cap.scale.z = 1.5;
-    cap.position.set(stalk.position.x, 0.08 + h, stalk.position.z);
-    g.add(cap);
-  }
-  return g;
+  return naturalMoss({ colors: v.colors });
 }
 
 function buildLeafy(v = {}) {
-  const g = new THREE.Group();
-  const leafMat = craftMaterial(v.leaf ?? "#3f7d4f", { rough: 0.8 });
-  const leafMatDark = craftMaterial(v.dark ?? "#2f6640", { rough: 0.8 });
-  const leaves = 6 + ((Math.random() * 3) | 0);
-
-  // A single leaf: a flattened, slightly curled shape via a lathe-ish plane.
-  const leafShape = new THREE.Shape();
-  leafShape.moveTo(0, 0);
-  leafShape.bezierCurveTo(0.09, 0.12, 0.07, 0.4, 0, 0.5);
-  leafShape.bezierCurveTo(-0.07, 0.4, -0.09, 0.12, 0, 0);
-  const leafGeo = new THREE.ShapeGeometry(leafShape, 10);
-  // gently curl the leaf along its length
-  const lp = leafGeo.attributes.position;
-  for (let i = 0; i < lp.count; i++) {
-    const y = lp.getY(i);
-    lp.setZ(i, lp.getZ(i) + Math.sin(y * 2.4) * 0.05);
-  }
-  leafGeo.computeVertexNormals();
-
-  for (let i = 0; i < leaves; i++) {
-    const mat = i % 3 === 0 ? leafMatDark : leafMat;
-    const leaf = new THREE.Mesh(leafGeo, mat);
-    leaf.material.side = THREE.DoubleSide;
-    const a = (i / leaves) * Math.PI * 2 + jitter(0.3);
-    const tilt = 0.5 + Math.random() * 0.5;
-    leaf.rotation.set(-tilt, a, jitter(0.2));
-    const sc = 0.8 + Math.random() * 0.5;
-    leaf.scale.setScalar(sc);
-    leaf.position.y = 0.02;
-    leaf.castShadow = true;
-    g.add(leaf);
-  }
-  return g;
-}
-
-// Fittonia leaf texture: a deep-green oval with the plant's trademark pink
-// vein network, painted once onto a shared canvas and alpha-masked.
-const fittoniaTextures = new Map();
-function getFittoniaTexture(vein = "#f29dbf") {
-  if (fittoniaTextures.has(vein)) return fittoniaTextures.get(vein);
-  const c = document.createElement("canvas");
-  c.width = c.height = 128;
-  const ctx = c.getContext("2d");
-
-  // leaf body
-  ctx.fillStyle = "#2e6b3a";
-  ctx.beginPath();
-  ctx.ellipse(64, 64, 44, 60, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // vein network — bright pink midrib with branching laterals
-  ctx.strokeStyle = vein;
-  ctx.lineCap = "round";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(64, 118);
-  ctx.lineTo(64, 12);
-  ctx.stroke();
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 5; i++) {
-    const y = 24 + i * 20;
-    for (const s of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(64, y + 8);
-      ctx.quadraticCurveTo(64 + s * 22, y - 2, 64 + s * 36, y - 10 + i * 3);
-      ctx.stroke();
-    }
-  }
-  ctx.lineWidth = 1.5;
-  for (let i = 0; i < 4; i++) {
-    const y = 34 + i * 20;
-    for (const s of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(64 + s * 18, y);
-      ctx.quadraticCurveTo(64 + s * 28, y + 8, 64 + s * 34, y + 4);
-      ctx.stroke();
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  fittoniaTextures.set(vein, tex);
-  return tex;
-}
-
-// Fittonia (nerve plant): a low, creeping cluster of oval leaves with pink
-// veining — sits close to the soil like the real plant.
-function buildPink(v = {}) {
-  const g = new THREE.Group();
-  const leafMat = new THREE.MeshStandardMaterial({
-    map: getFittoniaTexture(v.vein),
-    transparent: true,
-    alphaTest: 0.5,
-    roughness: 0.65,
-    side: THREE.DoubleSide,
-  });
-  const stemMat = craftMaterial("#6b7a4a", { rough: 0.85 });
-  const leafGeo = new THREE.PlaneGeometry(0.14, 0.19);
-
-  const clusters = 3 + ((Math.random() * 2) | 0);
-  for (let cl = 0; cl < clusters; cl++) {
-    const cx = jitter(0.12);
-    const cz = jitter(0.12);
-    const stemH = 0.05 + Math.random() * 0.05;
-    const stem = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.008, 0.012, stemH, 5),
-      stemMat,
-    );
-    stem.position.set(cx, stemH / 2, cz);
-    g.add(stem);
-
-    // a whorl of leaves splaying out from each stem, close to the ground
-    const leaves = 4 + ((Math.random() * 3) | 0);
-    for (let i = 0; i < leaves; i++) {
-      const leaf = new THREE.Mesh(leafGeo, leafMat);
-      const a = (i / leaves) * Math.PI * 2 + jitter(0.4);
-      const droop = 0.9 + Math.random() * 0.4; // mostly horizontal
-      leaf.position.set(
-        cx + Math.cos(a) * 0.06,
-        stemH + 0.015,
-        cz + Math.sin(a) * 0.06,
-      );
-      leaf.rotation.set(-Math.PI / 2 + (1 - droop) * 0.8, 0, 0);
-      leaf.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), a);
-      leaf.rotation.z += jitter(0.2);
-      const sc = 0.8 + Math.random() * 0.4;
-      leaf.scale.setScalar(sc);
-      leaf.castShadow = true;
-      g.add(leaf);
-    }
-  }
-  return g;
+  return buildBroadLeaf({ leaf: v.leaf ?? "#3f7d4f", mark: v.dark ?? "#2f6640", midrib: "#a7b97b", speckle: 0.4, leaves: 9 });
 }
 
 function buildMushroom(v = {}) {
@@ -2053,59 +2040,20 @@ function buildMushroom(v = {}) {
 }
 
 function buildStone(v = {}) {
-  const g = new THREE.Group();
-  const rad = 0.12 + Math.random() * 0.08;
-  const geo = new THREE.IcosahedronGeometry(rad, 1);
-  const p = geo.attributes.position;
-  for (let v = 0; v < p.count; v++) {
-    p.setXYZ(
-      v,
-      p.getX(v) * (1 + jitter(0.25)),
-      p.getY(v) * (0.7 + jitter(0.15)),
-      p.getZ(v) * (1 + jitter(0.25)),
-    );
-  }
-  geo.computeVertexNormals();
-  const grays = v.grays ?? ["#8f877b", "#9a9186", "#7d766b", "#a49b8e"];
-  const stone = new THREE.Mesh(
-    geo,
-    craftMaterial(grays[(Math.random() * grays.length) | 0], {
-      rough: 0.9,
-      flat: true,
-    }),
-  );
-  stone.position.y = rad * 0.55;
-  stone.castShadow = true;
-  stone.receiveShadow = true;
-  g.add(stone);
-  return g;
+  return naturalStone(v);
 }
 
 // A cluster of small green moss blobs at a point — shared canopy/foliage.
 function mossClump(pos, colors, r) {
-  const grp = new THREE.Group();
-  const n = 4 + ((Math.random() * 4) | 0);
-  for (let i = 0; i < n; i++) {
-    const rad = r * (0.5 + Math.random() * 0.6);
-    const geo = new THREE.IcosahedronGeometry(rad, 1);
-    const p = geo.attributes.position;
-    for (let vi = 0; vi < p.count; vi++) {
-      p.setXYZ(vi, p.getX(vi) + jitter(0.01), p.getY(vi) + jitter(0.01), p.getZ(vi) + jitter(0.01));
-    }
-    geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, craftMaterial(colors[(Math.random() * colors.length) | 0], { rough: 1 }));
-    m.position.set(pos.x + jitter(r * 0.8), pos.y + jitter(r * 0.7), pos.z + jitter(r * 0.8));
-    m.castShadow = true;
-    grp.add(m);
-  }
-  return grp;
+  return naturalCanopy(pos, colors, r);
 }
 
 // A tiny driftwood bonsai: a gnarled tapering trunk that forks into a few
 // branches, each capped with a moss/foliage canopy — the "tiny bonsai scape".
 function buildBonsai(v = {}) {
   const g = new THREE.Group();
-  const woodMat = craftMaterial(v.wood ?? "#6e5236", { rough: 0.9, flat: true });
+  const woodMat = new THREE.MeshStandardMaterial({ color: v.wood ?? "#6e5236",
+    ...grainMaps("fibre"), bumpScale: 0.002, roughness: 0.96, envMapIntensity: 0.45 });
   const greens = v.colors ?? ["#5f8f3a", "#6f9f44", "#7faf50", "#548030"];
   const H = 0.34 + Math.random() * 0.12;
   const trunkCurve = new THREE.CatmullRomCurve3([
@@ -2114,7 +2062,19 @@ function buildBonsai(v = {}) {
     new THREE.Vector3(jitter(0.06), H * 0.7, jitter(0.05)),
     new THREE.Vector3(jitter(0.05), H, jitter(0.04)),
   ]);
-  const trunk = new THREE.Mesh(new THREE.TubeGeometry(trunkCurve, 20, 0.026, 6), woodMat);
+  const trunkGeo = new THREE.TubeGeometry(trunkCurve, 20, 0.026, 10);
+  const tp = trunkGeo.attributes.position;
+  for (let ring = 0; ring <= 20; ring++) {
+    const centre = trunkCurve.getPointAt(ring / 20);
+    const taper = 1 - (ring / 20) * 0.68;
+    for (let j = 0; j <= 10; j++) {
+      const i = ring * 11 + j;
+      tp.setXYZ(i, centre.x + (tp.getX(i) - centre.x) * taper,
+        centre.y + (tp.getY(i) - centre.y) * taper, centre.z + (tp.getZ(i) - centre.z) * taper);
+    }
+  }
+  trunkGeo.computeVertexNormals();
+  const trunk = new THREE.Mesh(trunkGeo, woodMat);
   trunk.castShadow = true;
   g.add(trunk);
   // flared roots at the base
@@ -2138,42 +2098,17 @@ function buildBonsai(v = {}) {
     );
     br.castShadow = true;
     g.add(br);
-    g.add(mossClump(end, greens, 0.055 + Math.random() * 0.02));
+    g.add(mossClump(end, greens, 0.080 + Math.random() * 0.025));
   }
   // crowning canopy
-  g.add(mossClump(trunkCurve.getPoint(1), greens, 0.07));
+  g.add(mossClump(trunkCurve.getPoint(1), greens, 0.105));
   return g;
 }
 
 // A kokedama-style moss ball: a rounded mound densely covered in bright moss
 // tufts, sitting on the ground — from the "Tree of Life" mossy landscape.
 function buildMossBall(v = {}) {
-  const g = new THREE.Group();
-  const greens = v.colors ?? ["#5f9a30", "#6faa3a", "#7fba4a", "#57922c", "#4e8a28"];
-  const R = 0.12 + Math.random() * 0.05;
-  const cy = R * 0.62; // sit on the ground
-  const n = 46 + ((Math.random() * 16) | 0);
-  for (let i = 0; i < n; i++) {
-    // fibonacci points biased to the upper dome
-    const t = Math.acos(1 - 1.7 * ((i + 0.5) / n));
-    const ph = i * 2.399963;
-    const dir = new THREE.Vector3(Math.sin(t) * Math.cos(ph), Math.cos(t), Math.sin(t) * Math.sin(ph));
-    const y = cy + dir.y * R;
-    if (y < R * 0.18) continue; // leave the underside bare
-    const rad = 0.03 + Math.random() * 0.022;
-    const geo = new THREE.IcosahedronGeometry(rad, 1);
-    const p = geo.attributes.position;
-    for (let vi = 0; vi < p.count; vi++) {
-      p.setXYZ(vi, p.getX(vi) + jitter(0.01), p.getY(vi) + jitter(0.01), p.getZ(vi) + jitter(0.01));
-    }
-    geo.computeVertexNormals();
-    const blob = new THREE.Mesh(geo, craftMaterial(greens[(Math.random() * greens.length) | 0], { rough: 1 }));
-    blob.position.set(dir.x * R, y, dir.z * R);
-    blob.scale.setScalar(0.8 + Math.random() * 0.5);
-    blob.castShadow = true;
-    g.add(blob);
-  }
-  return g;
+  return naturalMoss({ colors: v.colors, radius: 0.15, count: 240, ball: true });
 }
 
 // Riven slate: a small stack of thin, angular layered slabs leaning on each
@@ -2213,29 +2148,7 @@ function buildSlate(v = {}) {
 // A low, small moss cushion spawned by the moss brush along a stroke — a
 // lighter cousin of the full moss decoration so many can be painted cheaply.
 function buildMossPatch() {
-  const g = new THREE.Group();
-  const greens = ["#5f8330", "#6f9a3a", "#7faa4a", "#557a2c", "#4e7a2a"];
-  const blobs = 5 + ((Math.random() * 4) | 0);
-  for (let i = 0; i < blobs; i++) {
-    const rad = 0.025 + Math.random() * 0.03;
-    const geo = new THREE.IcosahedronGeometry(rad, 1);
-    const p = geo.attributes.position;
-    for (let vi = 0; vi < p.count; vi++) {
-      p.setXYZ(vi, p.getX(vi) + jitter(0.012), p.getY(vi) + jitter(0.012), p.getZ(vi) + jitter(0.012));
-    }
-    geo.computeVertexNormals();
-    const m = new THREE.Mesh(
-      geo,
-      craftMaterial(greens[(Math.random() * greens.length) | 0], { rough: 1 }),
-    );
-    const a = Math.random() * Math.PI * 2;
-    const rr = Math.pow(Math.random(), 0.7) * 0.06;
-    m.position.set(Math.cos(a) * rr, rad * 0.5, Math.sin(a) * rr);
-    m.scale.y = 0.7;
-    m.castShadow = true;
-    g.add(m);
-  }
-  return g;
+  return naturalMoss({ radius: 0.07, count: 45, dome: 0.018 });
 }
 
 function buildShell(v = {}) {
@@ -2742,7 +2655,7 @@ function buildCalathea(v = {}) {
   const g = new THREE.Group();
   const topMat = new THREE.MeshStandardMaterial({
     map: getCalatheaTexture(v.edge),
-    transparent: true,
+    transparent: false,
     alphaTest: 0.5,
     roughness: 0.6,
     side: THREE.DoubleSide,
@@ -3900,7 +3813,7 @@ function speciesTexture(key, paint) {
 function paintedLeafMaterial(key, paint) {
   return new THREE.MeshStandardMaterial({
     map: speciesTexture(key, paint),
-    transparent: true,
+    transparent: false,
     alphaTest: 0.5,
     roughness: 0.62,
     side: THREE.DoubleSide,
@@ -4192,23 +4105,7 @@ function buildSpeciesMoss(v = {}) {
   const spread = v.spread ?? 0.18;
 
   if (form === "cushion") {
-    // Leucobryum: a tight pale dome, no visible shoots at this scale.
-    const blobs = 34 + ((Math.random() * 12) | 0);
-    for (let i = 0; i < blobs; i++) {
-      const rad = 0.026 + Math.random() * 0.03;
-      const geo = new THREE.IcosahedronGeometry(rad, 1);
-      const p = geo.attributes.position;
-      for (let k = 0; k < p.count; k++)
-        p.setXYZ(k, p.getX(k) + jitter(0.012), p.getY(k) + jitter(0.012), p.getZ(k) + jitter(0.012));
-      geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, pick());
-      const a = Math.random() * Math.PI * 2;
-      const rr = Math.pow(Math.random(), 0.55) * spread;
-      m.position.set(Math.cos(a) * rr, rad * 0.5 + (1 - rr / spread) * 0.075, Math.sin(a) * rr);
-      m.castShadow = true;
-      g.add(m);
-    }
-    return g;
+    return naturalMoss({ colors: cols, radius: spread, count: 190, dome: 0.07 });
   }
 
   if (form === "star") {
@@ -4362,7 +4259,13 @@ function buildBroadLeaf(v = {}) {
   });
 
   const stemMat = craftMaterial(v.stem ?? "#587a3f", { rough: 0.82 });
-  const blade = new THREE.PlaneGeometry(0.17, 0.24);
+  const blade = new THREE.PlaneGeometry(0.17, 0.24, 4, 7);
+  const bp = blade.attributes.position;
+  for (let i = 0; i < bp.count; i++) {
+    const t = (bp.getY(i) + 0.12) / 0.24;
+    bp.setZ(i, t * t * 0.042 + Math.abs(bp.getX(i)) * 0.18);
+  }
+  blade.computeVertexNormals();
   const leaves = v.leaves ?? 7 + ((Math.random() * 4) | 0);
   for (let i = 0; i < leaves; i++) {
     const a = (i / leaves) * Math.PI * 2 + jitter(0.3);

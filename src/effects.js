@@ -34,7 +34,17 @@ export function createWorldEffects(world) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     const palette = { rain: 0xb9d9ed, snow: 0xf3f6ff, petals: 0xf1b7ca, leaves: 0xb8874d, fireflies: 0xd9ef8b, stars: 0xbfd5ff, mist: 0xdce9df, web: 0xdce7ea, lanterns: 0xffbd69, glow: 0xb9f1d4, sparkle: 0xf0d38a };
-    const mat = new THREE.PointsMaterial({ color: palette[type] || 0xffffff, size: type === "stars" ? 0.028 : type === "fireflies" ? 0.055 : 0.04, transparent: true, opacity: type === "mist" ? 0.18 : type === "stars" ? 0.8 : 0.62, depthWrite: false, sizeAttenuation: true });
+    const mat = new THREE.PointsMaterial({
+      color: palette[type] || 0xffffff,
+      size: type === "stars" ? 0.028 : type === "fireflies" ? 0.055 : 0.04,
+      transparent: true,
+      opacity: type === "mist" ? 0.18 : type === "stars" ? 0.8 : 0.62,
+      depthWrite: false,
+      sizeAttenuation: true,
+      blending: ["fireflies", "stars", "lanterns", "glow", "sparkle"].includes(type)
+        ? THREE.AdditiveBlending
+        : THREE.NormalBlending,
+    });
     weather = new THREE.Points(geo, mat);
     weather.userData = { seeds, count };
     weatherGroup.add(weather);

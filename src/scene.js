@@ -16,7 +16,7 @@ export function createStudio(canvas) {
   // A high-density canvas is beautiful but expensive once the jar contains
   // many procedural meshes. Keep a crisp cap on desktop and a gentler one on
   // phones so touch sessions stay responsive.
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 700 ? 1.25 : 1.6));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 700 ? 1.25 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -309,7 +309,7 @@ export function createStudio(canvas) {
   // filter, the rim light's second shadow pass — and never the interaction
   // loop, because a placement that lands late is worse than one that lands
   // ugly. Callers read `quality` back so particle counts can follow suit.
-  const DPR_CAP = () => (window.innerWidth < 700 ? 1.25 : 1.6);
+  const DPR_CAP = () => (window.innerWidth < 700 ? 1.25 : 2);
   let quality = "high";
   function setQuality(level) {
     quality = level === "low" ? "low" : "high";
@@ -673,11 +673,11 @@ export function createStudio(canvas) {
   // the table meets it, and vignetted. Everything here exists to keep the
   // terrarium legible.
   //
-  // It is no longer blurred. Blur was standing in for depth, and it flattened
+  // It is never blurred. Blur was standing in for depth, and it flattened
   // every room into the same soft wash; the picture now sits on the backdrop
   // wall 24 units back and gets its depth from parallax instead. The calm
-  // slider still lifts haze and drains colour, and only at the very top of its
-  // range does it reach for a touch of defocus.
+  // slider lifts haze and drains colour, but it must never destroy the source
+  // image's detail.
   const photoCache = new Map();
   const moodGround = new THREE.Color(0xd0d3d7); // the active mood's table colour
   let photoToken = 0;
@@ -702,8 +702,8 @@ export function createStudio(canvas) {
     const h = Math.max(600, Math.round(canvas.clientHeight || window.innerHeight));
     const c = document.createElement("canvas");
     // Give it every pixel the source has, and not one more: the photograph is
-    // the ceiling on detail, so enlarging a 2560px source into a 3072px canvas
-    // buys nothing but megabytes. How much of it reaches the screen is
+    // the ceiling on detail, so enlarging a source into a larger intermediate
+    // canvas only buys megabytes. How much of it reaches the screen is
     // fitBackdrop's business, not this function's.
     c.width = Math.round(clamp(img.width, 960, 3072));
     c.height = Math.round(c.width * (h / w));
@@ -714,18 +714,27 @@ export function createStudio(canvas) {
       c.height = 3072;
     }
     const ctx = c.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     const bright = backdropBrightness(theme);
-    // Sharp up to three quarters of the calm slider; past that a hint of
-    // defocus, for people who want the room to fall away completely.
-    const blur = Math.round((c.width / 900) * Math.max(0, photoCalm - 0.75) * 12);
+    // Calm changes tone and contrast only. A theme selection must never turn
+    // into a visibly soft or blurry backdrop, even if a previous session left
+    // the calm control near its maximum.
     const sat = (1.05 - photoCalm * 0.35).toFixed(2);
-    ctx.filter = `blur(${blur}px) saturate(${sat}) brightness(${bright.toFixed(2)})`;
-    // Overscan so the blur never smears in a transparent edge.
-    const pad = blur * 3;
-    const s = Math.max((c.width + pad * 2) / img.width, (c.height + pad * 2) / img.height);
+    ctx.filter = `saturate(${sat}) brightness(${bright.toFixed(2)})`;
+    // Fit the source inside the output canvas rather than covering it. Cover
+    // is correct for a thumbnail, but it is the cause of the selected-theme
+    // bug: a portrait viewport makes a 16:9 source grow until it is several
+    // times larger than its native resolution, then crops it into a detail.
+    // Containment keeps the entire source composition and never upscales it
+    // just to satisfy a tall viewport. The remaining letterbox is filled with
+    // the theme tone, not a stretched copy of the image.
+    const s = Math.min(c.width / img.width, c.height / img.height);
     const dw = img.width * s;
     const dh = img.height * s;
+    ctx.fillStyle = theme.tone || "#20241f";
+    ctx.fillRect(0, 0, c.width, c.height);
     ctx.drawImage(img, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
     ctx.filter = "none";
 
@@ -775,6 +784,10 @@ export function createStudio(canvas) {
     }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+    tex.generateMipmaps = true;
     return { tex, horizon: new THREE.Color(r / px / 255, g / px / 255, b / px / 255) };
   }
 

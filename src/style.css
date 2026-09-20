@@ -1228,6 +1228,27 @@ textarea.social-input {
   display: none;
 }
 
+#item-panel { width: min(300px, calc(100vw - 24px)); }
+#item-controls { display: flex; flex-direction: column; gap: 12px; border: 0; padding: 0; margin: 0; min-width: 0; }
+#item-controls:disabled { opacity: .45; }
+#item-panel input[type="range"] { min-width: 0; width: 0; }
+.item-picker-label, .item-selection-hint { color: var(--ink-dim); font-size: calc(11px * var(--text-scale)); }
+.item-selection-hint { margin: 0; line-height: 1.45; }
+#item-select, #item-color-hex { min-width: 0; color: var(--ink); background: var(--hud-raised); border: 1px solid var(--control-border); border-radius: 6px; padding: 7px; font: inherit; font-size: calc(12px * var(--text-scale)); }
+#item-select { width: 100%; }
+#item-select option { background: var(--hud-strong); }
+.item-custom-color { display: flex; align-items: center; gap: 8px; font-size: calc(11px * var(--text-scale)); }
+.item-custom-color label { flex: 1; }
+#item-color { width: 34px; height: 30px; border: 0; padding: 0; background: transparent; cursor: pointer; }
+#item-color-hex { width: 80px; font-variant-numeric: tabular-nums; }
+#item-color-hex[aria-invalid="true"] { border-color: #de795d; }
+#item-panel :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.building-tools #item-adjust-btn[aria-expanded="true"] { border-color: var(--accent); }
+
+@media (max-width: 700px) {
+  body #item-panel { left: 6px; right: 6px; width: auto; }
+}
+
 .theme-panel,
 .photo-panel {
   position: absolute;
@@ -2682,6 +2703,149 @@ body.focus-mode .hint {
   }
 }
 
+/* Requested desktop arrangement: the three mode tabs stay together on the
+   upper-left, while the quick build actions form one compact group on the
+   upper-right. More opens the full vertical sidebar below that group. */
+.utility-bar {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  background: var(--hud);
+  border: 1px solid var(--hud-border);
+  border-radius: 10px;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
+}
+.utility-bar .nav-btn {
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+.utility-bar .utility-icon {
+  width: 34px;
+  padding-inline: 0;
+}
+.utility-bar .more-trigger {
+  min-width: 38px;
+}
+.building-tools {
+  position: absolute;
+  top: 62px;
+  left: var(--tray-x);
+  z-index: 9;
+  display: flex;
+  gap: 5px;
+  padding: 6px;
+  background: var(--hud);
+  border: 1px solid var(--hud-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+.building-tools.hidden { display: none; }
+.building-tools .nav-btn {
+  background: var(--hud-raised);
+  border-color: var(--control-border);
+}
+
+/* The rail is now the expanded More sidebar, not a second copy of the quick
+   controls. */
+.rail {
+  top: 58px;
+  width: min(var(--rail-w), calc(100vw - 24px));
+  /* Six compact leaf rows with a small inset; width never drives height. */
+  height: 362px;
+  z-index: 11;
+}
+.rail:has(> .more-menu.hidden) > .panel-grip { display: none; }
+.rail > .rail-hide { display: none; }
+.rail > .rail-hide {
+  top: -4px;
+  left: auto;
+  right: 0;
+}
+.more-menu {
+  width: 100%;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+}
+.more-section {
+  display: grid;
+  gap: 4px;
+}
+.more-section-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--control-border);
+}
+.more-section-btn .nav-text { flex: 1; text-align: left; }
+.rail .more-section-btn .nav-text { display: block; }
+.more-chevron { color: var(--ink-dim); font-size: 18px; line-height: 1; }
+.more-section-btn[aria-expanded="true"] .more-chevron { transform: rotate(90deg); }
+.more-detail {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 2px 18px;
+}
+.more-detail.is-open { display: flex; }
+.more-detail .nav-btn {
+  flex: 1;
+  justify-content: center;
+  padding: 7px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--control-border);
+}
+.more-detail .sound-toggle { flex: 0 0 34px; }
+.more-detail .fader { min-width: 0; }
+
+/* Scene moods are part of Themes now. Keep the existing controls and handlers,
+   but let them flow naturally inside the theme sheet instead of floating as a
+   separate panel. */
+.theme-panel > .scene-panel {
+  position: static;
+  inset: auto;
+  display: flex;
+  padding: 0 0 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  z-index: auto;
+}
+.theme-panel > .scene-panel .sp-row { width: 100%; }
+.theme-panel > .scene-panel .sp-label { width: auto; min-width: 56px; }
+.theme-panel > .scene-panel .sp-moods { max-width: none; }
+
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .utility-bar {
+    top: 8px;
+    right: 8px;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+  }
+  .utility-bar .nav-text { display: none; }
+  .utility-bar .nav-btn { padding-inline: 8px; }
+  .utility-bar .nav-btn--lang { font-size: 0; }
+  .utility-bar .nav-btn--lang::after { content: "বাংলা"; font-size: calc(12px * var(--text-scale)); }
+  .building-tools {
+    top: 54px;
+    left: var(--tray-x);
+    max-width: calc(100vw - var(--tray-x) - 8px);
+    overflow-x: auto;
+  }
+  .rail { top: 54px; right: 8px; }
+  .more-menu { width: min(320px, calc(100vw - 16px)); }
+}
+
 /* ============================================================================
    Juice: toasts, +XP floaters, confetti, tray fly-to, and tactile button
    feedback. Purely additive; reduced-motion neutralises the animations via the
@@ -3792,7 +3956,7 @@ body.pre-first-build .game-panel {
   --tray-w: calc(244px * var(--furniture-scale));
   --tray-x: calc(266px * var(--furniture-scale));
   --tray-fx: calc(256px * var(--furniture-scale));
-  --rail-w: calc(190px * var(--furniture-scale));
+  --rail-w: calc(250px * var(--furniture-scale));
 }
 
 /* Tray chips stop clipping their names and wrap instead. */
@@ -5151,6 +5315,12 @@ body.photo-mode .release-hint {
   pointer-events: auto;
 }
 .tool-depth.hidden { display: none; }
+.tool-depth-current {
+  flex-basis: 100%;
+  color: var(--ink-dim);
+  font-size: calc(10.5px * var(--text-scale));
+  line-height: 1.2;
+}
 .depth-step {
   flex: 0 0 auto;
   width: 24px;
@@ -5309,6 +5479,32 @@ body.photo-mode .release-hint {
 .layer-empty.hidden,
 .layer-edit.hidden { display: none; }
 
+.grain-controls { display:block; margin-top:9px; padding-top:8px; border-top:1px solid var(--control-border); pointer-events:auto; font-size:calc(11px * var(--text-scale)); }
+.grain-controls.hidden { display:none; }
+.grain-slider-row { display:flex; align-items:center; gap:6px; margin:5px 0; }
+.grain-slider-row input { flex:1; min-width:45px; width:100px; accent-color:var(--accent); }
+.grain-slider-row output { min-width:36px; text-align:right; font-variant-numeric:tabular-nums; }
+.grain-controls .depth-step:disabled { opacity:.35; cursor:default; }
+.grain-color-row { display:flex; align-items:center; gap:9px; }
+.grain-color-row select { flex:1; min-width:0; padding:4px 6px; color:var(--ink); background:var(--panel, #28271f); border:1px solid var(--control-border); border-radius:6px; font:inherit; }
+.grain-controls small { display:block; margin-top:5px; color:var(--ink-dim); font-size:10px; }
+.grain-controls :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+#layer-edit .cfg-row input[type="range"] { min-width:0; width:0; }
+
+/* The former floating layer editor now lives above the layer actions inside
+   the right-side panel. Keep the older editor fields in the DOM for its
+   existing update/history wiring, but show one visible set of controls. */
+#layer-panel > .tool-depth { margin-top: 2px; }
+#layer-panel > .tool-depth-slider,
+#layer-panel > #tool-grain,
+#layer-panel > #depth-note,
+#layer-panel > #depth-total { width: 100%; }
+#layer-panel > #layer-edit > .cfg-row,
+#layer-panel > #layer-edit > .layer-note,
+#layer-panel > #layer-edit > .grain-controls,
+#layer-panel > #layer-totals { display: none; }
+#layer-panel > #layer-edit { gap: 0; margin-top: 2px; }
+
 /* ============ item size ============
    100% is the item's intended default now that every model is normalised, so
    the number means something and is worth showing beside the slider. */
@@ -5385,4 +5581,212 @@ body.photo-mode .release-hint {
   height: 9px;
   border-radius: 3px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+/* Local option artwork supplied in public/. The files are black artwork on a
+   transparent canvas, so invert it once for the light text used by the HUD. */
+.ui-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+}
+.ui-icon--color { filter: none; }
+.nav-ico,
+.more-icon,
+.focus-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.more-icon .ui-icon { width: 19px; height: 19px; }
+.focus-ico .ui-icon { width: 17px; height: 17px; }
+.nav-btn:hover .ui-icon,
+.focus-btn:hover .ui-icon,
+.more-section-btn:hover .ui-icon { opacity: 1; }
+
+/* The reference has a curved, serrated body, a short downturned tip and a
+   small stem on the right. Share its SVG outline rather than clipping the
+   entire button (which also cut through its icon and focus ring). */
+.more-leaf-defs { position: absolute; pointer-events: none; }
+.top-nav-leaf {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: var(--hud);
+  stroke: var(--control-border);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.18));
+  pointer-events: none;
+}
+.top-nav-leaf--reverse { transform: scaleX(-1); }
+.tabs,
+.utility-bar {
+  top: 8px;
+  padding: 22px 44px 26px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+.utility-bar { backdrop-filter: none; }
+body.reduced-transparency .tabs { background: transparent; }
+body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
+.tabs > .tab,
+.utility-bar > .nav-btn {
+  position: relative;
+  z-index: 1;
+}
+/* Leave space below the fuller leaves for their existing tools and drawers. */
+@media (min-width: 701px) and (min-height: 461px) {
+  .hud-tools,
+  .building-tools,
+  .rail,
+  .game-panel,
+  .cfg-panel,
+  .theme-panel,
+  .photo-panel { top: 104px; }
+  .theme-panel { --panel-top: 104px; }
+}
+/* On smaller screens each navigation leaf has its own row. */
+@media (min-width: 701px) and (max-width: 1260px) and (min-height: 461px) {
+  .tabs { top: 98px; }
+  .hud-tools,
+  .building-tools,
+  .rail,
+  .game-panel,
+  .cfg-panel,
+  .theme-panel,
+  .photo-panel { top: 194px; }
+  .theme-panel { --panel-top: 194px; }
+}
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .utility-bar { padding: 14px 22px 18px; }
+  .tabs { top: 80px; padding: 14px 20px 18px; }
+  .hud-tools,
+  .building-tools { top: 164px; }
+}
+.more-menu {
+  /* Keep the compact panel height while its inner edge is dragged.
+     Longer contents scroll inside, like the items in the left shelf. */
+  height: 100%;
+  max-height: none;
+  align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  gap: 2px;
+  padding: 8px;
+}
+.more-menu .more-section-btn {
+  position: relative;
+  /* Fixed vertical dimensions keep horizontal panel resizing horizontal. */
+  height: 84px;
+  min-height: 84px;
+  padding: 0;
+  /* Tips nest down the left edge, just as in the drawing. The painted
+     shapes, not the overlapping rectangular boxes, receive pointer input. */
+  margin-bottom: -34px;
+  pointer-events: none;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+.more-section:last-child > .more-section-btn { margin-bottom: 0; }
+.more-leaf-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: var(--hud-raised);
+  stroke: var(--control-border);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.more-leaf-art use { pointer-events: visiblePainted; }
+.more-label {
+  position: absolute;
+  left: 26%;
+  right: 22%;
+  top: 17%;
+  height: 34%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  pointer-events: auto;
+}
+.more-section-btn .more-label .nav-text { flex: 0 1 auto; text-align: center; }
+.more-section-btn > .more-chevron {
+  position: absolute;
+  right: calc(26% - 9px);
+  top: 17%;
+  height: 34%;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+.more-section-btn:hover .more-leaf-art {
+  fill: var(--accent-dim);
+  stroke: var(--accent-line);
+}
+.more-section-btn[aria-expanded="true"] .more-leaf-art,
+.more-section-btn.is-active .more-leaf-art {
+  fill: var(--accent-solid);
+  stroke: var(--accent);
+}
+.more-section-btn:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.more-section-btn:focus-visible .more-leaf-art {
+  stroke: var(--focus);
+  stroke-width: 3;
+}
+.more-section-btn:active { box-shadow: none !important; }
+/* Expanded controls occupy the clear space to the right of the tip. */
+.more-section > .more-detail { margin-left: 23%; padding-left: 0; flex-wrap: wrap; }
+.more-section > #sound-details { flex-wrap: nowrap; }
+.rail > .panel-grip::before { opacity: 0.65; }
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .rail { height: auto; }
+  .more-menu {
+    height: auto;
+    max-height: min(calc(82dvh - var(--dock-h, 0px)), 680px);
+  }
+}
+
+/* Building editors use the same left-hand dock as the decoration tray. Keep
+   this desktop-only so the existing phone sheet layout remains untouched. */
+@media (min-width: 701px) and (min-height: 461px) {
+  .cfg-panel {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    width: var(--tray-w);
+    max-height: none;
+    padding: 12px 10px;
+    background: var(--hud);
+    border: 0;
+    border-right: 1px solid var(--hud-border);
+    border-radius: 0;
+    z-index: 6;
+    box-shadow: 4px 0 28px rgba(0, 0, 0, 0.26);
+  }
+
+  #item-panel,
+  #jar-panel,
+  #layer-panel {
+    width: var(--tray-w);
+  }
 }

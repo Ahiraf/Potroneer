@@ -13,7 +13,11 @@
     "check:sizes": "node tools/check-item-sizes.mjs",
     "check:fit": "node tools/check-item-fit.mjs",
     "check:substrate": "node tools/check-substrate-fit.mjs",
-    "check": "npm run check:layers && npm run check:sizes && npm run check:substrate && npm run check:fit"
+    "check:materials": "node tools/check-natural-materials.mjs",
+    "check:grain": "node tools/check-layer-grain.mjs",
+    "check:items": "node tools/check-item-appearance.mjs && node tools/check-item-panel.mjs",
+    "check:landscaping": "node tools/check-landscaping.mjs",
+    "check": "npm run check:layers && npm run check:sizes && npm run check:substrate && npm run check:fit && npm run check:materials && npm run check:grain && npm run check:items && npm run check:landscaping"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",

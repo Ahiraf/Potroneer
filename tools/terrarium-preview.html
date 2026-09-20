@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Potroneer · Material preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #283b2a; font: 15px system-ui,sans-serif; background: #edf0eb; }
+    canvas { width: calc(100vw - 270px); margin-left:270px; height: 100vh; display: block; }
+    header { position: absolute; top: 28px; left: 24px; max-width: 225px; }
+    h1 { font-size: 25px; letter-spacing: -.8px; margin: 8px 0 10px; font-weight: 550; }
+    p { line-height: 1.55; color: #566456; margin: 8px 0; }
+    small { text-transform: uppercase; letter-spacing: 2px; font-size: 10px; }
+    nav { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+    button, a, select { border: 1px solid #bec8ba; color: #304a31; background: #f9fbf5e8; border-radius: 20px; padding: 9px 14px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; }
+    label { display:block; font-size:12px; margin-top:12px; } select { display:block; margin-top:5px; max-width:100%; }
+    button[aria-pressed="true"] { color: white; background: #365d3b; }
+    footer { position: absolute; bottom: 20px; left: 24px; max-width: 225px; font-size: 12px; }
+    @media(max-width:700px) {
+      body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+      header { position:static; order:1; padding:16px 16px 0; max-width:none; flex:none; }
+      canvas { order:2; flex:1; min-height:0; height:auto; width:100vw; margin-left:0; }
+      h1 { font-size:20px; margin:6px 0; } p { font-size:12px; margin:4px 0; }
+      nav { margin-top:10px; gap:5px; } button,a { padding:7px 10px; font-size:12px; }
+      footer { position:static; order:3; padding:0 16px 10px; max-width:none; flex:none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="preview" aria-label="Live terrarium using the same materials and foliage as the builder"></canvas>
+  <header>
+    <small>Potroneer / Live material preview</small>
+    <h1>A miniature forest.</h1>
+    <p>Cork jars, dark granular layers, fine colour stripes, veined leaves and moss. All available in the builder.</p>
+    <label>Jar shape<select id="jar-style">
+      <option value="cork-taper">Tapered cork jar</option><option value="cork-cylinder">Cork cylinder</option>
+      <option value="cork-low">Wide cork jar</option><option value="cork-tall">Tall cork jar</option>
+      <option value="cork-shoulder">Round-shoulder cork jar</option>
+    </select></label>
+    <label>Layer design<select id="layer-style">
+      <option value="lime">Lime twin stripes</option><option value="blush">Blush twin stripes</option>
+      <option value="ember">Red twin stripes</option><option value="woodland">Woodland layers</option>
+      <option value="rainbow">Rainbow stack</option>
+    </select></label>
+    <nav aria-label="Preview controls">
+      <button id="whole" aria-pressed="true">Whole jar</button>
+      <button id="detail" aria-pressed="false">Look closer</button>
+      <button id="glass" aria-pressed="true">Glass on</button>
+      <button id="old-glass" aria-pressed="false">Compare old glass</button>
+      <a href="/">Open builder</a>
+    </nav>
+  </header>
+  <footer><p>In the builder: choose a cork jar → Base layers → Photo-inspired layers → Plant a reference garden. Each plant stays editable. This preview does not change your saves.</p></footer>
+  <script type="module" src="./terrarium-preview.js"></script>
+</body>
+</html>

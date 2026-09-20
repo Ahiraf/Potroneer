@@ -108,6 +108,33 @@ export const BASE_LAYERS = [
   },
 ];
 
+// Append only: saved terrain paint stores the original materials by index.
+// Thin decorative sands keep their own grain; they never recolour real soil.
+BASE_LAYERS.push(...[
+  ["sand-coral", "প্রবাল লাল বালু", "#cc4934"],
+  ["sand-amber", "কমলা বালু", "#e38b24"],
+  ["sand-gold", "সোনালি বালু", "#d9bd35"],
+  ["sand-emerald", "সবুজ বালু", "#37954e"],
+  ["sand-turquoise", "ফিরোজা বালু", "#299dba"],
+  ["sand-violet", "বেগুনি বালু", "#9055b2"],
+].map(([id, label, swatch]) => ({
+  id, label, swatch, colors: [swatch], grain: 0.35,
+  layerHeight: 0.045, minMm: 2, maxMm: 20, decorative: true,
+})));
+
+// Keep new materials after every existing paint index, including the rainbow.
+BASE_LAYERS.push(
+  { id: "forest-soil", label: "গাঢ় বনমাটি", swatch: "#28231d", colors: ["#28231d","#342b20","#1d1c18"], organic: true, grain: .85, layerHeight: .20, minMm: 5, maxMm: 60 },
+  { id: "sand-lime", label: "কচি সবুজ বালু", swatch: "#78bb28", colors: ["#78bb28"], grain: .3, layerHeight: .02, minMm: 1, maxMm: 12, decorative: true },
+  { id: "sand-blush", label: "হালকা গোলাপি বালু", swatch: "#debdc6", colors: ["#debdc6"], grain: .3, layerHeight: .02, minMm: 1, maxMm: 12, decorative: true },
+  ...[
+    ["gravel-black", "কালো কুচি পাথর", "#242321", ["#242321","#343331","#191a18"]],
+    ["gravel-honey", "মধুরঙা কুচি পাথর", "#b88b45", ["#b88b45","#d3b472","#947040"]],
+    ["gravel-ivory", "হাতির দাঁত রঙের কুচি", "#c4b7a0", ["#c4b7a0","#e0d5bf","#9c9384"]],
+    ["gravel-rust", "কমলা কুচি পাথর", "#b85224", ["#b85224","#cc7032","#9c421d"]],
+  ].map(([id,label,swatch,colors]) => ({id,label,swatch,colors,chunky:true,granule:.015,grain:.7,layerHeight:.04,minMm:2,maxMm:20,decorative:true})),
+);
+
 // Modelled on what real terrarium builders actually use — and expanded
 // avatar-creator style: every kind comes in multiple colour/style variants so
 // the library feels endless. Each entry carries a `variant` object that its
@@ -809,7 +836,51 @@ add("elephant", "হাতি", [["", {}]]);
 
 // Category assignment for the flyout panel (like the reference game's
 // Favorites / Mushrooms / Rocks / Structures / Pine / Wood / Plant list).
+// Reference plants remain separate editable items, not a baked terrarium.
+add("fittoniabush", "ফিটোনিয়া ঝোপ", [
+  ["গোলাপি", { vein: "#e59baa", base: "#67323e" }],
+  ["সাদা", { vein: "#dce6c3", base: "#244924" }],
+  ["লাল", { vein: "#e25c75", base: "#512b31" }],
+]);
+add("aralia", "আরালিয়া", [["", {}]]);
+add("crag", "খাঁজকাটা পাথর", [
+  ["হালকা", {color:"#a69e82"}], ["গাঢ়", {color:"#686b61"}],
+]);
+add("mineralpatch", "আলগা কুচি পাথর", [
+  ["সোনালি", {colors:["#bd8f47","#e0bf79","#92723e"]}],
+  ["সাদা", {colors:["#c4b7a0","#e0d5bf","#9c9384"]}],
+  ["কালো", {colors:["#242321","#343331","#191a18"]}],
+]);
+
+// Individual hardscape pieces can be arranged into steps and retaining walls.
+add("riverpebble", "নদীর নুড়ি", [
+  ["ধূসর", {color:"#85877f",seed:1}], ["কালো", {color:"#424943",seed:2}], ["সাদা", {color:"#d3cfc3",seed:3}],
+]);
+add("steppingstone", "ধাপের পাথর", [
+  ["ধূসর", {color:"#747c71",seed:4}], ["কালো", {color:"#424c46",seed:5}], ["বেলে", {color:"#b6a68a",seed:6}],
+]);
+add("slatechip", "পাতলা স্লেট", [
+  ["ধূসর", {color:"#717781",seed:7}], ["কালো", {color:"#42484d",seed:8}], ["মরচে", {color:"#99806a",seed:9}],
+]);
+add("granite", "গ্রানাইট", [
+  ["ধূসর", {color:"#aca9a0",seed:10}], ["গোলাপি", {color:"#bba091",seed:11}], ["গাঢ়", {color:"#777d7c",seed:12}],
+]);
+add("lavastone", "লাভা পাথর", [
+  ["কালো", {color:"#4e514b",seed:13}], ["লাল", {color:"#8f5845",seed:14}], ["বাদামি", {color:"#79674e",seed:15}],
+]);
+add("sandstone", "বেলেপাথর", [
+  ["বেলে", {color:"#c3a980",seed:16}], ["মরচে", {color:"#b5815d",seed:17}], ["সাদা", {color:"#cdc1a6",seed:18}],
+]);
+
 const CAT_BY_KIND = {
+  riverpebble: "rocks",
+  steppingstone: "rocks",
+  slatechip: "rocks",
+  granite: "rocks",
+  lavastone: "rocks",
+  sandstone: "rocks",
+  crag: "rocks",
+  mineralpatch: "rocks",
   moss: "moss",
   mossball: "moss",
   cushionmoss: "moss",
@@ -973,6 +1044,7 @@ export const HABITATS = {
 };
 
 const HABITAT_BY_KIND = {
+  fittoniabush: "closed", aralia: "closed",
   // forest-floor plants and mosses — the ones a closed jar is built for
   moss: "closed", mossball: "closed", cushionmoss: "closed", starmoss: "closed",
   smoothcapmoss: "closed", fissidens: "closed", fernmoss: "closed",

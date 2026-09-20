@@ -205,17 +205,88 @@
 
       <!-- top-center mode tabs, like the reference game -->
       <nav class="tabs" id="tabs">
+        <svg class="top-nav-leaf top-nav-leaf--reverse" viewBox="0 0 1000 230" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#top-nav-leaf-outline" /></svg>
         <button class="tab" data-tab="sculpt">ভাস্কর্য</button>
         <button class="tab" data-tab="paint">পেইন্টিং</button>
         <button class="tab is-active" data-tab="decor">সাজানো</button>
+        <button class="tab" data-tab="building" data-i18n="বিল্ডিং">বিল্ডিং</button>
       </nav>
 
-      <!-- Top bar: five things you reach for constantly, as icon buttons.
-           Everything else lives one tap away in More, grouped by what it does,
-           so the screen around the jar stays empty. -->
+      <div class="building-tools hidden" id="building-tools" aria-label="Building tools">
+        <button id="item-adjust-btn" class="nav-btn" data-i18n="আইটেম সাজাও" aria-controls="item-panel">আইটেম সাজাও</button>
+        <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
+        <button id="layer-btn" class="nav-btn" data-i18n="স্তর সাজাও">স্তর সাজাও</button>
+      </div>
+
+      <!-- The compact upper-right action row keeps the everyday build actions
+           beside the mode tabs. Panels and secondary tools live in More. -->
+      <nav class="utility-bar" aria-label="Quick controls">
+        <svg class="top-nav-leaf" viewBox="0 0 1000 230" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#top-nav-leaf-outline" /></svg>
+        <button id="focus-btn" class="nav-btn nav-btn--focus" data-i18n="ফোকাস বিল্ড" title="ফোকাস বিল্ড" aria-pressed="false">
+          <span class="nav-ico"><img class="ui-icon" src="/Focus%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text">ফোকাস বিল্ড</span>
+        </button>
+        <button id="undo" class="nav-btn utility-icon" type="button" data-i18n-title="ফেরাও" title="ফেরাও" aria-label="ফেরাও"><span class="nav-ico"><img class="ui-icon" src="/undo%20icon.png" alt="" aria-hidden="true"></span></button>
+        <button id="redo" class="nav-btn utility-icon is-disabled" type="button" data-i18n-title="আবার" title="আবার" aria-label="আবার"><span class="nav-ico"><img class="ui-icon" src="/Redo%20icon.png" alt="" aria-hidden="true"></span></button>
+        <button id="autospin" class="nav-btn" data-i18n="ঘোরাও" title="ঘোরাও" aria-pressed="false">
+          <span class="nav-ico"><img class="ui-icon" src="/Rotate%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text">ঘোরাও</span>
+        </button>
+        <button id="lang" class="nav-btn nav-btn--lang" title="বাংলা / English">বাংলা</button>
+        <button id="more-btn" class="nav-btn more-trigger" data-i18n="আরও" title="আরও" aria-expanded="false" aria-controls="more-menu">
+          <span class="nav-ico"><span aria-hidden="true">☰</span></span><span class="nav-text">আরও</span>
+        </button>
+      </nav>
+
       <!-- Right rail: everything you reach for, as physical keycaps. It hides
            in one press (the ✕, like Townscaper's panel) and the jar gets the
            whole screen back; the round handle brings it home. -->
+      <!-- Shared hand-drawn outline with a shorter left body and downturned
+           tip. Only the artwork is shaped; labels stay unclipped. -->
+      <svg class="more-leaf-defs" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs>
+          <!-- Broad, curved lobes echo the sidebar leaf. The downturned tip
+               and stem sit beyond the padded navigation button row. -->
+          <path id="top-nav-leaf-outline" vector-effect="non-scaling-stroke" d="
+            M 12 218
+            C 33 184 23 135 47 95 C 64 68 94 61 130 58
+            Q 117 47 104 49
+            Q 151 25 210 46 Q 202 32 190 28
+            Q 235 9 296 35 L 279 18
+            Q 324 1 383 29 Q 375 15 365 10
+            Q 421 0 472 25 L 459 9
+            Q 516 2 560 27 Q 552 11 542 8
+            Q 602 4 653 33 L 641 13
+            Q 699 12 741 41 Q 735 26 727 23
+            Q 788 21 831 52 L 822 33
+            Q 879 37 914 62 C 936 76 946 88 949 101
+            Q 965 97 980 88 Q 987 85 994 91
+            Q 977 105 949 106
+            C 940 134 906 160 859 170 L 875 149
+            Q 827 184 772 185 L 791 164
+            Q 741 199 684 191 L 705 171
+            Q 652 205 596 195 L 617 175
+            Q 563 207 508 195 L 529 176
+            Q 475 207 420 195 L 441 176
+            Q 383 206 330 192 L 351 173
+            Q 294 203 240 187 L 260 168
+            Q 204 198 154 182 L 174 163
+            C 126 178 66 194 12 218 Z" />
+          <path id="more-leaf-outline" transform="translate(-65 0)" vector-effect="non-scaling-stroke" d="
+            M 210 450
+            C 228 417 221 380 236 352 C 255 326 291 310 340 291
+            L 323 278 Q 360 248 413 251 L 397 228
+            Q 447 204 500 229 L 482 208 Q 498 189 523 198
+            Q 551 194 567 214 L 557 194 Q 559 187 576 190
+            Q 627 190 668 218 L 663 192 Q 677 184 696 194
+            L 724 206 Q 740 210 747 242
+            Q 770 238 792 226 Q 805 219 819 224 L 820 230 L 830 233
+            Q 807 248 779 248 Q 757 250 747 246
+            C 735 283 706 315 646 336 L 660 302
+            Q 619 340 575 343 L 583 324 Q 541 361 502 347 L 519 327
+            Q 462 365 407 359 L 433 339
+            Q 385 371 344 382 L 354 358
+            C 316 386 259 404 210 450 Z" />
+        </defs>
+      </svg>
       <aside class="rail" id="rail" aria-label="Potroneer controls">
         <!-- Drag the rail's inner edge to widen it; the keycaps grow with it. -->
         <div
@@ -229,79 +300,43 @@
         ></div>
         <button class="rail-hide" id="rail-hide" type="button" aria-label="Hide controls" title="Hide controls">✕</button>
 
-        <div class="rail-card rail-card--brand">
-          <span class="rail-brand">Potroneer</span>
-          <span class="rail-brand-sub" data-i18n="কাঁচের নিচে ছোট্ট এক জগৎ">কাঁচের নিচে ছোট্ট এক জগৎ</span>
-        </div>
-
-        <div class="rail-card">
-          <span class="rail-title" data-i18n="বানানো">বানানো</span>
-          <div class="nav-primary">
-            <button id="theme-btn" class="nav-btn" data-i18n="থিম" title="থিম">
-              <span class="nav-ico">🖼</span><span class="nav-text">থিম</span>
-            </button>
-            <!-- Focus Build is the workspace, not a preference — it sits with the
-                 everyday verbs rather than two taps down inside More. -->
-            <button id="focus-btn" class="nav-btn nav-btn--focus" data-i18n="ফোকাস বিল্ড" title="ফোকাস বিল্ড" aria-pressed="false">
-              <span class="nav-ico">🎯</span><span class="nav-text">ফোকাস বিল্ড</span>
-            </button>
-            <button id="calm-camera" class="nav-btn nav-btn--quiet" data-i18n="ক্যামেরা" title="ক্যামেরা">
-              <span class="nav-ico">🎥</span><span class="nav-text">ক্যামেরা</span>
-            </button>
-            <button id="save" class="nav-btn" data-i18n="সেভ" title="সেভ">
-              <span class="nav-ico">💾</span><span class="nav-text">সেভ</span>
-            </button>
-            <button id="more-btn" class="nav-btn" data-i18n="আরও" title="আরও" aria-expanded="false">
-              <span class="nav-ico">⋯</span><span class="nav-text">আরও</span>
-            </button>
-          </div>
-          <div class="nav-primary nav-primary--history">
-            <button id="undo" class="nav-btn" data-i18n="ফেরাও" title="ফেরাও">
-              <span class="nav-ico">↶</span><span class="nav-text">ফেরাও</span>
-            </button>
-            <button id="redo" class="nav-btn is-disabled" data-i18n="আবার" title="আবার">
-              <span class="nav-ico">↷</span><span class="nav-text">আবার</span>
-            </button>
-          </div>
-          <button id="autospin" class="nav-btn nav-btn--wide" data-i18n="ঘোরাও" title="ঘোরাও" aria-pressed="false">
-            <span class="nav-ico">⟳</span><span class="nav-text">ঘোরাও</span>
-          </button>
-        </div>
-
-        <div class="rail-card rail-card--sound">
-          <button id="sound" class="sound-toggle" type="button" aria-pressed="false" title="শব্দ">
-            <span class="sound-ico">🔊</span>
-          </button>
-          <input id="volume" class="fader" type="range" min="0" max="100" value="50" aria-label="Volume" />
-        </div>
-
-        <div class="rail-card rail-card--lang">
-          <button id="lang" class="nav-btn nav-btn--lang" title="English / বাংলা">EN</button>
-        </div>
-
         <div class="more-menu hidden" id="more-menu">
-          <span class="more-menu-title" data-i18n="বানানো">বানানো</span>
-          <div class="more-row">
-            <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
-            <button id="layer-btn" class="nav-btn" data-i18n="স্তর সাজাও">স্তর সাজাও</button>
-            <button id="bg-btn" class="nav-btn" data-i18n="পরিবেশ">পরিবেশ</button>
+          <div class="more-section">
+            <button id="theme-btn" class="more-section-btn nav-btn" data-i18n="থিম" title="থিম"><svg class="more-leaf-art" viewBox="70 185 770 280" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#more-leaf-outline" /></svg><span class="more-label"><span class="more-icon"><img class="ui-icon" src="/theme%20icon.svg" alt="" aria-hidden="true"></span><span class="nav-text">থিম</span></span><span class="more-chevron">›</span></button>
           </div>
-          <span class="more-menu-title" data-i18n="সংগ্রহ">সংগ্রহ</span>
-          <div class="more-row">
-            <button id="gallery-btn" class="nav-btn" data-i18n="গ্যালারি">গ্যালারি</button>
-            <button id="photo" class="nav-btn" data-i18n="ছবি">ছবি</button>
-            <button id="achievements-btn" class="nav-btn" data-i18n="অর্জন">অর্জন</button>
+          <div class="more-section">
+            <button id="calm-camera" class="more-section-btn nav-btn" data-i18n="ক্যামেরা" title="ক্যামেরা"><svg class="more-leaf-art" viewBox="70 185 770 280" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#more-leaf-outline" /></svg><span class="more-label"><span class="more-icon"><img class="ui-icon" src="/Camera%20icon.svg" alt="" aria-hidden="true"></span><span class="nav-text">ক্যামেরা</span></span><span class="more-chevron">›</span></button>
           </div>
-          <span class="more-menu-title" data-i18n="সমাজ">সমাজ</span>
-          <div class="more-row">
-            <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
-            <button id="coop-btn" class="nav-btn" data-i18n="কো-অপ">কো-অপ</button>
+          <div class="more-section">
+            <button class="more-section-btn nav-btn" type="button" data-more-target="sound-details"><svg class="more-leaf-art" viewBox="70 185 770 280" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#more-leaf-outline" /></svg><span class="more-label"><span class="more-icon"><img class="ui-icon" src="/Sound%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text" data-i18n="শব্দ">শব্দ</span></span><span class="more-chevron">›</span></button>
+            <div class="more-detail" id="sound-details">
+              <button id="sound" class="sound-toggle" type="button" aria-pressed="false" title="শব্দ"><span class="sound-ico">🔊</span></button>
+              <input id="volume" class="fader" type="range" min="0" max="100" value="50" aria-label="Volume" />
+            </div>
           </div>
-          <span class="more-menu-title" data-i18n="সেটিংস">সেটিংস</span>
-          <div class="more-row">
-            <button id="comfort-btn" class="nav-btn" data-i18n="আরাম">আরাম</button>
-            <button id="intro-replay" class="nav-btn" data-i18n="ইন্ট্রো">ইন্ট্রো</button>
-            <button id="reset" class="nav-btn nav-btn--danger" data-i18n="রিসেট">রিসেট</button>
+          <div class="more-section">
+            <button class="more-section-btn nav-btn" type="button" data-more-target="library-details"><svg class="more-leaf-art" viewBox="70 185 770 280" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#more-leaf-outline" /></svg><span class="more-label"><span class="more-icon"><img class="ui-icon" src="/Library%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text" data-i18n="লাইব্রেরি">লাইব্রেরি</span></span><span class="more-chevron">›</span></button>
+            <div class="more-detail" id="library-details">
+              <button id="gallery-btn" class="nav-btn" data-i18n="গ্যালারি">গ্যালারি</button>
+              <button id="photo" class="nav-btn" data-i18n="ছবি">ছবি</button>
+              <button id="achievements-btn" class="nav-btn" data-i18n="অর্জন">অর্জন</button>
+            </div>
+          </div>
+          <div class="more-section">
+            <button class="more-section-btn nav-btn" type="button" data-more-target="social-details"><svg class="more-leaf-art" viewBox="70 185 770 280" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#more-leaf-outline" /></svg><span class="more-label"><span class="more-icon"><img class="ui-icon" src="/Social%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text" data-i18n="সমাজ">সমাজ</span></span><span class="more-chevron">›</span></button>
+            <div class="more-detail" id="social-details">
+              <button id="community-btn" class="nav-btn" data-i18n="কমিউনিটি">কমিউনিটি</button>
+              <button id="coop-btn" class="nav-btn" data-i18n="কো-অপ">কো-অপ</button>
+            </div>
+          </div>
+          <div class="more-section">
+            <button class="more-section-btn nav-btn" type="button" data-more-target="settings-details"><svg class="more-leaf-art" viewBox="70 185 770 280" preserveAspectRatio="none" aria-hidden="true" focusable="false"><use href="#more-leaf-outline" /></svg><span class="more-label"><span class="more-icon"><img class="ui-icon" src="/Setting%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text" data-i18n="সেটিংস">সেটিংস</span></span><span class="more-chevron">›</span></button>
+            <div class="more-detail" id="settings-details">
+              <button id="profile-btn" class="nav-btn" data-i18n="প্রোফাইল">প্রোফাইল</button>
+              <button id="comfort-btn" class="nav-btn" data-i18n="আরাম">আরাম</button>
+              <button id="intro-replay" class="nav-btn" data-i18n="ইন্ট্রো">ইন্ট্রো</button>
+              <button id="reset" class="nav-btn nav-btn--danger" data-i18n="রিসেট">রিসেট</button>
+            </div>
           </div>
         </div>
       </aside>
@@ -349,25 +384,6 @@
         </div>
       </section>
 
-      <!-- background picker (opens from the পরিবেশ navbar button) -->
-      <div class="scene-panel hidden" id="scene-panel">
-        <div class="sp-row">
-          <span class="sp-label" data-i18n="পরিবেশ">পরিবেশ</span>
-          <div class="sp-moods">
-            <button class="mood-btn is-active" data-mood="studio" data-i18n="স্টুডিও">স্টুডিও</button>
-            <button class="mood-btn" data-mood="day" data-i18n="দিন">দিন</button>
-            <button class="mood-btn" data-mood="dusk" data-i18n="গোধূলি">গোধূলি</button>
-            <button class="mood-btn" data-mood="night" data-i18n="রাত">রাত</button>
-            <button class="mood-btn" data-mood="library" data-i18n="লাইব্রেরি">লাইব্রেরি</button>
-            <button class="mood-btn" data-mood="garden" data-i18n="বাগান">বাগান</button>
-            <button class="mood-btn" data-mood="beach" data-i18n="সৈকত">সৈকত</button>
-            <button class="mood-btn" data-mood="space" data-i18n="মহাকাশ">মহাকাশ</button>
-            <button class="mood-btn" data-mood="mountain" data-i18n="পাহাড়">পাহাড়</button>
-            <button class="mood-btn" data-mood="rain" data-i18n="বৃষ্টি">বৃষ্টি</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Theme gallery: pick a family, then a picture. Every card previews the
            real backdrop, so nothing is chosen blind. -->
       <div class="theme-panel hidden" id="theme-panel">
@@ -386,6 +402,23 @@
         <div class="cfg-head">
           <span data-i18n="থিম বেছে নাও">থিম বেছে নাও</span>
           <button class="hud-btn" id="theme-close">✕</button>
+        </div>
+        <div class="scene-panel" id="scene-panel">
+          <div class="sp-row">
+            <span class="sp-label" data-i18n="পরিবেশ">পরিবেশ</span>
+            <div class="sp-moods">
+              <button class="mood-btn is-active" data-mood="studio" data-i18n="স্টুডিও">স্টুডিও</button>
+              <button class="mood-btn" data-mood="day" data-i18n="দিন">দিন</button>
+              <button class="mood-btn" data-mood="dusk" data-i18n="গোধূলি">গোধূলি</button>
+              <button class="mood-btn" data-mood="night" data-i18n="রাত">রাত</button>
+              <button class="mood-btn" data-mood="library" data-i18n="লাইব্রেরি">লাইব্রেরি</button>
+              <button class="mood-btn" data-mood="garden" data-i18n="বাগান">বাগান</button>
+              <button class="mood-btn" data-mood="beach" data-i18n="সৈকত">সৈকত</button>
+              <button class="mood-btn" data-mood="space" data-i18n="মহাকাশ">মহাকাশ</button>
+              <button class="mood-btn" data-mood="mountain" data-i18n="পাহাড়">পাহাড়</button>
+              <button class="mood-btn" data-mood="rain" data-i18n="বৃষ্টি">বৃষ্টি</button>
+            </div>
+          </div>
         </div>
         <div class="theme-groups" id="theme-groups"></div>
         <div class="theme-grid" id="theme-grid"></div>
@@ -430,8 +463,8 @@
       <div class="focus-hud hidden" id="focus-hud" role="toolbar" aria-label="Focus Build">
         <span class="focus-current" id="focus-current" aria-live="polite">—</span>
         <span class="focus-sep" data-sep="lead" aria-hidden="true"></span>
-        <button id="focus-undo" class="focus-btn" type="button" data-i18n-title="ফেরাও" title="ফেরাও" aria-label="ফেরাও"><span class="focus-ico">↶</span></button>
-        <button id="focus-redo" class="focus-btn" type="button" data-i18n-title="আবার" title="আবার" aria-label="আবার"><span class="focus-ico">↷</span></button>
+        <button id="focus-undo" class="focus-btn" type="button" data-i18n-title="ফেরাও" title="ফেরাও" aria-label="ফেরাও"><span class="focus-ico"><img class="ui-icon" src="/undo%20icon.png" alt="" aria-hidden="true"></span></button>
+        <button id="focus-redo" class="focus-btn" type="button" data-i18n-title="আবার" title="আবার" aria-label="আবার"><span class="focus-ico"><img class="ui-icon" src="/Redo%20icon.png" alt="" aria-hidden="true"></span></button>
         <span class="focus-sep" aria-hidden="true"></span>
         <button id="focus-center" class="focus-btn" type="button" data-i18n-title="মাঝে আনো" title="মাঝে আনো" aria-label="মাঝে আনো"><span class="focus-ico">⊙</span></button>
         <button id="focus-lock" class="focus-btn" type="button" data-i18n-title="ক্যামেরা লক" title="ক্যামেরা লক" aria-label="ক্যামেরা লক" aria-pressed="false"><span class="focus-ico">🔓</span></button>
@@ -516,6 +549,49 @@
         </div>
         <ol class="layer-list" id="layer-list" aria-label="স্তরের তালিকা"></ol>
         <p class="layer-empty hidden" id="layer-empty" data-i18n="এখনো কোনো স্তর নেই — ট্রে থেকে বেস ঢালো।">এখনো কোনো স্তর নেই — ট্রে থেকে বেস ঢালো।</p>
+        <!-- One layer panel owns the selected-layer tools, recipes, grain and
+             totals. This is the former floating editor, moved here so the
+             same controls are not shown in two cards. -->
+        <span class="tool-depth hidden" id="tool-depth">
+          <span class="tool-depth-current" id="depth-current"></span>
+          <button class="depth-step" id="depth-down" type="button"
+            data-i18n-title="পাতলা করো" title="পাতলা করো" aria-label="পাতলা করো">−</button>
+          <output class="depth-value" id="depth-value" for="depth-down depth-up">২০ মিমি</output>
+          <button class="depth-step" id="depth-up" type="button"
+            data-i18n-title="মোটা করো" title="মোটা করো" aria-label="মোটা করো">+</button>
+          <button class="depth-recipe" id="depth-recipe" type="button"
+            data-i18n="ক্লাসিক স্তর">ক্লাসিক স্তর</button>
+          <button class="depth-recipe" id="depth-rainbow" type="button"
+            data-i18n="রঙিন স্তর">রঙিন স্তর</button>
+          <select class="depth-recipe" id="depth-reference" aria-label="Photo-inspired layers" data-i18n-aria-label="ছবির মতো স্তর">
+            <option value="" data-i18n="ছবির মতো স্তর">ছবির মতো স্তর</option>
+            <option value="lime" data-i18n="সবুজ জোড়া দাগ">সবুজ জোড়া দাগ</option>
+            <option value="blush" data-i18n="গোলাপি জোড়া দাগ">গোলাপি জোড়া দাগ</option>
+            <option value="ember" data-i18n="লাল জোড়া দাগ">লাল জোড়া দাগ</option>
+            <option value="woodland" data-i18n="বনমাটির স্তর">বনমাটির স্তর</option>
+          </select>
+          <button class="depth-recipe" id="reference-planting" type="button" data-i18n="বাগান সাজিয়ে দাও">বাগান সাজিয়ে দাও</button>
+          <button class="depth-recipe" id="depth-edit" type="button"
+            data-i18n="স্তর সাজাও">স্তর সাজাও</button>
+        </span>
+        <span class="tool-depth-slider hidden" id="tool-depth-slider">
+          <input type="range" id="depth-range" min="0" max="120" step="1" value="20"
+            data-i18n-aria-label="স্তরের গভীরতা" aria-label="স্তরের গভীরতা" />
+        </span>
+        <span class="grain-controls hidden" id="tool-grain">
+          <label for="current-grain" data-i18n="নির্বাচিত স্তরের বাড়তি দানা">নির্বাচিত স্তরের বাড়তি দানা</label>
+          <span class="grain-slider-row">
+            <button class="depth-step" id="current-grain-down" type="button" aria-label="Less grain" data-i18n-aria-label="দানা কমাও">−</button>
+            <input id="current-grain" type="range" min="0" max="100" step="10" value="0" />
+            <button class="depth-step" id="current-grain-up" type="button" aria-label="More grain" data-i18n-aria-label="দানা বাড়াও">+</button>
+            <output id="current-grain-value" for="current-grain">0%</output>
+          </span>
+          <label class="grain-color-row" for="current-grain-color"><span data-i18n="দানার রং">দানার রং</span>
+            <select id="current-grain-color"><option value="matching" data-i18n="মিলিয়ে রং">মিলিয়ে রং</option><option value="mixed" data-i18n="প্রাকৃতিক মিশ্রণ">প্রাকৃতিক মিশ্রণ</option></select>
+          </label>
+        </span>
+        <span class="tool-depth-note" id="depth-note"></span>
+        <span class="tool-depth-total hidden" id="depth-total"></span>
         <div class="layer-edit hidden" id="layer-edit">
           <div class="cfg-row">
             <span class="cfg-label" data-i18n="গভীরতা">গভীরতা</span>
@@ -524,6 +600,19 @@
             <output class="cfg-value" id="layer-depth-value" for="layer-depth">২০ মিমি</output>
           </div>
           <p class="layer-note" id="layer-note"></p>
+          <div class="grain-controls">
+            <label for="layer-grain" data-i18n="বাড়তি দানা">বাড়তি দানা</label>
+            <div class="grain-slider-row">
+              <button class="depth-step" id="layer-grain-down" type="button" aria-label="Less grain" data-i18n-aria-label="দানা কমাও">−</button>
+              <input id="layer-grain" type="range" min="0" max="100" step="10" value="0" />
+              <button class="depth-step" id="layer-grain-up" type="button" aria-label="More grain" data-i18n-aria-label="দানা বাড়াও">+</button>
+              <output id="layer-grain-value" for="layer-grain">0%</output>
+            </div>
+            <label class="grain-color-row" for="layer-grain-color"><span data-i18n="দানার রং">দানার রং</span>
+              <select id="layer-grain-color"><option value="matching" data-i18n="মিলিয়ে রং">মিলিয়ে রং</option><option value="mixed" data-i18n="প্রাকৃতিক মিশ্রণ">প্রাকৃতিক মিশ্রণ</option></select>
+            </label>
+            <small data-i18n="০% রাখলে বর্তমান পরিষ্কার চেহারা থাকে।">০% রাখলে বর্তমান পরিষ্কার চেহারা থাকে।</small>
+          </div>
           <div class="layer-acts" role="group" aria-label="স্তরের কাজ">
             <button type="button" class="item-act" id="layer-down"><span class="item-act-ico" aria-hidden="true">▼</span><span data-i18n="নিচে">নিচে</span></button>
             <button type="button" class="item-act" id="layer-up"><span class="item-act-ico" aria-hidden="true">▲</span><span data-i18n="উপরে">উপরে</span></button>
@@ -533,9 +622,14 @@
         <p class="layer-totals" id="layer-totals"></p>
       </div>
 
-      <!-- item adjuster: opens when a placed decoration is tapped -->
+      <!-- Building's default inspector: also reachable by tapping a piece. -->
       <div class="cfg-panel hidden" id="item-panel">
-        <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context">নির্বাচিত আইটেম</small></div><button class="hud-btn cfg-close" data-close="item-panel">✕</button></div>
+        <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context" aria-live="polite"></small></div></div>
+        <label class="item-picker-label" for="item-select" data-i18n="বসানো আইটেম বেছে নাও">বসানো আইটেম বেছে নাও</label>
+        <select id="item-select" aria-describedby="item-selection-hint"></select>
+        <p class="item-selection-hint" id="item-selection-hint"></p>
+        <fieldset id="item-controls" disabled>
+        <legend class="sr-only" data-i18n="আইটেম সাজাও">আইটেম সাজাও</legend>
         <!-- the verbs first, then the dials. Move and duplicate are single
              actions with no setting to them, and burying them under two
              sliders made them read as settings too. -->
@@ -549,7 +643,7 @@
              are worth having: the three sizes people actually reach for are a
              tap away, and the slider is there when they want a fourth. -->
         <div class="cfg-row">
-          <span class="cfg-label" data-i18n="সাইজ">সাইজ</span>
+          <label class="cfg-label" for="item-size" data-i18n="সাইজ">সাইজ</label>
           <input id="item-size" type="range" min="30" max="220" value="100"
                  aria-describedby="item-size-value" />
           <output class="cfg-value" id="item-size-value" for="item-size">১০০%</output>
@@ -562,8 +656,17 @@
             <button type="button" class="size-preset" data-size="150" data-i18n="বড়">বড়</button>
           </div>
         </div>
-        <div class="cfg-row"><span class="cfg-label" data-i18n="ঘোরাও">ঘোরাও</span><input id="item-rot" type="range" min="0" max="360" value="0" /></div>
-        <div class="cfg-row"><span class="cfg-label" data-i18n="রং">রং</span><div class="swatches" id="item-swatches"></div></div>
+        <div class="cfg-row"><label class="cfg-label" for="item-rot" data-i18n="ঘোরাও">ঘোরাও</label><input id="item-rot" type="range" min="0" max="360" value="0" /></div>
+        <div class="cfg-row cfg-row--stack">
+          <div class="sw-head"><span class="cfg-label" data-i18n="রং">রং</span><span class="sw-current" id="item-current"></span></div>
+          <div class="swatch-grid" id="item-swatches"></div>
+          <div class="item-custom-color">
+            <label for="item-color" data-i18n="নিজের রং">নিজের রং</label>
+            <input id="item-color" type="color" value="#6faa4e" />
+            <input id="item-color-hex" type="text" value="#6faa4e" maxlength="7" pattern="#[0-9a-fA-F]{6}" aria-label="Hex colour" spellcheck="false" />
+          </div>
+        </div>
+        </fieldset>
       </div>
 
       <!-- gallery modal -->
@@ -870,32 +973,6 @@
         <span class="tool-status-body">
           <strong class="tool-status-mode" id="tool-status-mode">বসানোর মোড</strong>
           <span class="tool-status-does" id="tool-status-does"></span>
-          <!-- How deep the next pour goes. Only shown while holding a base
-               material, because it is the only thing it applies to. The app
-               has always known these depths; this is where it says them. -->
-          <span class="tool-depth hidden" id="tool-depth">
-            <button class="depth-step" id="depth-down" type="button"
-              data-i18n-title="পাতলা করো" title="পাতলা করো" aria-label="পাতলা করো">−</button>
-            <output class="depth-value" id="depth-value" for="depth-down depth-up">২০ মিমি</output>
-            <button class="depth-step" id="depth-up" type="button"
-              data-i18n-title="মোটা করো" title="মোটা করো" aria-label="মোটা করো">+</button>
-            <button class="depth-recipe" id="depth-recipe" type="button"
-              data-i18n="ক্লাসিক স্তর">ক্লাসিক স্তর</button>
-            <button class="depth-recipe" id="depth-edit" type="button"
-              data-i18n="স্তর সাজাও">স্তর সাজাও</button>
-          </span>
-          <!-- The same number as a slider, because stepping from 5mm to 60mm
-               one press at a time is not a control, it is a chore. Its max is
-               whatever the jar has left, so the track itself says how much
-               room there is: a nearly full jar has a nearly full slider. -->
-          <span class="tool-depth-slider hidden" id="tool-depth-slider">
-            <input type="range" id="depth-range" min="0" max="120" step="1" value="20"
-              data-i18n-aria-label="স্তরের গভীরতা" aria-label="স্তরের গভীরতা" />
-          </span>
-          <span class="tool-depth-note" id="depth-note"></span>
-          <!-- Total poured and room left, always visible while pouring. The
-               depth of one band means little without them. -->
-          <span class="tool-depth-total hidden" id="depth-total"></span>
         </span>
       </aside>
 

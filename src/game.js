@@ -362,7 +362,7 @@ export function unlockedKinds(game) {
 function tutorialMatches(game, action) {
   const step = getTutorial(game);
   if (!step) return false;
-  if (step.id === "soil") return action.type === "layer" && action.value === "soil";
+  if (step.id === "soil") return action.type === "layer" && (action.value === "soil" || action.value === "forest-soil");
   if (step.action !== action.type) return false;
   if (step.id === "plant") return PLANT_KINDS.has(action.value);
   return true;

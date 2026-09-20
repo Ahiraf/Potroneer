@@ -1,6 +1,12 @@
 import { startIntro, introReady, onIntroDone, replayIntro } from "./intro.js";
 import * as THREE from "three";
 import { createStudio } from "./scene.js";
+import { CLASSIC_STACK, RAINBOW_STACK, REFERENCE_STACKS } from "./layer-recipes.js";
+import { referencePlanting } from "./reference-garden.js";
+import { grainSettings } from "./grain-settings.js";
+import { applyTint } from "./item-appearance.js";
+import { surfaceOnItems, ensurePlacementId, supportedBy, attachSupport, settleSupportedItems } from "./placement.js";
+import { strokeTerrain } from "./terrain-brush.js";
 import {
   buildJar,
   buildPickPlane,
@@ -13,9 +19,11 @@ import {
 } from "./jar.js";
 import {
   buildLayer,
+  layerSurface,
   buildDecoration,
   buildTerrainCap,
   updateTerrainCap,
+  terrainSurfaceY,
   buildJarLamp,
 } from "./builders.js";
 import {
@@ -40,9 +48,6 @@ import {
   remainingHeight,
   setJarInterior,
   heightAt,
-  sculpt,
-  flatten,
-  paintMaterial,
   jarRadiusAt,
   clampInsideAt,
   jarGridR,
@@ -55,6 +60,7 @@ import {
   layerBounds,
   layerDepthMm,
   setLayerMm,
+  setLayerGrain,
   moveLayer,
   removeLayer,
   adoptLayers,
@@ -260,17 +266,10 @@ let coopPersistTimer = null;
 let coopLocalBuild = null;
 let coopStatus = "disconnected";
 let coopTimer = null;
-// Chosen pour depth per base material, in millimetres. Declared up here with
-// the other start-up state because `updateToolStatus` reads it through
-// renderDepth() and runs during start-up — a `let` further down the file would
-// be a TDZ throw that silently aborts the rest of main.js.
-const DEPTH_KEY = "potroneer-layer-mm";
-let layerMm = {};
-try {
-  layerMm = JSON.parse(localStorage.getItem(DEPTH_KEY) || "{}");
-} catch {
-  layerMm = {};
-}
+// The selected *real* layer. It lives above renderDepth because that readout
+// is called during start-up; declaring it later would leave a temporal-dead
+// zone on the first frame. New pours always select their own finished layer.
+let layerSel = -1;
 
 const COMFORT_KEY = "potroneer-comfort";
 let savedComfort = {};
@@ -502,7 +501,7 @@ function setJar(typeId) {
   // Measure the top off the mesh where there is one — a kite's spire and a
   // slanted crown both stand well above the body the interior describes, and
   // framing on the interior alone crops them off.
-  const declaredTop = it.vesselTop ?? it.floorY + it.bodyHeight + (type.lid ? 0.55 : 0.3);
+  const declaredTop = it.vesselTop ?? it.floorY + it.bodyHeight + (type.referenceJar ? .22 : type.lid ? 0.55 : 0.3);
   const measuredTop = hasVisibleVessel && Number.isFinite(jarBounds.max.y)
     ? jarBounds.max.y + (targetBottom - actualBottom)
     : -Infinity;
@@ -693,6 +692,13 @@ function rebuildSubstrate(animateLast = false) {
   // build: a thrown assertion there would take the app down over a cosmetic
   // disagreement, which is worse than the disagreement.
   if (import.meta.env.DEV) assertStackOrder(state);
+  // These are generated meshes, not shared GLB assets. Release the old stack
+  // on rebuild; the shared grain textures deliberately remain cached.
+  substrateGroup.traverse(o => {
+    o.geometry?.dispose();
+    if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+    else o.material?.dispose();
+  });
   substrateGroup.clear();
   terrainCap = null;
   // The stack starts at the substrate base, not at the jar floor — see
@@ -703,7 +709,7 @@ function rebuildSubstrate(animateLast = false) {
     const isTop = idx === state.layers.length - 1;
     // The layer below, so this one's underside can be built as the *same*
     // surface as that one's top rather than a flat disc floating on its peaks.
-    const mesh = buildLayer(layer, y, isTop, state.layers[idx - 1] ?? null);
+    const mesh = buildLayer(layer, y, isTop, state.layers[idx - 1] ?? null, isTop);
     substrateGroup.add(mesh);
     if (animateLast && isTop) {
       // The layer's vertices carry absolute heights, so scaling the group about
@@ -738,12 +744,26 @@ function rebuildSubstrate(animateLast = false) {
 
 // Height of the (possibly sculpted) surface at a local point.
 function surfaceY(x, z) {
-  return substrateTop(state) + heightAt(state, x, z);
+  return terrainSurfaceY(state, x, z);
 }
 
 // Common raycast targets for anything aimed at the substrate surface.
 function surfaceTargets() {
   return terrainCap ? [terrainCap, pickPlane] : [pickPlane];
+}
+
+let stackPlacement = false;
+function placementTargets(exclude = null, stack = stackPlacement) {
+  const pieces = livePieces();
+  return stack ? [...surfaceTargets(), ...pieces.filter(o => o !== exclude && !supportedBy(o, exclude, pieces))] : surfaceTargets();
+}
+
+function supportFromHit(hit) {
+  return hit ? topDecor(hit.object) : null;
+}
+
+function settleSceneItems() {
+  settleSupportedItems(studio.world, livePieces(), surfaceY);
 }
 
 // The comfort "reduced motion" setting, asked of the DOM so the 3D side and
@@ -805,6 +825,7 @@ function restoreSnapshot(snap) {
   if (d.jarId && d.jarId !== currentJarId) setJar(d.jarId);
   state.layers.length = 0;
   state.layers.push(...d.layers);
+  layerSel = state.layers.length - 1;
   state.decorations.length = 0;
   state.decorations.push(...d.decorations);
   state.terrain.set(d.terrain);
@@ -817,6 +838,7 @@ function restoreSnapshot(snap) {
   // stack have to catch up with the array they describe.
   renderDepth();
   renderLayerPanel();
+  scheduleAutosave(); // includes reverting a layer's grain amount or colour
 }
 
 // Undo and redo grey out when there is nothing behind or ahead of you, so the
@@ -833,10 +855,13 @@ function updateHistoryUi() {
 }
 
 function rebuildAll() {
+  cancelMove();
+  setHoverPiece(null);
   rebuildSubstrate(false);
   decorGroup.clear();
   state.decorations.forEach((rec) => {
     const def = DECOR_BY_ID[rec.id] ?? DECORATIONS.find((d) => d.id === rec.id);
+    ensurePlacementId(rec);
     const obj = getModelClone(rec.kind, rec.id) ?? buildDecoration(rec.kind, def?.variant);
     // Measuring here as well as at placement is what keeps a *loaded* build
     // honest: the records came from a save, so nothing in this session has
@@ -845,6 +870,8 @@ function rebuildAll() {
     if (def) nativeMetrics(def, obj);
     const scale = finalScale(rec);
     obj.rotation.y = rec.rotation;
+    obj.rotation.x = rec.tiltX ?? 0;
+    obj.rotation.z = rec.tiltZ ?? 0;
     obj.position.set(rec.x, rec.y, rec.z);
     obj.scale.setScalar(scale);
     obj.userData.record = rec;
@@ -852,13 +879,19 @@ function rebuildAll() {
     if (rec.tint) applyTint(obj, rec.tint);
     decorGroup.add(obj);
   });
+  // Undo/loading rebuilds the meshes. The inspector must follow the new live
+  // object, not keep editing the detached object from the previous scene.
+  adjTarget = livePieces()[adjSelection] ?? null;
+  renderItemPanel();
   if (wetLevel > 0) applyWetness();
   applyPlantGrowth();
+  settleSceneItems();
   updateHint();
   updateEmptyCall();
 }
 
 function undo() {
+  stopTerrainBrush();
   const snap = history.pop();
   if (!snap) return;
   future.push(currentSnapshot()); // so it can be walked forward again
@@ -866,6 +899,7 @@ function undo() {
 }
 
 function redo() {
+  stopTerrainBrush();
   const snap = future.pop();
   if (!snap) return;
   history.push(currentSnapshot());
@@ -925,7 +959,7 @@ function bodyOf(objOrRec) {
 }
 
 // --- placement -------------------------------------------------------------
-function placeDecoration(worldPoint, def) {
+function placeDecoration(worldPoint, def, support = null) {
   if (state.decorations.length >= (window.innerWidth < 700 ? 72 : 120)) {
     flashHint(getLang() === "bn" ? "জার ভরে গেছে — কিছু জিনিস সরিয়ে আবার চেষ্টা করো।" : "This garden is full — remove something before adding more.");
     return;
@@ -939,6 +973,7 @@ function placeDecoration(worldPoint, def) {
   // that it can never be mistaken for the size system itself.
   const norm = normalizeFactor(def, obj) * jarSizeK();
   const record = {
+    uid: crypto.randomUUID(),
     id: def.id,
     kind: def.kind,
     x: local.x,
@@ -957,14 +992,23 @@ function placeDecoration(worldPoint, def) {
   const spot = snapPlacement(null, local.x, local.z, {
     r: metrics.r * finalScale(record),
     h: metrics.h * finalScale(record),
-  });
+  }, support);
+  if (!spot.valid) {
+    flashHint("এই জায়গায় আইটেমের জন্য যথেষ্ট জায়গা নেই।");
+    return;
+  }
   record.x = spot.x;
   record.z = spot.z;
-  record.y = surfaceY(spot.x, spot.z);
+  record.y = spot.y;
 
   obj.rotation.y = record.rotation;
-  obj.rotation.x = (Math.random() - 0.5) * 0.14; // slight hand-placed lean
-  obj.rotation.z = (Math.random() - 0.5) * 0.14;
+  // Keep hardscape and attached pieces level so their contact is repeatable.
+  if (!support && def.cat !== "rocks") {
+    obj.rotation.x = (Math.random() - 0.5) * 0.14;
+    obj.rotation.z = (Math.random() - 0.5) * 0.14;
+  }
+  record.tiltX = obj.rotation.x;
+  record.tiltZ = obj.rotation.z;
   obj.position.set(record.x, record.y, record.z);
   obj.scale.setScalar(0.001);
   decorGroup.add(obj);
@@ -974,6 +1018,8 @@ function placeDecoration(worldPoint, def) {
   // Link mesh ↔ model so dragging can keep the data in sync.
   obj.userData.record = record;
   obj.userData.baseScale = targetScale;
+  attachSupport(studio.world, obj, spot.support);
+  renderItemPanel();
 
   // Reduced motion gets the plant at full size straight away. The feedback that
   // matters — it appeared, here, where the tweezers were — survives; the
@@ -1031,7 +1077,7 @@ function liftPiece(obj, base) {
  * partial, so a crowded jar still lets you push things past each other rather
  * than fighting you — this is a gentle settle, not a collision system.
  */
-function snapPlacement(obj, x, z, body = null) {
+function snapPlacement(obj, x, z, body = null, support = undefined) {
   let nx = x;
   let nz = z;
   // 1. Inside the glass — the *whole* piece, not its origin.
@@ -1046,6 +1092,14 @@ function snapPlacement(obj, x, z, body = null) {
   //    a loaded GLB exactly as for a procedural build, because both are
   //    described by the same measured box.
   const { r, h } = body ?? bodyOf(obj);
+  const supportId = obj?.userData.record?.supportId;
+  if (support === undefined && supportId) support = livePieces().find(o => o.userData.record?.uid === supportId);
+  if (support && support !== obj && !support.userData.dying && !supportedBy(support, obj, livePieces())) {
+    const surface = surfaceOnItems(studio.world, [support], nx, nz, surfaceY(nx,nz), JAR.floorY + JAR.bodyHeight);
+    if (surface) {
+      return { x:nx, z:nz, y:surface.y, support, valid:bodyFitsAt(nx,nz,surface.y,r,h,GLASS_CLEARANCE) };
+    }
+  }
   const inside = clampBodyInside(nx, nz, surfaceY(nx, nz), r, h, GLASS_CLEARANCE);
   nx = inside.x;
   nz = inside.z;
@@ -1054,7 +1108,10 @@ function snapPlacement(obj, x, z, body = null) {
   //    spacing comes from the two measured footprints: a temple and a
   //    springtail no longer claim the same patch of ground.
   for (const other of decorGroup.children) {
-    if (other === obj || other.userData.dying) continue;
+    if (other === obj || other.userData.dying || supportedBy(other, obj, livePieces())) continue;
+    const otherY = other.userData.record?.y ?? other.position.y;
+    const ground = surfaceY(nx,nz);
+    if (otherY >= ground + h || otherY + bodyOf(other).h <= ground) continue;
     const dx = nx - other.position.x;
     const dz = nz - other.position.z;
     const d = Math.hypot(dx, dz);
@@ -1068,7 +1125,8 @@ function snapPlacement(obj, x, z, body = null) {
   // Pushing clear of a neighbour can push back into the glass, so the
   // containment gets the last word — it is the rule that cannot be bent.
   const held = clampBodyInside(nx, nz, surfaceY(nx, nz), r, h, GLASS_CLEARANCE);
-  return { x: held.x, z: held.z };
+  const y = surfaceY(held.x, held.z);
+  return { x: held.x, z: held.z, y, support:null, valid:bodyFitsAt(held.x,held.z,y,r,h,GLASS_CLEARANCE) };
 }
 
 // --- tap and hold ----------------------------------------------------------
@@ -1174,15 +1232,12 @@ const brushParams = { radius: 50, strength: 50, falloff: 50 };
 function brushRadius() {
   return 0.12 + (brushParams.radius / 100) * 0.45;
 }
-function brushStrength() {
-  return 0.006 + (brushParams.strength / 100) * 0.05;
-}
 function brushFalloff() {
   return 0.3 + (brushParams.falloff / 100) * 1.3;
 }
 
 function applyBrush(screen) {
-  const hit = studio.raycast(screen, surfaceTargets());
+  const hit = studio.raycast(screen, placementTargets());
   if (!hit) return;
   const local = studio.world.worldToLocal(hit.point.clone());
   // the ring follows the stroke, so the affected patch stays visible while you
@@ -1190,21 +1245,7 @@ function applyBrush(screen) {
   cursorGhost.setItem(null);
   cursorGhost.showAt(local, brushRadius());
 
-  if (activeTool === "raise" || activeTool === "lower" || activeTool === "flatten") {
-    if (activeTool === "flatten") {
-      flatten(state, local.x, local.z, 0.5, brushRadius(), brushFalloff());
-    } else {
-      const amt = brushStrength() * (activeTool === "raise" ? 1 : -1);
-      sculpt(state, local.x, local.z, amt, brushRadius(), brushFalloff());
-    }
-    if (terrainCap) updateTerrainCap(terrainCap, state, substrateTop(state));
-    // Everything planted on the surface rides the terrain up/down.
-    decorGroup.children.forEach((obj) => {
-      const rec = obj.userData.record;
-      if (!rec) return;
-      obj.position.y = rec.y = surfaceY(rec.x, rec.z);
-    });
-  } else if (activeTool === "grass" || activeTool === "pebble" || activeTool === "moss") {
+  if (activeTool === "grass" || activeTool === "pebble" || activeTool === "moss") {
     const dx = lastPaint ? local.x - lastPaint.x : Infinity;
     const dz = lastPaint ? local.z - lastPaint.z : Infinity;
     // stroke spacing scales with brush radius
@@ -1219,7 +1260,7 @@ function applyBrush(screen) {
         : activeTool === "moss"
           ? "mosspatch"
           : "grass";
-    placeDecoration(hit.point, { id: kind, kind });
+    placeDecoration(hit.point, { id: kind, kind }, supportFromHit(hit));
   }
 }
 
@@ -1232,21 +1273,59 @@ let basePainting = false;
 // visible at all — it opened a paint stroke of zero length and closed it.
 let basePress = null;
 const BASE_DRAG_SLOP = 7; // px of travel that turns a pour into a stroke
-function applyBaseBrush(screen) {
+let terrainStroke = null;
+let terrainFrame = 0;
+const isSculptTool = () => ["raise", "lower", "flatten"].includes(activeTool);
+
+function moveTerrainBrush(screen) {
+  if (!terrainStroke) return;
+  const hit = studio.raycast(screen, surfaceTargets());
+  terrainStroke.target = hit ? studio.world.worldToLocal(hit.point.clone()) : null;
+}
+
+function startTerrainBrush(screen, base = false) {
+  stopTerrainBrush();
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) return;
-  const local = studio.world.worldToLocal(hit.point.clone());
-  const mi = BASE_LAYERS.findIndex((b) => b.id === selected.id);
-  sculpt(state, local.x, local.z, brushStrength() * 0.8, brushRadius(), brushFalloff());
-  paintMaterial(state, local.x, local.z, brushRadius(), mi);
-  if (!terrainCap) rebuildSubstrate(false); // first stroke creates the cap
-  updateTerrainCap(terrainCap, state, substrateTop(state));
-  decorGroup.children.forEach((obj) => {
-    const rec = obj.userData.record;
-    if (!rec) return;
-    obj.position.y = rec.y = surfaceY(rec.x, rec.z);
-  });
+  const point = studio.world.worldToLocal(hit.point.clone());
+  const now = performance.now();
+  terrainStroke = { target:point, previous:point.clone(), time:now - 1000/60, base };
+  tickTerrainBrush(now); // even a short press gets immediate visible feedback
 }
+
+function tickTerrainBrush(now) {
+  if (!terrainStroke) return;
+  const stroke = terrainStroke;
+  const dt = Math.min(0.05, Math.max(0, (now - stroke.time) / 1000));
+  stroke.time = now;
+  if (stroke.target) {
+    const radius = brushRadius(), falloff = brushFalloff();
+    strokeTerrain(state,stroke.previous,stroke.target,dt,{
+      radius,strength:brushParams.strength,falloff,
+      tool:stroke.base ? "raise" : activeTool,
+      material:stroke.base ? BASE_LAYERS.findIndex(b => b.id === selected.id) : -1,
+    });
+    stroke.previous.copy(stroke.target);
+    if (!terrainCap) rebuildSubstrate(false);
+    if (terrainCap) updateTerrainCap(terrainCap,state,substrateTop(state));
+    settleSceneItems();
+    cursorGhost.setItem(null);
+    cursorGhost.showAt({x:stroke.target.x,y:surfaceY(stroke.target.x,stroke.target.z),z:stroke.target.z},radius);
+    studio.markInteraction();
+  }
+  terrainFrame = requestAnimationFrame(tickTerrainBrush);
+}
+
+function stopTerrainBrush() {
+  if (!terrainStroke) return;
+  cancelAnimationFrame(terrainFrame);
+  terrainStroke = null;
+  cursorGhost.hide();
+  scheduleAutosave();
+}
+window.addEventListener("blur", stopTerrainBrush);
+canvas.addEventListener("pointercancel", stopTerrainBrush);
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopTerrainBrush(); });
 
 // --- care tools: spray (mist on the glass) + water (wets the substrate) ----
 const mistGroup = new THREE.Group(); // condensation clinging to the glass
@@ -1396,7 +1475,7 @@ function gameMetrics() {
     mossCount,
     crewCount,
     layerCount: state.layers.length,
-    hasSoil: state.layers.some((layer) => layer.type === "soil"),
+    hasSoil: state.layers.some((layer) => layer.type === "soil" || BASE_BY_ID[layer.type]?.organic),
     lightOn: jarLight.on,
   };
 }
@@ -2225,7 +2304,7 @@ studio.setGrabHandler((screen) => {
     return true;
   }
   // Base material + drag = paint substrate in any shape.
-  if (activeTool === "place" && selected.group === "base") {
+  if (activeTab !== "building" && activeTool === "place" && selected.group === "base") {
     // Aimed inside the jar at all? Off it, the press turns the jar as usual.
     if (!aimInsideJar(screen)) return false;
     basePress = { x: screen.x, y: screen.y, touch: Boolean(screen.touch) };
@@ -2244,9 +2323,11 @@ studio.setGrabHandler((screen) => {
     }
     lastPaint = null;
     snapshot();
-    applyBrush(screen);
+    if (isSculptTool()) startTerrainBrush(screen);
+    else applyBrush(screen);
     return true;
   }
+  if (stackPlacement && activeTab !== "building" && selected.group === "decor") return false;
   // Otherwise try to grab a placed decoration.
   const pieces = livePieces();
   if (!pieces.length) return false;
@@ -2254,6 +2335,7 @@ studio.setGrabHandler((screen) => {
   if (!hit) return false;
   const obj = topDecor(hit.object);
   if (!obj) return false;
+  if (activeTab === "building") openItemPanel(obj);
   grabbed = obj;
   snapshot();
   // The shell follows the piece up, so on a finger — which never had a hover
@@ -2284,32 +2366,37 @@ studio.setObjectDrag((screen) => {
       basePainting = true;
       snapshot();
       hideReleaseHint();
+      startTerrainBrush(screen, true);
     }
-    if (basePainting) applyBaseBrush(screen);
+    if (basePainting) moveTerrainBrush(screen);
     const ok = showBaseShadow(screen, true);
     if (!basePainting) showReleaseHint(screen, ok);
     return;
   }
   if (activeTool !== "place") {
-    applyBrush(screen);
+    if (isSculptTool()) moveTerrainBrush(screen);
+    else applyBrush(screen);
     return;
   }
   if (!grabbed) return;
   moveLongPress(screen);
-  const hit = studio.raycast(screen, surfaceTargets());
+  const hit = studio.raycast(screen, placementTargets(grabbed, true));
   if (!hit) return;
   const local = studio.world.worldToLocal(hit.point.clone());
   // The piece follows the cursor, but only as far as it is allowed to go — so
   // what you are dragging and where it can actually land stay the same thing.
-  const spot = snapPlacement(grabbed, local.x, local.z);
+  const spot = snapPlacement(grabbed, local.x, local.z, null, supportFromHit(hit));
+  if (!spot.valid) return;
   grabbed.position.x = spot.x;
   grabbed.position.z = spot.z;
-  const ground = surfaceY(spot.x, spot.z);
+  const ground = spot.y;
   grabbed.position.y = ground + LIFT_Y;
   const rec = grabbed.userData.record;
   if (rec) {
     rec.x = spot.x;
     rec.z = spot.z;
+    rec.y = ground;
+    attachSupport(studio.world, grabbed, spot.support);
   }
   // A ring on the ground directly beneath it. Held up in the air the piece
   // hides its own footing, and on a sculpted surface "under the cursor" and
@@ -2319,6 +2406,7 @@ studio.setObjectDrag((screen) => {
 });
 
 studio.setObjectDrop(() => {
+  stopTerrainBrush();
   if (activeTool === "water") fadePour(); // stop the pour when the stroke ends
   if (basePress) {
     const wasPainting = basePainting;
@@ -2358,7 +2446,7 @@ function dropPiece({ silent = false } = {}) {
   grabbed = null;
   const base = obj.userData.baseScale ?? 1;
   const rec = obj.userData.record;
-  const ground = rec ? surfaceY(rec.x, rec.z) : obj.position.y - LIFT_Y;
+  const ground = rec ? (rec.supportId ? rec.y : surfaceY(rec.x, rec.z)) : obj.position.y - LIFT_Y;
   if (rec) rec.y = ground;
   // The piece is no longer held, so the cursor stops saying it is — whichever
   // way it was set down.
@@ -2366,6 +2454,7 @@ function dropPiece({ silent = false } = {}) {
   if (silent || calmMotion()) {
     obj.scale.setScalar(base);
     obj.position.y = ground;
+    settleSceneItems();
     if (!silent) confirmPlacement(obj);
     return;
   }
@@ -2374,6 +2463,7 @@ function dropPiece({ silent = false } = {}) {
   tween(300, (k) => {
     obj.position.y = fromY + (ground - fromY) * k;
     obj.scale.setScalar(base * (fromScale / base + (1 - fromScale / base) * k));
+    if (k >= 1) settleSceneItems();
   }, easeOutBack);
   confirmPlacement(obj);
 }
@@ -2468,24 +2558,13 @@ function syncStrata() {
 const _strataV = new THREE.Vector3();
 
 // --- layer depth -----------------------------------------------------------
-// How deep the next pour goes, in millimetres.
-//
-// The app has always known these depths — every material carries one — it just
-// never said them, so "charcoal is thin" was something the code knew and the
-// builder could not see or change. Saying it in millimetres also lets the app
-// hold an opinion worth having: a drainage bed wants depth, a charcoal filter
-// wants almost none, and real builders quote a quarter to half an inch for it.
-//
-// The chosen depth is remembered *per material*, because they are not one
-// setting: someone who likes a deep drainage bed and a thin charcoal filter
-// should not have to re-dial either.
-/** The depth this material is currently set to pour at. */
-/** The depth this material is currently set to pour at, in millimetres. */
+// New materials pour at their sensible catalogue depth. Once a band exists,
+// the controls always edit that actual band — never a hidden preference for a
+// possible future pour.
 function depthFor(id) {
   const def = BASE_BY_ID[id];
   if (!def) return 0;
-  const chosen = layerMm[id];
-  const want = Number.isFinite(chosen) ? chosen : unitsToMm(def.layerHeight);
+  const want = unitsToMm(def.layerHeight);
   // Held to what the jar can still take, never to a fixed 120mm ceiling. The
   // usable interior *is* the limit, and it is different in every vessel.
   return clampLayerMm(want, maxLayerMm(state, -1));
@@ -2496,19 +2575,9 @@ function depthStep(def) {
   return Math.max(1, Math.round(unitsToMm(def.layerHeight) / 10));
 }
 
-function setDepthFor(id, mm) {
-  const def = BASE_BY_ID[id];
-  if (!def) return;
-  layerMm[id] = clampLayerMm(mm, maxLayerMm(state, -1));
-  try {
-    localStorage.setItem(DEPTH_KEY, JSON.stringify(layerMm));
-  } catch {
-    /* private mode: the depth just resets next session */
-  }
-  renderDepth();
-  // The preview answers "will this fit" from the depth, so it has to be retold.
-  updateHint();
-  refreshBaseShadow();
+function selectedLayer() {
+  const layer = state.layers[layerSel];
+  return layer ? { index: layerSel, layer } : null;
 }
 
 // Advice, not enforcement. Outside the band the app says what the material is
@@ -2524,15 +2593,9 @@ function depthAdviceText(def, mm) {
 }
 
 /**
- * Draw the depth row: the number, the slider, the advice and the two totals
- * that give the number its meaning.
- *
- * Everything here reads `depthFor` — the same function the preview marker and
- * the pour itself read — so the displayed millimetres, the ghost on the
- * substrate and the band that actually lands cannot disagree. They used to:
- * the marker asked the material for its *default* depth while the number on
- * screen showed the user's choice, so a jar with room for a default but not
- * for a chosen 60mm previewed green and then refused.
+ * Draw controls for the selected, already-poured band. These remain available
+ * while placing decorations too, so selecting a target layer is enough to
+ * adjust it — there is no separate "next layer" state to accidentally edit.
  */
 function renderDepth() {
   const row = document.getElementById("tool-depth");
@@ -2541,17 +2604,22 @@ function renderDepth() {
   const note = document.getElementById("depth-note");
   const totals = document.getElementById("depth-total");
   if (!row || !note) return;
-  const def = activeTool === "place" && selected.group === "base" ? BASE_BY_ID[selected.id] : null;
-  row.classList.toggle("hidden", !def);
-  sliderRow?.classList.toggle("hidden", !def);
-  totals?.classList.toggle("hidden", !def);
-  if (!def) {
+  const target = selectedLayer();
+  const def = target && BASE_BY_ID[target.layer.type];
+  row.classList.toggle("hidden", !target || !def);
+  sliderRow?.classList.toggle("hidden", !target || !def);
+  totals?.classList.toggle("hidden", !target || !def);
+  document.getElementById("tool-grain")?.classList.toggle("hidden", !target || !def);
+  if (!target || !def) {
     note.textContent = "";
     return;
   }
-  const mm = depthFor(def.id);
+  const mm = layerDepthMm(target.layer);
+  renderGrainControls("current", target.layer);
   const left = remainingMm(state);
-  const ceiling = maxLayerMm(state, -1);
+  const ceiling = maxLayerMm(state, target.index);
+  const current = document.getElementById("depth-current");
+  if (current) current.textContent = `${t("নির্বাচিত স্তর")}: ${tLabel(def.label)}`;
   document.getElementById("depth-value").textContent = `${toUiDigits(mm)} ${t("মিমি")}`;
   if (range) {
     // The slider's own range carries the jar's remaining capacity, so the
@@ -2575,8 +2643,6 @@ function renderDepth() {
       `${t("মোট")} ${toUiDigits(stackMm(state))} / ${toUiDigits(jarCapacityMm())} ${t("মিমি")}` +
       ` · ${toUiDigits(left)} ${t("মিমি")} ${t("বাকি")}`;
   }
-  // A pour of nothing is not a pour. The tray chip stays live — picking the
-  // material is still fine — but the recipe button and the marker both know.
   row.classList.toggle("is-nil", mm < LAYER_MM_COMMIT_MIN);
 }
 
@@ -2587,56 +2653,114 @@ function refreshBaseShadow() {
   }
 }
 
-// The + / − pair and the slider are three ways to set one number, so they all
-// go through setDepthFor and all of them are reachable by mouse, by touch and
-// by keyboard — the buttons are real <button>s and the slider a real
-// <input type=range>, which is what gives them focus, Enter/Space and the
-// arrow keys for free. What they were missing was not wiring but hit-testing:
-// see the pointer-events note on `.tool-depth` in style.css.
+function changeSelectedLayerDepth(mm, gesture = false) {
+  const target = selectedLayer();
+  if (!target) return false;
+  const next = clampLayerMm(mm, maxLayerMm(state, target.index));
+  if (next < LAYER_MM_COMMIT_MIN || next === layerDepthMm(target.layer)) {
+    renderDepth();
+    return false;
+  }
+  if (gesture) beginGesture(); else snapshot();
+  setLayerMm(state, target.index, next);
+  rebuildStack();
+  scheduleAutosave();
+  return true;
+}
+
+// The stepper and slider edit the same selected, completed band.
 document.getElementById("depth-down")?.addEventListener("click", () => {
-  const def = BASE_BY_ID[selected.id];
-  if (def) setDepthFor(def.id, depthFor(def.id) - depthStep(def));
+  const target = selectedLayer();
+  const def = target && BASE_BY_ID[target.layer.type];
+  if (target && def) changeSelectedLayerDepth(layerDepthMm(target.layer) - depthStep(def));
 });
 document.getElementById("depth-up")?.addEventListener("click", () => {
-  const def = BASE_BY_ID[selected.id];
-  if (def) setDepthFor(def.id, depthFor(def.id) + depthStep(def));
+  const target = selectedLayer();
+  const def = target && BASE_BY_ID[target.layer.type];
+  if (target && def) changeSelectedLayerDepth(layerDepthMm(target.layer) + depthStep(def));
 });
 document.getElementById("depth-range")?.addEventListener("input", (e) => {
-  const def = BASE_BY_ID[selected.id];
-  if (def) setDepthFor(def.id, Number(e.target.value));
+  changeSelectedLayerDepth(Number(e.target.value), true);
 });
+document.getElementById("depth-range")?.addEventListener("change", endGesture);
+document.getElementById("depth-range")?.addEventListener("blur", endGesture);
+
+function renderGrainControls(prefix, settings) {
+  const grain = grainSettings(settings);
+  const range = document.getElementById(`${prefix}-grain`);
+  if (!range) return;
+  range.value = String(grain.grainAmount);
+  range.setAttribute("aria-valuetext", grain.grainAmount ? `${grain.grainAmount}%` : t("বর্তমান পরিষ্কার চেহারা"));
+  document.getElementById(`${prefix}-grain-value`).textContent = `${toUiDigits(grain.grainAmount)}%`;
+  document.getElementById(`${prefix}-grain-color`).value = grain.grainColor;
+  document.getElementById(`${prefix}-grain-down`).disabled = grain.grainAmount === 0;
+  document.getElementById(`${prefix}-grain-up`).disabled = grain.grainAmount === 100;
+}
+
+function changeCurrentLayerGrain(patch) {
+  changeLayerGrain(patch);
+  renderDepth();
+}
+document.getElementById("current-grain")?.addEventListener("input", e => changeCurrentLayerGrain({ grainAmount: e.target.value }));
+document.getElementById("current-grain")?.addEventListener("change", endGesture);
+document.getElementById("current-grain")?.addEventListener("blur", endGesture);
+document.getElementById("current-grain-color")?.addEventListener("change", e => {
+  changeCurrentLayerGrain({ grainColor: e.target.value }); endGesture();
+});
+for (const [suffix, delta] of [["down", -10], ["up", 10]]) {
+  document.getElementById(`current-grain-${suffix}`)?.addEventListener("click", () => {
+    const target = selectedLayer();
+    if (target) changeCurrentLayerGrain({ grainAmount: grainSettings(target.layer).grainAmount + delta });
+    endGesture();
+  });
+}
 
 // The stack a real guide would tell you to build, poured in one press at the
 // depths those guides quote. It is the fastest way to a jar that is right, and
 // the clearest statement of what the depths are *for* — which is most of why
 // the millimetres are here at all.
-const CLASSIC_STACK = [
-  { id: "leca", mm: 25 },      // drainage reservoir
-  { id: "sphagnum", mm: 6 },   // barrier so soil does not wash into it
-  { id: "charcoal", mm: 7 },   // filter, a quarter inch
-  { id: "soil", mm: 35 },      // where things grow
-];
-
-document.getElementById("depth-recipe")?.addEventListener("click", () => {
-  const needed = CLASSIC_STACK.reduce((sum, l) => sum + l.mm, 0);
+// Both recipes use the existing pour/history path. Never replace the user's
+// current stack: append only if the entire recipe fits, with one undo step.
+function pourRecipe(recipe) {
+  const needed = recipe.reduce((sum, l) => sum + l.mm, 0);
   if (remainingMm(state) < needed) {
     flashHint(t("জারে আর জায়গা নেই"));
     return;
   }
   snapshot();
   let poured = 0;
-  for (const step of CLASSIC_STACK) {
-    if (!addLayer(state, step.id, step.mm)) break;
+  for (const step of recipe) {
+    if (!addLayer(state, step.id, step.mm, grainSettings())) break;
     poured++;
   }
   if (!poured) return;
+  layerSel = state.layers.length - 1;
   rebuildSubstrate(true);
   confirmBaseShadow();
   updateEmptyCall();
   updateHint();
   renderDepth(); // the jar has less room than it did a moment ago
-  renderLayerPanel();
-  gameAction("layer", CLASSIC_STACK[CLASSIC_STACK.length - 1].id);
+  openLayerPanel();
+  gameAction("layer", recipe[recipe.length - 1].id);
+}
+document.getElementById("depth-recipe")?.addEventListener("click", () => pourRecipe(CLASSIC_STACK));
+document.getElementById("depth-rainbow")?.addEventListener("click", () => pourRecipe(RAINBOW_STACK));
+document.getElementById("depth-reference")?.addEventListener("change", e => {
+  const recipe = REFERENCE_STACKS[e.target.value];
+  if (recipe) pourRecipe(recipe.steps);
+  e.target.value = "";
+});
+document.getElementById("reference-planting")?.addEventListener("click", () => {
+  // A starter, not a replace command: never remove or crowd an existing build.
+  if (!hasBase(state)) { flashHint(t("আগে বেস স্তর দাও")); return; }
+  if (state.decorations.length) { flashHint(t("এই সাজানোর জন্য খালি বেস দরকার")); return; }
+  snapshot();
+  for (const {record,object} of referencePlanting(surfaceY, kind => isKindUnlocked(game,kind))) {
+    addDecoration(state,record); decorGroup.add(object);
+  }
+  updateEmptyCall(); updateHint(); studio.markInteraction();
+  scheduleAutosave();
+  flashHint(t("প্রতিটি গাছ আলাদা করে সরাতে পারো"));
 });
 
 function tryAddLayer(id) {
@@ -2655,7 +2779,8 @@ function tryAddLayer(id) {
     return;
   }
   snapshot();
-  addLayer(state, id, mm);
+  addLayer(state, id, mm, grainSettings());
+  layerSel = state.layers.length - 1;
   rebuildSubstrate(true);
   confirmBaseShadow(); // the marker flares and fades rather than blinking off
   updateEmptyCall();
@@ -2665,7 +2790,7 @@ function tryAddLayer(id) {
   }
   updateHint();
   renderDepth(); // the jar has less room than it did a moment ago
-  renderLayerPanel();
+  openLayerPanel();
   gameAction("layer", id);
 }
 
@@ -2675,7 +2800,7 @@ function tryPlaceDecoration(screen, id) {
     flashHint("আগে অন্তত একটা বেস স্তর দাও, তারপর গাছ বসাও।");
     return;
   }
-  const hit = studio.raycast(screen, surfaceTargets());
+  const hit = studio.raycast(screen, placementTargets());
   if (!hit) return;
   const def = DECORATIONS.find((d) => d.id === id);
   if (def) {
@@ -2687,7 +2812,7 @@ function tryPlaceDecoration(screen, id) {
     handles.hide();
     handCarrying = null; // the tweezers are empty again once this one is let go
     hand.placeAt(hit.point, () => {
-      placeDecoration(hit.point, def);
+      placeDecoration(hit.point, def, supportFromHit(hit));
       if (screen?.x != null) {
         impact(screen.x, screen.y, { size: 52, tone: "leaf" });
         burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
@@ -2872,7 +2997,7 @@ canvas.addEventListener("pointermove", (e) => {
   // before the hasBase() gate below, because the very first layer — the one
   // where there is no ground at all yet and nothing on screen to aim at — is
   // precisely the pour that most needs showing.
-  if (activeTool === "place" && selected.group === "base") {
+  if (activeTab !== "building" && activeTool === "place" && selected.group === "base") {
     hand.hide();
     cursorGhost.hide();
     handles.hide();
@@ -2888,8 +3013,7 @@ canvas.addEventListener("pointermove", (e) => {
     return;
   }
 
-  // Tweezers over a planted piece: offer to pick that one up rather than to
-  // plant another on top of it.
+  // Existing pieces remain draggable unless stacking mode is explicitly on.
   const pieces = livePieces();
   const onPiece = pieces.length ? studio.raycast(screen, pieces) : null;
   if (pieces.length) {
@@ -2899,8 +3023,9 @@ canvas.addEventListener("pointermove", (e) => {
   } else {
     handles.hide();
   }
-  setHoverPiece(onPiece ? topDecor(onPiece.object) : null);
-  if (onPiece) {
+  const placingOnItems = stackPlacement && activeTab !== "building" && selected.group === "decor";
+  setHoverPiece(onPiece && !placingOnItems ? topDecor(onPiece.object) : null);
+  if (onPiece && !placingOnItems) {
     hand.hide();
     cursorGhost.hide();
     return;
@@ -2915,13 +3040,13 @@ canvas.addEventListener("pointerleave", clearHover);
 // calls this from its hover; touch, which has no hover, calls it from the
 // finger — see the aim handler below.
 function aimTweezers(screen) {
-  if (selected.group !== "decor") {
+  if (activeTab === "building" || selected.group !== "decor") {
     hand.hide();
     cursorGhost.hide();
     handCarrying = null;
     return null;
   }
-  const hit = studio.raycast(screen, surfaceTargets());
+  const hit = studio.raycast(screen, placementTargets());
   if (!hit) {
     hand.hide();
     cursorGhost.hide();
@@ -2939,12 +3064,18 @@ function aimTweezers(screen) {
   // buildPickPlane), so a hit on it is not by itself a licence to plant. The
   // ghost goes red over the slack, which is the same answer the placement
   // itself will give — rather than looking willing and then refusing.
-  const inside = insideJarAt(local.y, local.x, local.z, 0.04);
-  cursorGhost.setValid(inside);
+  let inside = insideJarAt(local.y, local.x, local.z, 0.04);
   // The footprint ring is the piece's own measured footprint, not a constant.
   // A ring that is the same size for a springtail and a temple is decoration;
   // this one tells you how much ground the thing you are holding will take.
   const metrics = def ? nativeMetrics(def, null) : null;
+  if (metrics) {
+    const k = normalizeFactor(def,null) * jarSizeK();
+    const spot = snapPlacement(null,local.x,local.z,{r:metrics.r*k,h:metrics.h*k},supportFromHit(hit));
+    inside = inside && spot.valid;
+    local.set(spot.x,spot.y,spot.z);
+  }
+  cursorGhost.setValid(inside);
   const ring = metrics
     ? Math.max(0.08, metrics.r * normalizeFactor(def, null) * jarSizeK() * 1.25)
     : 0.34 * jarSizeK();
@@ -2975,7 +3106,7 @@ let aimLift = 0;
 function aimScreen(p) {
   for (const part of [1, 0.66, 0.33, 0]) {
     const screen = { x: p.x, y: p.y - aimLift * part };
-    if (studio.raycast(screen, surfaceTargets())) return screen;
+    if (studio.raycast(screen, placementTargets())) return screen;
   }
   return null;
 }
@@ -2986,6 +3117,7 @@ function aimScreen(p) {
 studio.setAimHandler({
   start(p) {
     if (!p.touch) return false; // the mouse has a hover already
+    if (activeTab === "building") return false; // inspecting, never planting
     if (focusMode && !focusToolArmed) return false; // that press opens the radial
     if (activeTool !== "place") return false;
     if (selected.group !== "decor") return false;
@@ -3042,13 +3174,16 @@ studio.setTapHandler((screen) => {
     return;
   }
   // tapping a placed decoration opens the item adjuster instead of placing
-  if (activeTool === "place" && livePieces().length) {
+  if (activeTool === "place" && livePieces().length && !(stackPlacement && activeTab !== "building" && selected.group === "decor")) {
     const hitD = studio.raycast(screen, livePieces());
     if (hitD) {
       openItemPanel(topDecor(hitD.object));
       return;
     }
   }
+  // Building edits what is already there. An empty-space tap must not pour
+  // the last selected layer or accidentally add another animal/structure.
+  if (activeTab === "building") return;
   if (selected.group === "base") {
     // Any tap *inside* the jar drops another substrate layer. A tap on the
     // glass itself is not a placement — see aimInsideJar.
@@ -3088,25 +3223,27 @@ function updateSliderState() {
   sliderChips.forEach((c) => c.classList.toggle("is-disabled", !brushy));
 }
 
-// --- HUD: mode tabs (ভাস্কর্য / পেইন্টিং / সাজানো / দৃশ্য) --------------------
+// --- HUD: mode tabs (ভাস্কর্য / পেইন্টিং / সাজানো / বিল্ডিং) ------------------
 // Each tab exposes its own tool subset in the left panel, like the reference.
 const TAB_TOOLS = {
   sculpt: ["raise", "lower", "flatten"],
   paint: ["grass", "moss", "pebble"],
   decor: ["place", "water", "mist"],
-  scene: [],
+  building: [],
 };
 let activeTab = "decor";
 const toolItemsEl = document.getElementById("tool-items");
 const slidersEl = document.getElementById("sliders");
 const scenePanelEl = document.getElementById("scene-panel");
+const buildingToolsEl = document.getElementById("building-tools");
 const hudBottomEl = document.getElementById("hud-bottom");
 
 function selectTool(id) {
+  stopTerrainBrush();
   activeTool = id;
   if (id !== "water") hidePour(); // put the watering can away
   document
-    .querySelectorAll(".tool-row")
+    .querySelectorAll(".tool-row[data-id]")
     .forEach((c) => c.classList.toggle("is-active", c.dataset.id === id));
   updateSliderState();
   updateFocusHud();
@@ -3149,19 +3286,40 @@ function renderTools() {
     toolItemsEl.appendChild(more);
   }
   toolItemsEl.style.display = ids.length ? "" : "none";
+  if (activeTab === "decor" || activeTab === "paint") {
+    const stack = document.createElement("button");
+    stack.type = "button";
+    stack.className = "tool-row";
+    stack.classList.toggle("is-active", stackPlacement);
+    stack.setAttribute("aria-pressed", String(stackPlacement));
+    stack.id = "stack-placement";
+    stack.innerHTML = `<span class="t-icon">▤</span><span class="t-label">${t("আইটেমের উপরে বসাও")}</span>`;
+    stack.title = t("পাথর, কাঠ বা অন্য আইটেমের উপরে বসাতে চালু করো।");
+    stack.addEventListener("click", () => {
+      stackPlacement = !stackPlacement;
+      if (activeTab === "decor") selectTool("place");
+      clearHover();
+      renderTools();
+    });
+    toolItemsEl.append(stack);
+  }
 }
 
 function selectTab(tab) {
+  stopTerrainBrush();
+  endGesture();
+  cancelMove();
   activeTab = tab;
   toolsExpanded = false; // each tab opens on its everyday tools
   // reflect the active tab on <body> so CSS can shift the tool list when the
   // Decorate sidebar is present
-  document.body.classList.remove("tab-sculpt", "tab-paint", "tab-decor", "tab-scene");
+  document.body.classList.remove("tab-sculpt", "tab-paint", "tab-decor", "tab-building");
   document.body.classList.add(`tab-${tab}`);
   document
     .querySelectorAll(".tab")
     .forEach((b) => b.classList.toggle("is-active", b.dataset.tab === tab));
-  scenePanelEl.classList.toggle("hidden", tab !== "scene");
+  scenePanelEl.classList.remove("hidden");
+  buildingToolsEl?.classList.toggle("hidden", tab !== "building");
   slidersEl.classList.toggle("hidden", tab !== "sculpt" && tab !== "paint");
   hudBottomEl.style.display = tab === "decor" ? "" : "none";
   catFlyoutEl.classList.add("hidden");
@@ -3170,6 +3328,12 @@ function selectTab(tab) {
   if (tab === "sculpt") selectTool("raise");
   else if (tab === "paint") selectTool("grass");
   else selectTool("place");
+  if (tab === "building") showItemPanel();
+  else {
+    itemPanelEl.classList.add("hidden");
+    document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
+  }
+  clearHover();
 }
 
 function persistComfort() {
@@ -3425,7 +3589,7 @@ document.querySelectorAll(".tab").forEach((b) => {
 // interface, and nudge the piece you are adjusting a hair at a time.
 const NUDGE = 0.03;
 window.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if (e.defaultPrevented || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return; // undo/redo handle their own
 
   // An armed move is a mode you are standing in, so Escape has to be able to
@@ -3482,14 +3646,15 @@ window.addEventListener("keydown", (e) => {
   }
   if (key === "escape" && adjTarget) {
     adjTarget = null;
-    document.getElementById("item-panel")?.classList.add("hidden");
+    renderItemPanel(); // keep Building's inspector visible, with no selection
     return;
   }
 
   // Arrow keys nudge whichever piece the item panel is open on.
   const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-  if (step && adjTarget?.userData?.record) {
+  if (step && e.target.tagName !== "BUTTON" && activeTab === "building" && adjTarget?.userData?.record) {
     e.preventDefault();
+    snapshot();
     const rec = adjTarget.userData.record;
     const amount = NUDGE * (e.shiftKey ? 3 : 1);
     rec.x += step[0] * amount;
@@ -3500,8 +3665,12 @@ window.addEventListener("keydown", (e) => {
       rec.x = inside.x;
       rec.z = inside.z;
     }
-    rec.y = surfaceY(rec.x, rec.z);
+    const spot = snapPlacement(adjTarget, rec.x, rec.z);
+    rec.x = spot.x; rec.z = spot.z; rec.y = spot.y;
     adjTarget.position.set(rec.x, rec.y, rec.z);
+    attachSupport(studio.world, adjTarget, spot.support);
+    settleSceneItems();
+    scheduleAutosave();
     studio.markInteraction();
   }
 });
@@ -3864,6 +4033,7 @@ function renderStrip() {
         } else {
           selected = { group, id: item.id };
           rememberUse(group, item.id);
+          if (activeTab === "building") selectTab("decor");
           selectTool("place"); // picking a material returns to place mode
         }
         renderStrip();
@@ -3922,6 +4092,8 @@ function loadBuildData(build, { history = true } = {}) {
 
 function loadBuildDataNow(build, { history = true } = {}) {
   if (history) snapshot();
+  adjTarget = null;
+  adjSelection = -1;
   Object.assign(jarCustom, { frame: null, glass: null, w: 1, h: 1 }, build.custom ?? {});
   Object.assign(jarLight, { on: false, height: 0.55, bright: 0.6, color: 0xffe4bc }, build.jarLight ?? {});
   state.layers.length = 0;
@@ -3931,6 +4103,7 @@ function loadBuildDataNow(build, { history = true } = {}) {
   // the order it arrived in — saves have always been written bottom-first, and
   // "helpfully" flipping one would turn every correct build upside down.
   state.layers.push(...adoptLayers(build.layers, build.layerOrder));
+  layerSel = state.layers.length - 1;
   state.decorations.length = 0;
   state.decorations.push(...(build.decorations ?? []));
   state.terrain.fill(0);
@@ -4051,7 +4224,6 @@ function renderGallery() {
   });
 }
 
-document.getElementById("save").addEventListener("click", saveTerrarium);
 document.getElementById("gallery-btn").addEventListener("click", () => {
   renderGallery();
   galleryEl.classList.toggle("hidden");
@@ -4224,28 +4396,12 @@ const GLASS_TINTS = spectrumSheet({
   ],
 });
 
-const ITEM_TINTS = [null, "#c94f3f", "#e8a33d", "#e8d24a", "#6faa4e", "#4a9c8c", "#5a7ac9", "#9a6ac9", "#d17aa0", "#f2ece0"];
+const ITEM_TINTS = FRAME_COLORS;
 
 const jarPanelEl = document.getElementById("jar-panel");
 const itemPanelEl = document.getElementById("item-panel");
 
-function buildSwatches(containerId, colors, getActive, onPick) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = "";
-  colors.forEach((hex) => {
-    const b = document.createElement("button");
-    b.className = hex ? "swatch" : "swatch swatch--none";
-    if (hex) b.style.setProperty("--sw", hex);
-    b.classList.toggle("is-active", getActive() === hex);
-    b.addEventListener("click", () => {
-      onPick(hex);
-      buildSwatches(containerId, colors, getActive, onPick);
-    });
-    el.appendChild(b);
-  });
-}
-
-// The spectrum sheets. Same contract as buildSwatches, but laid out as a grid
+// The spectrum sheets, laid out as a grid
 // and with the current pick echoed beside the label, since one cell out of
 // sixty is too small to find by looking for the ring.
 function buildSpectrum(containerId, currentId, colors, getActive, onPick) {
@@ -4254,8 +4410,11 @@ function buildSpectrum(containerId, currentId, colors, getActive, onPick) {
   el.style.setProperty("--cols", SPECTRUM_COLS);
   colors.forEach((hex) => {
     const b = document.createElement("button");
+    b.type = "button";
     b.className = hex ? "sw-cell" : "sw-cell sw-cell--none";
     b.title = hex ?? t("ডিফল্ট");
+    b.setAttribute("aria-label", b.title);
+    b.setAttribute("aria-pressed", String(getActive() === hex));
     if (hex) b.style.setProperty("--sw", hex);
     b.classList.toggle("is-active", getActive() === hex);
     b.addEventListener("click", () => {
@@ -4285,9 +4444,13 @@ function refreshJarSwatches() {
 }
 
 document.getElementById("jar-custom-btn").addEventListener("click", () => {
+  endGesture();
   itemPanelEl.classList.add("hidden");
+  layerPanelEl.classList.add("hidden");
   refreshJarSwatches();
   jarPanelEl.classList.toggle("hidden");
+  document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
+  if (jarPanelEl.classList.contains("hidden") && activeTab === "building") showItemPanel();
 });
 
 // ---------------------------------------------------------------------------
@@ -4306,11 +4469,8 @@ document.getElementById("jar-custom-btn").addEventListener("click", () => {
 // all functions of the array, and the array is the only thing that changed.
 
 const layerPanelEl = document.getElementById("layer-panel");
-// Which band is being edited. An index rather than a reference, because
-// moving and deleting reshuffle the array under it — and it is followed
-// through a move so the selection stays on the band you are dragging about,
-// not on whatever slid into its place.
-let layerSel = -1;
+// `layerSel` is declared with the start-up state above because the floating
+// current-layer readout is also rendered during first paint.
 
 /**
  * Put the scene back in step with `state.layers`, whatever just changed.
@@ -4347,20 +4507,25 @@ function rebuildStack() {
  * taller stack means a narrower jar up where the piece now stands.
  */
 function reseatDecorations() {
+  settleSceneItems();
   for (const obj of decorGroup.children) {
     const rec = obj.userData.record;
     if (!rec || obj.userData.dying) continue;
+    if (rec.supportId) continue;
     const body = bodyOf(obj);
     const spot = snapPlacement(obj, rec.x, rec.z, body);
     rec.x = spot.x;
     rec.z = spot.z;
-    rec.y = surfaceY(spot.x, spot.z);
+    rec.y = spot.y;
     obj.position.set(rec.x, rec.y, rec.z);
   }
+  settleSceneItems();
 }
 
 function openLayerPanel() {
+  endGesture();
   itemPanelEl.classList.add("hidden");
+  document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
   jarPanelEl.classList.add("hidden");
   if (layerSel < 0 || layerSel >= state.layers.length) {
     layerSel = state.layers.length - 1; // the band you just poured
@@ -4412,6 +4577,7 @@ function renderLayerPanel() {
           `<span class="layer-mm">${toUiDigits(layerDepthMm(layer))} ${t("মিমি")}</span>`;
         btn.addEventListener("click", () => {
           layerSel = i;
+          renderDepth();
           renderLayerPanel();
         });
         row.appendChild(btn);
@@ -4437,6 +4603,7 @@ function renderLayerPanel() {
       range.value = String(mm);
     }
     if (value) value.textContent = `${toUiDigits(mm)} ${t("মিমি")}`;
+    renderGrainControls("layer", layer);
     if (note) {
       const advice =
         mm < LAYER_MM_COMMIT_MIN
@@ -4466,6 +4633,7 @@ document.getElementById("layer-btn")?.addEventListener("click", () => {
   layerPanelEl.classList.contains("hidden")
     ? openLayerPanel()
     : layerPanelEl.classList.add("hidden");
+  if (layerPanelEl.classList.contains("hidden") && activeTab === "building") showItemPanel();
 });
 document.getElementById("depth-edit")?.addEventListener("click", openLayerPanel);
 
@@ -4485,6 +4653,35 @@ document.getElementById("layer-depth")?.addEventListener("input", (e) => {
 });
 document.getElementById("layer-depth")?.addEventListener("change", endGesture);
 document.getElementById("layer-depth")?.addEventListener("blur", endGesture);
+
+// Cosmetic changes never re-seat a plant or alter the stack's height.
+function changeLayerGrain(patch) {
+  if (layerSel < 0 || !state.layers[layerSel]) return;
+  const before = grainSettings(state.layers[layerSel]);
+  const after = grainSettings({ ...before, ...patch });
+  if (before.grainAmount === after.grainAmount && before.grainColor === after.grainColor) return;
+  beginGesture();
+  setLayerGrain(state, layerSel, after);
+  rebuildSubstrate(false);
+  renderDepth();
+  renderLayerPanel();
+  studio.markInteraction();
+  scheduleAutosave();
+}
+const grainRange = document.getElementById("layer-grain");
+grainRange?.addEventListener("input", e => changeLayerGrain({ grainAmount: e.target.value }));
+grainRange?.addEventListener("change", endGesture);
+grainRange?.addEventListener("blur", endGesture);
+document.getElementById("layer-grain-color")?.addEventListener("change", e => {
+  changeLayerGrain({ grainColor: e.target.value }); endGesture();
+});
+for (const [suffix, delta] of [["down", -10], ["up", 10]]) {
+  document.getElementById(`layer-grain-${suffix}`)?.addEventListener("click", () => {
+    const layer = state.layers[layerSel];
+    if (layer) changeLayerGrain({ grainAmount: grainSettings(layer).grainAmount + delta });
+    endGesture();
+  });
+}
 
 document.getElementById("layer-up")?.addEventListener("click", () => {
   if (!moveLayerBy(1)) flashHint(t("এটাই সবার উপরে"));
@@ -4517,7 +4714,9 @@ document.getElementById("layer-del")?.addEventListener("click", () => {
 });
 document.querySelectorAll(".cfg-close").forEach((b) =>
   b.addEventListener("click", () => {
+    endGesture();
     document.getElementById(b.dataset.close).classList.add("hidden");
+    if (activeTab === "building") showItemPanel();
   }),
 );
 document.getElementById("jar-w").addEventListener("input", (e) => {
@@ -4553,39 +4752,100 @@ document.getElementById("light-b").addEventListener("input", (e) => {
 
 // --- item adjuster: size / rotation / colour for any placed decoration ------
 let adjTarget = null;
+let adjSelection = -1;
 
-// tint every mesh of an object toward a hue (or restore its own colours)
-function applyTint(obj, hex) {
-  obj.traverse((o) => {
-    if (!o.isMesh) return;
-    if (!o.userData.origColor) {
-      o.material = o.material.clone(); // avoid tinting shared materials
-      o.userData.origColor = o.material.color.clone();
-    }
-    if (hex) o.material.color.copy(o.userData.origColor).lerp(new THREE.Color(hex), 0.72);
-    else o.material.color.copy(o.userData.origColor);
-  });
+function showItemPanel() {
+  jarPanelEl.classList.add("hidden");
+  layerPanelEl.classList.add("hidden");
+  const pieces = livePieces();
+  if (!pieces.includes(adjTarget)) adjTarget = pieces[0] ?? null;
+  renderItemPanel();
+  itemPanelEl.classList.remove("hidden");
+  document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "true");
 }
 
 function openItemPanel(obj) {
-  if (!obj?.userData?.record) return;
+  if (!obj?.userData?.record || !livePieces().includes(obj)) return;
+  endGesture();
+  if (movePending && movePending !== obj) cancelMove();
   adjTarget = obj;
-  jarPanelEl.classList.add("hidden");
-  const rec = obj.userData.record;
-  const context = document.getElementById("item-context");
-  const definition = DECORATIONS.find((item) => item.id === rec.id);
-  if (context) context.textContent = definition ? tLabel(definition.label) : t("নির্বাচিত আইটেম");
-  document.getElementById("item-size").value = Math.round((rec.scale ?? 1) * 100);
-  renderItemSize();
-  const deg = ((rec.rotation % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  document.getElementById("item-rot").value = Math.round((deg / (Math.PI * 2)) * 360);
-  buildSwatches("item-swatches", ITEM_TINTS, () => rec.tint ?? null, (hex) => {
-    rec.tint = hex;
-    applyTint(adjTarget, hex);
-  });
-  itemPanelEl.classList.remove("hidden");
+  if (activeTab !== "building") selectTab("building");
+  else showItemPanel();
   studio.markInteraction();
 }
+
+function renderItemPanel() {
+  const pieces = livePieces();
+  if (!pieces.includes(adjTarget)) adjTarget = null;
+  adjSelection = pieces.indexOf(adjTarget);
+  const picker = document.getElementById("item-select");
+  picker.replaceChildren();
+  picker.add(new Option(t("আইটেম বেছে নাও"), ""));
+  // No category filter or unlock gate here: every item already in the jar
+  // remains editable, including tiny animals and items restored from a save.
+  pieces.forEach((obj, index) => {
+    const def = DECOR_BY_ID[obj.userData.record.id];
+    picker.add(new Option(`${toUiDigits(index + 1)} · ${def ? tLabel(def.label) : obj.userData.record.id}`, String(index)));
+  });
+  picker.value = adjSelection < 0 ? "" : String(adjSelection);
+  picker.disabled = pieces.length === 0;
+  document.getElementById("item-controls").disabled = !adjTarget;
+  document.getElementById("item-selection-hint").textContent = t(pieces.length
+    ? "তালিকা থেকে বেছে নাও অথবা জারের আইটেমে ট্যাপ করো।"
+    : "আগে সাজানো থেকে একটি আইটেম বসাও।");
+  const rec = adjTarget?.userData.record;
+  const context = document.getElementById("item-context");
+  const definition = rec && DECOR_BY_ID[rec.id];
+  context.textContent = definition ? tLabel(definition.label) : t("আইটেম বেছে নাও");
+  document.getElementById("item-size").value = Math.round((rec?.scale ?? 1) * 100);
+  renderItemSize();
+  const deg = (((rec?.rotation ?? 0) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  document.getElementById("item-rot").value = Math.round((deg / (Math.PI * 2)) * 360);
+  renderItemColors();
+}
+
+function renderItemColors() {
+  buildSpectrum("item-swatches", "item-current", ITEM_TINTS, () => adjTarget?.userData.record.tint ?? null, (hex) => {
+    changeItemTint(hex);
+    endGesture();
+  });
+  const hex = adjTarget?.userData.record.tint ?? "#6faa4e";
+  document.getElementById("item-color").value = hex;
+  document.getElementById("item-color-hex").value = hex;
+  document.getElementById("item-color-hex").removeAttribute("aria-invalid");
+}
+
+function changeItemTint(hex) {
+  if (!adjTarget || (hex !== null && !/^#[0-9a-f]{6}$/i.test(hex))) return;
+  const rec = adjTarget.userData.record;
+  if ((rec.tint ?? null) === hex) return;
+  beginGesture();
+  rec.tint = hex;
+  applyTint(adjTarget, hex);
+  renderItemColors();
+  scheduleAutosave();
+  studio.markInteraction();
+}
+
+document.getElementById("item-adjust-btn").addEventListener("click", showItemPanel);
+document.getElementById("item-select").addEventListener("change", e => {
+  endGesture();
+  cancelMove();
+  const obj = e.target.value === "" ? null : livePieces()[Number(e.target.value)];
+  if (obj) openItemPanel(obj);
+  else { adjTarget = null; renderItemPanel(); }
+});
+document.getElementById("item-color").addEventListener("input", e => changeItemTint(e.target.value));
+for (const event of ["change", "blur"]) document.getElementById("item-color").addEventListener(event, endGesture);
+document.getElementById("item-color-hex").addEventListener("change", e => {
+  const hex = e.target.value.trim().toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(hex)) {
+    e.target.setAttribute("aria-invalid", "true");
+    return;
+  }
+  changeItemTint(hex);
+  endGesture();
+});
 
 // --- resizing a placed piece ----------------------------------------------
 // The slider is a percentage of the item's *intended* size now that every
@@ -4620,7 +4880,7 @@ function applyItemSize(pct) {
   const m = metricsFor(rec);
   const norm = rec.norm ?? 1;
   const want = Math.max(0.05, Number(pct) / 100);
-  const ground = surfaceY(rec.x, rec.z);
+  const ground = rec.supportId ? rec.y : surfaceY(rec.x, rec.z);
   // Measured against the native box, so the search is over the same numbers
   // the placement clamp uses and the two can never disagree about a fit.
   const allowed = maxScaleAt(
@@ -4639,8 +4899,10 @@ function applyItemSize(pct) {
   const spot = snapPlacement(adjTarget, rec.x, rec.z, { r: m.r * applied, h: m.h * applied });
   rec.x = spot.x;
   rec.z = spot.z;
-  rec.y = surfaceY(spot.x, spot.z);
+  rec.y = spot.y;
   adjTarget.position.set(rec.x, rec.y, rec.z);
+  attachSupport(studio.world, adjTarget, spot.support);
+  settleSceneItems();
   return Math.round(sc * 100);
 }
 
@@ -4652,6 +4914,8 @@ document.getElementById("item-size").addEventListener("input", (e) => {
   // slider never sits somewhere the model is not.
   if (applied < Math.round(Number(e.target.value)) - 1) e.target.value = applied;
   renderItemSize();
+  scheduleAutosave();
+  studio.markInteraction();
 });
 // A drag is one undo step, not sixty of them. `beginGesture` is called from
 // the first `input` — so the state it captures is the state *before* the drag
@@ -4666,14 +4930,22 @@ document.querySelectorAll(".size-preset").forEach((btn) => {
     const applied = applyItemSize(btn.dataset.size);
     document.getElementById("item-size").value = applied;
     renderItemSize();
+    scheduleAutosave();
+    studio.markInteraction();
   });
 });
 document.getElementById("item-rot").addEventListener("input", (e) => {
   if (!adjTarget) return;
+  beginGesture();
   const rad = (Number(e.target.value) / 360) * Math.PI * 2;
   adjTarget.userData.record.rotation = rad;
   adjTarget.rotation.y = rad;
+  settleSceneItems();
+  scheduleAutosave();
+  studio.markInteraction();
 });
+document.getElementById("item-rot").addEventListener("change", endGesture);
+document.getElementById("item-rot").addEventListener("blur", endGesture);
 document.getElementById("item-del").addEventListener("click", () => {
   removePiece(adjTarget);
 });
@@ -4687,7 +4959,7 @@ document.getElementById("item-del").addEventListener("click", () => {
 function armMove(obj) {
   if (!obj?.userData?.record) return;
   movePending = obj;
-  itemPanelEl.classList.add("hidden");
+  // Keep the inspector available in Building while the next tap moves it.
   document.body.classList.add("move-armed");
   setHoverPiece(obj); // keep the piece lit so it is clear what is being moved
   flashHint("কোথায় বসাতে চাও সেখানে ট্যাপ করো");
@@ -4705,23 +4977,26 @@ function cancelMove() {
 function completeMove(screen) {
   const obj = movePending;
   if (!obj) return false;
-  const hit = studio.raycast(screen, surfaceTargets());
+  const hit = studio.raycast(screen, placementTargets(obj, true));
   if (!hit) return false; // aimed off the substrate — stay armed, try again
-  cancelMove();
   if (!obj.parent) return true; // deleted while the move was armed
-  snapshot();
   const local = studio.world.worldToLocal(hit.point.clone());
-  const spot = snapPlacement(obj, local.x, local.z);
+  const spot = snapPlacement(obj, local.x, local.z, null, supportFromHit(hit));
+  if (!spot.valid) { flashHint("এই জায়গায় আইটেমের জন্য যথেষ্ট জায়গা নেই।"); return false; }
+  cancelMove();
+  snapshot();
   const rec = obj.userData.record;
-  const ground = surfaceY(spot.x, spot.z);
+  const ground = spot.y;
   rec.x = spot.x;
   rec.z = spot.z;
   rec.y = ground;
+  attachSupport(studio.world, obj, spot.support);
   const fromX = obj.position.x;
   const fromZ = obj.position.z;
   const base = obj.userData.baseScale ?? 1;
   if (calmMotion()) {
     obj.position.set(spot.x, ground, spot.z);
+    settleSceneItems();
   } else {
     // It travels rather than teleporting, so the piece you were moving and the
     // piece that ends up over there are visibly the same piece.
@@ -4732,9 +5007,11 @@ function completeMove(screen) {
         fromZ + (spot.z - fromZ) * k,
       );
       obj.scale.setScalar(base * (1 + Math.sin(k * Math.PI) * 0.06));
+      if (k >= 1) settleSceneItems();
     }, easeOut);
   }
   confirmPlacement(obj);
+  scheduleAutosave();
   return true;
 }
 
@@ -4751,7 +5028,6 @@ document.getElementById("item-dupe").addEventListener("click", () => {
     flashHint("জার ভরে গেছে — নকল করা গেল না।");
     return;
   }
-  snapshot();
   const rec = source.userData.record;
   const def = DECOR_BY_ID[rec.id] ?? DECORATIONS.find((d) => d.id === rec.id);
   const copy = getModelClone(rec.kind, rec.id) ?? buildDecoration(rec.kind, def?.variant);
@@ -4764,16 +5040,21 @@ document.getElementById("item-dupe").addEventListener("click", () => {
   const a = Math.random() * Math.PI * 2;
   const step = Math.max(0.06, body.r * 1.4);
   const spot = snapPlacement(copy, rec.x + Math.cos(a) * step, rec.z + Math.sin(a) * step, body);
+  if (!spot.valid) { flashHint("এই জায়গায় আইটেমের জন্য যথেষ্ট জায়গা নেই।"); return; }
+  snapshot();
   const x = spot.x;
   const z = spot.z;
 
   const record = {
+    uid: crypto.randomUUID(),
     id: rec.id,
     kind: rec.kind,
     x,
     z,
-    y: surfaceY(x, z),
+    y: spot.y,
     rotation: rec.rotation + (Math.random() - 0.5) * 0.5, // never a perfect twin
+    tiltX: source.rotation.x,
+    tiltZ: source.rotation.z,
     norm: rec.norm,
     scale: rec.scale,
     tint: rec.tint ?? null,
@@ -4814,7 +5095,6 @@ function removePiece(obj) {
   if (i >= 0) state.decorations.splice(i, 1);
   if (obj === adjTarget) {
     adjTarget = null;
-    itemPanelEl.classList.add("hidden");
   }
   if (obj === grabbed) grabbed = null;
   if (obj === movePending) cancelMove();
@@ -4823,6 +5103,8 @@ function removePiece(obj) {
   const from = obj.scale.x;
   const at = obj.position.clone();
   obj.userData.dying = true;
+  settleSceneItems();
+  renderItemPanel();
   playSfx("tap");
   if (calmMotion()) {
     decorGroup.remove(obj);
@@ -4862,15 +5144,17 @@ function removePiece(obj) {
   updateHint();
   updateEmptyCall();
   studio.markInteraction();
+  scheduleAutosave();
 }
 
 // --- language toggle -------------------------------------------------------
-const TAB_LABELS = { sculpt: "ভাস্কর্য", paint: "পেইন্টিং", decor: "সাজানো", scene: "দৃশ্য" };
+const TAB_LABELS = { sculpt: "ভাস্কর্য", paint: "পেইন্টিং", decor: "সাজানো", building: "বিল্ডিং" };
 const langBtn = document.getElementById("lang");
 
 function applyLang() {
   document.documentElement.lang = getLang();
-  langBtn.textContent = getLang() === "bn" ? "EN" : "বাং";
+  langBtn.textContent = getLang() === "bn" ? "English" : "বাংলা";
+  langBtn.title = getLang() === "bn" ? "Switch to English" : "বাংলায় বদলাও";
   document.querySelectorAll(".tab").forEach((b) => {
     b.textContent = t(TAB_LABELS[b.dataset.tab]);
   });
@@ -4913,6 +5197,7 @@ function applyLang() {
   updateFocusHud(); // the "currently holding" readout is a label like any other
   renderGameHud();
   updateTrayUI();
+  renderItemPanel();
 }
 
 langBtn.addEventListener("click", () => {
@@ -4962,6 +5247,7 @@ function updateHint() {
   // reset changes. This is the one call they all already make.
   renderDepth();
   const laid = new Set(state.layers.map((l) => l.type));
+  if (state.layers.some(l => BASE_BY_ID[l.type]?.organic)) laid.add("soil");
   if (!hasBase(state)) {
     setHint("১", "বেস উপাদান বেছে ট্যাপ করো (গোল স্তর) বা ড্র্যাগ করে ইচ্ছেমতো আকৃতিতে মাটি আঁকো।");
   } else if (!laid.has("sphagnum") && !laid.has("soil")) {
@@ -5242,6 +5528,8 @@ document.getElementById("photo-capture").addEventListener("click", async () => {
 
 const themePanelEl = document.getElementById("theme-panel");
 document.getElementById("theme-btn").addEventListener("click", () => {
+  moreMenu?.classList.add("hidden");
+  moreBtn?.setAttribute("aria-expanded", "false");
   themePanelEl.classList.toggle("hidden");
   renderThemePanel();
 });
@@ -5657,7 +5945,17 @@ const moreBtn = document.getElementById("more-btn");
 const moreMenu = document.getElementById("more-menu");
 moreBtn.addEventListener("click", (event) => {
   event.stopPropagation();
+  if (document.body.classList.contains("rail-hidden")) setRailHidden(false);
   moreMenu.classList.toggle("hidden");
+  moreBtn.setAttribute("aria-expanded", moreMenu.classList.contains("hidden") ? "false" : "true");
+});
+document.querySelectorAll("[data-more-target]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const detail = document.getElementById(button.dataset.moreTarget);
+    if (!detail) return;
+    const open = detail.classList.toggle("is-open");
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  });
 });
 document.getElementById("focus-btn").addEventListener("click", () => setFocusMode());
 document.getElementById("focus-exit").addEventListener("click", () => {
@@ -5808,7 +6106,11 @@ function takeShot() {
   unlockGameAchievement("photographer");
 }
 
-document.getElementById("calm-camera").addEventListener("click", () => setCameraMode(!cameraMode));
+document.getElementById("calm-camera").addEventListener("click", () => {
+  moreMenu?.classList.add("hidden");
+  moreBtn?.setAttribute("aria-expanded", "false");
+  setCameraMode(!cameraMode);
+});
 document.getElementById("cam-exit").addEventListener("click", () => setCameraMode(false));
 document.getElementById("cam-shutter").addEventListener("click", takeShot);
 document.querySelectorAll("[data-radial-action]").forEach((button) => {
@@ -5817,6 +6119,12 @@ document.querySelectorAll("[data-radial-action]").forEach((button) => {
 document.getElementById("game-tutorial-cta").addEventListener("click", runTutorialStep);
 
 const comfortModal = document.getElementById("comfort-modal");
+document.getElementById("profile-btn")?.addEventListener("click", async () => {
+  moreMenu.classList.add("hidden");
+  moreBtn?.setAttribute("aria-expanded", "false");
+  socialActiveTab = "account";
+  await openSocial();
+});
 document.getElementById("comfort-btn").addEventListener("click", () => {
   moreMenu.classList.add("hidden");
   comfortModal.classList.remove("hidden");
@@ -5882,7 +6190,12 @@ document.getElementById("comfort-camera").addEventListener("click", () => {
 applyComfortSettings();
 
 window.addEventListener("pointerdown", (event) => {
-  if (!moreMenu.contains(event.target) && event.target !== moreBtn) moreMenu.classList.add("hidden");
+  // The rail's resize grip is outside the menu box, but belongs to the menu.
+  // Keep the panel open for the entire resize gesture.
+  if (!moreMenu.contains(event.target) && !moreBtn.contains(event.target) &&
+      !document.getElementById("rail-grip")?.contains(event.target)) {
+    moreMenu.classList.add("hidden");
+  }
   if (radialOpen && !document.getElementById("radial-menu").contains(event.target) && event.target !== canvas) closeRadial();
 });
 
@@ -5896,30 +6209,15 @@ document.querySelectorAll(".mood-btn").forEach((btn) => {
   });
 });
 
-// পরিবেশ (background) navbar button toggles the picker; click-away closes it.
-const bgBtnEl = document.getElementById("bg-btn");
-bgBtnEl.addEventListener("click", (e) => {
-  e.stopPropagation();
-  const open = scenePanelEl.classList.toggle("hidden");
-  bgBtnEl.classList.toggle("is-active", !open);
-});
-window.addEventListener("pointerdown", (e) => {
-  if (
-    !scenePanelEl.classList.contains("hidden") &&
-    !scenePanelEl.contains(e.target) &&
-    e.target !== bgBtnEl
-  ) {
-    scenePanelEl.classList.add("hidden");
-    bgBtnEl.classList.remove("is-active");
-  }
-});
-
 // --- reset -----------------------------------------------------------------
 document.getElementById("reset").addEventListener("click", () => {
   snapshot();
   resetState(state);
+  layerSel = -1;
   substrateGroup.clear();
   decorGroup.clear();
+  adjTarget = null;
+  renderItemPanel();
   mistGroup.clear(); // wipe condensation + wetness too
   fxGroup.clear();
   hidePour();
@@ -6013,10 +6311,19 @@ wireTabs("#tabs");
 // means dragging right; the rail and the theme shelf are anchored right, so
 // widening means dragging left — and that is a sign, not a second code path.
 const PANEL_W_KEY = "potroneer-panel-widths";
+const RAIL_SIZE_MIGRATION_KEY = "potroneer-rail-size-v2";
 
 let panelWidths = {};
 try {
   panelWidths = JSON.parse(localStorage.getItem(PANEL_W_KEY) || "{}");
+  // The earlier leaf-panel version stored a wider default. Clear only that
+  // right-panel value once so the reference size becomes the new starting
+  // point; the tray and theme-panel choices remain untouched.
+  if (localStorage.getItem(RAIL_SIZE_MIGRATION_KEY) !== "1") {
+    delete panelWidths.rail;
+    localStorage.setItem(PANEL_W_KEY, JSON.stringify(panelWidths));
+    localStorage.setItem(RAIL_SIZE_MIGRATION_KEY, "1");
+  }
 } catch {
   panelWidths = {};
 }
@@ -6071,11 +6378,11 @@ function initPanelGrip({ id, gripId, panelId, vars, min, max, sign }) {
   const entry = { id, vars, min, max };
   panelGrips.push(entry);
 
-  // The width to start a drag from. A panel that has never been dragged has no
-  // stored number, so measure what the stylesheet is actually giving it rather
-  // than hardcoding a default here and having two sources of truth.
+  // Start at the visible edge, including any viewport or CSS width limits.
+  // A remembered width can differ from the rendered width after a resize;
+  // using it made the handle jump or lag behind the pointer.
   const currentWidth = () =>
-    panelWidths[id] ?? Math.round(panel.getBoundingClientRect().width);
+    Math.round(panel.getBoundingClientRect().width);
 
   const clamp = (w) =>
     Math.max(min, Math.min(typeof max === "function" ? max() : max, w));
@@ -6171,14 +6478,15 @@ initPanelGrip({
   sign: 1,
 });
 
-// The rail is anchored right, so dragging *left* widens it (sign -1).
+// Mirror the left shelf's range and drag response. Only the direction differs:
+// the rail is anchored right, so dragging left widens it (sign -1).
 initPanelGrip({
   id: "rail",
   gripId: "rail-grip",
   panelId: "rail",
   vars: { "--rail-w": 0 },
-  min: 150,
-  max: () => Math.min(360, window.innerWidth * 0.35),
+  min: 180,
+  max: () => Math.min(420, window.innerWidth * 0.4),
   sign: -1,
 });
 

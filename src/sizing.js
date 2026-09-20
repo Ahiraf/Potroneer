@@ -67,6 +67,9 @@ const TIERS = {
   // whichever builder happened to emit more geometry — which is exactly what
   // it used to be, and why a fern outgrew the bonsai beside it.
   focal: { h: 0.55, cap: 0.46 },
+  botanical: { h: .60, cap: .80 },
+  botanicalTall: { h: .92, cap: .64 },
+  landscapeRock: { h: .48, cap: .55 },
 
   // --- structures -------------------------------------------------------
   // Structures are read as *objects in a scene*, not as plants, so they get
@@ -87,6 +90,7 @@ const TIERS = {
   ground: { w: 0.42, cap: 0.16 },
   lamp: { h: 0.26, cap: 0.22 },
   rock: { h: 0.22, cap: 0.42 },
+  pebble: { w: 0.16, cap: 0.08 },
   // Animals keep their own modest tier: a deer the size of a temple is a
   // different bug from a deer the size of a crumb.
   creature: { h: 0.2, cap: 0.32 },
@@ -96,6 +100,13 @@ const TIERS = {
 // Kind → tier, where the kind's own tier is not what its category implies.
 // Only the exceptions are listed; everything else falls through to CAT_TIER.
 const KIND_TIER = {
+  fittoniabush: "botanical",
+  aralia: "botanicalTall",
+  crag: "landscapeRock",
+  mineralpatch: "ground",
+  riverpebble: "pebble",
+  steppingstone: "ground",
+  slatechip: "ground",
   // --- plants -----------------------------------------------------------
   bonsai: "focal",
   snakeplant: "plantTall",
