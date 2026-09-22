@@ -852,6 +852,13 @@ add("mineralpatch", "আলগা কুচি পাথর", [
   ["কালো", {colors:["#242321","#343331","#191a18"]}],
 ]);
 
+add("pumice", "ছোট ঝামাপাথর", [
+  ["সাদা", {color:"#ddd6c6",seed:21}], ["ধূসর", {color:"#aba99f",seed:22}], ["বেলে", {color:"#cdb594",seed:23}],
+]);
+add("buttonpebble", "গোল ছোট নুড়ি", [
+  ["সাদা", {color:"#eee4d4",seed:24}], ["গোলাপি", {color:"#d4ac9f",seed:25}], ["ধূসর", {color:"#8a938b",seed:26}],
+]);
+
 // Individual hardscape pieces can be arranged into steps and retaining walls.
 add("riverpebble", "নদীর নুড়ি", [
   ["ধূসর", {color:"#85877f",seed:1}], ["কালো", {color:"#424943",seed:2}], ["সাদা", {color:"#d3cfc3",seed:3}],
@@ -873,6 +880,8 @@ add("sandstone", "বেলেপাথর", [
 ]);
 
 const CAT_BY_KIND = {
+  pumice: "rocks",
+  buttonpebble: "rocks",
   riverpebble: "rocks",
   steppingstone: "rocks",
   slatechip: "rocks",

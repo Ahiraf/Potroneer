@@ -1,9 +1,10 @@
 // Isolated visual fixture: uses production builders/rendering but never reads
 // or writes app storage. Available through the development server only.
 import * as THREE from "three";
+import { createWaterStream, updateWaterStream } from "../src/water-stream.js";
 import { createStudio } from "../src/scene.js";
 import { buildJar, JAR_BY_ID, jarInnerSilhouette, jarSectionFor } from "../src/jar.js";
-import { buildLayer, buildTerrainCap, updateTerrainCap, layerSurface } from "../src/builders.js";
+import { buildDecoration, buildLayer, buildTerrainCap, updateTerrainCap, layerSurface } from "../src/builders.js";
 import { BASE_BY_ID } from "../src/catalog.js";
 import { createState, setJarInterior, substrateBase, substrateTop, addLayer } from "../src/state.js";
 import { RAINBOW_STACK, REFERENCE_STACKS } from "../src/layer-recipes.js";
@@ -23,7 +24,7 @@ vessel.group.traverse(o => { if (o.isMesh && vessel.glassMats.includes(o.materia
 vessel.group.updateMatrixWorld(true);
 setJarInterior(it, jarInnerSilhouette(jarId, it), jarSectionFor(jarId, it, panes));
 studio.world.add(vessel.group);
-studio.setBaseY(it.floorY - it.wallThickness);
+studio.setBaseY(new THREE.Box3().setFromObject(vessel.group).min.y);
 const state = createState();
 for (const step of recipe) addLayer(state, step.id, step.mm);
 let y = substrateBase();
@@ -38,6 +39,11 @@ studio.world.add(cap);
 const ground = (x,z) => substrateTop(state) + layerSurface(top,x,z);
 
 for (const {object} of referencePlanting(ground)) studio.world.add(object);
+for (let i=0;i<3;i++) {
+  const stone = buildDecoration("pumice", {color:"#ddd6c6",seed:21+i});
+  stone.position.set(-.28+i*.27,ground(-.28+i*.27,.48),.48);
+  studio.world.add(stone);
+}
 for (const [id,value] of [["jar-style",jarId],["layer-style",recipeId]]) document.getElementById(id).value=value;
 document.getElementById("jar-style").onchange=e=>{params.set("jar",e.target.value);location.search=params.toString();};
 document.getElementById("layer-style").onchange=e=>{params.set("recipe",e.target.value);location.search=params.toString();};
@@ -67,4 +73,14 @@ document.querySelector("#old-glass").onclick = e => {
   }
   e.currentTarget.setAttribute("aria-pressed", String(oldGlass));
   e.currentTarget.textContent = oldGlass ? "Old glass shown" : "Compare old glass";
+};
+
+const stream = createWaterStream();
+stream.position.set(.2, ground(.2,.2), .2);
+stream.userData.height = it.floorY + it.bodyHeight + .25 - stream.position.y;
+studio.world.add(stream);
+studio.setOnFrame(now => updateWaterStream(stream,now));
+document.querySelector("#water-preview").onclick = e => {
+  stream.visible = !stream.visible;
+  e.currentTarget.setAttribute("aria-pressed",String(stream.visible));
 };

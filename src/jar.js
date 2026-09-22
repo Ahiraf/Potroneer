@@ -12,6 +12,15 @@ import { grainMaps, substrateUVs } from "./natural-materials.js";
 // so builders always read the current jar's dimensions.
 
 const BASE_JARS = [
+  ...[
+    ["wood-vase", "কাঠের বেস ফুলদানি", 1.18, 1.95, "vase", .43, false, true],
+    ["pear-cork", "নাশপাতি কর্ক জার", 1.17, 2.48, "pear", .51, "cork", false],
+    ["cork-ball", "গোল কর্ক জার", .72, 2.70, "ball", .78, "ball", false],
+  ].map(([id, label, r, h, shape, mouth, lid, woodBase]) => ({
+    id, label, glyph: "🫙", lid, woodBase, referenceJar: true, mouth,
+    interior: { innerRadius: r, bodyHeight: h, floorY: -h / 2, wallThickness: .035 },
+    profile: it => photoJarProfile(it, shape, mouth),
+  })),
   // Reference collection: usable height ends at the mouth. Both the glass
   // and stopper derive from the same dimensions, including custom resizing.
   ...[
@@ -743,6 +752,20 @@ function latheRadiusAt(pts, y) {
 
 // The hero jar from the reference: a tall apothecary jar — straight body,
 // short shoulder easing into a wide neck, cork stopper on top.
+// Smooth sampled curves keep the photographed shoulders round at every size.
+function photoJarProfile(it, shape, mouth) {
+  const r = it.innerRadius + it.wallThickness, f = it.floorY, h = it.bodyHeight;
+  const outline = shape === "pear"
+    ? [[.79,0],[.94,.04],[1,.13],[.99,.26],[.89,.43],[.73,.62],[.56,.81],[mouth,.94],[mouth,1]]
+    : shape === "ball"
+      ? [[.88,0],[.98,.035],[1,.10],[1,.72],[.98,.83],[.91,.93],[mouth,1]]
+      : [[.87,0],[.98,.045],[1,.13],[1,.53],[.96,.65],[.81,.77],[.54,.87],[mouth,.92],[mouth,1]];
+  const curve = new THREE.SplineCurve(outline.map(([x,y]) => new THREE.Vector2(x*r,f+y*h)));
+  return [new THREE.Vector2(0,f-it.wallThickness), new THREE.Vector2(.78*r,f-it.wallThickness),
+    ...curve.getPoints(96), new THREE.Vector2(mouth*r+.008,f+h+.012),
+    new THREE.Vector2(mouth*r-.012,f+h+.025)];
+}
+
 function referenceJarProfile(it, shape, mouth) {
   const r = it.innerRadius + it.wallThickness;
   const f = it.floorY, h = it.bodyHeight;
@@ -1138,7 +1161,7 @@ export function buildJar(typeId, envMap, itOverride) {
 
   // Cork stopper (apothecary jar) — a fat tan plug sitting in the neck with a
   // wider cap proud of the rim, slightly domed.
-  if (type.referenceJar) {
+  if (type.referenceJar && type.lid) {
     const neckR = (it.innerRadius + it.wallThickness) * type.mouth;
     const corkMat = regFrame(new THREE.MeshStandardMaterial({
       color: "#bd8e57", ...grainMaps("cork"), bumpScale: .009,
@@ -1153,8 +1176,18 @@ export function buildJar(typeId, envMap, itOverride) {
       part.castShadow = part.receiveShadow = true;
       group.add(part);
     };
-    addCork(neckR*.976, neckR*.96, h*.50, bodyTop - h*.18);
-    addCork(neckR*1.03, neckR*1.016, h, bodyTop + h*.5 + .022);
+    if (type.lid === "ball") {
+      const radius = neckR * 1.07;
+      const source = new THREE.SphereGeometry(radius, 64, 40);
+      const ball = new THREE.Mesh(substrateUVs(source, .30), corkMat);
+      source.dispose();
+      ball.position.y = bodyTop + Math.sqrt(radius*radius - (neckR*.97)**2);
+      ball.castShadow = ball.receiveShadow = true;
+      group.add(ball);
+    } else {
+      addCork(neckR*.976, neckR*.96, h*.50, bodyTop - h*.18);
+      addCork(neckR*1.03, neckR*1.016, h, bodyTop + h*.5 + .022);
+    }
   } else if (type.lid === "cork") {
     const corkMat = regFrame(new THREE.MeshStandardMaterial({
       color: "#b98e5f",

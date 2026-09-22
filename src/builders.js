@@ -893,6 +893,8 @@ function buildDecorationParts(kind, v = {}) {
       return buildCrystal(v);
     case "stone":
       return buildStone(v);
+    case "pumice":
+    case "buttonpebble":
     case "riverpebble":
     case "steppingstone":
     case "slatechip":

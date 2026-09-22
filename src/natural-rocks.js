@@ -21,6 +21,21 @@ export function rockMaps(family = "river") {
     if (family==="lava") { c=192+broad*18-pore*90; h=164-pore*126+grain*12; r=232+grain*20; }
     if (family==="slate") { const seam=Math.sin(v*24+Math.sin(u)*1.5); c=199+broad*15+seam*12+vein*20; h=125+seam*13+grain*9; r=211+grain*20; }
     if (family==="sandstone") { c=202+Math.sin(v*12+Math.sin(u)*.5)*13+(grain-.5)*24; h=120+grain*35; r=231+grain*18; }
+    if (family==="pumice") {
+      // Rounded, recessed vesicles rather than square noise flecks.
+      let cavity=0;
+      const cell=19, cx=Math.floor(x/cell), cy=Math.floor(y/cell);
+      for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++) {
+        const gx=cx+ox, gy=cy+oy;
+        const px=(gx+.2+.6*hash(gx,gy,31))*cell;
+        const py=(gy+.2+.6*hash(gx,gy,41))*cell;
+        const radius=2+hash(gx,gy,51)*5;
+        const d=Math.hypot(x-px,(y-py)*1.15)/radius;
+        cavity=Math.max(cavity,Math.max(0,1-d*d));
+      }
+      c=235+broad*9+(grain-.5)*20-cavity*150;
+      h=184+grain*14-cavity*155; r=236+grain*15;
+    }
     const i=(y*size+x)*4;
     for (let k=0;k<3;k++) { colour[i+k]=clamp(c); relief[i+k]=clamp(h); roughness[i+k]=clamp(r); }
     colour[i+3]=relief[i+3]=roughness[i+3]=255;
@@ -38,6 +53,8 @@ export function rockMaps(family = "river") {
 }
 
 const SHAPES={
+  pumice:{size:[.105,.085,.09],family:"pumice",flat:false},
+  buttonpebble:{size:[.09,.052,.078],family:"river",flat:false},
   riverpebble:{size:[.13,.055,.092],family:"river",flat:false},
   steppingstone:{size:[.22,.044,.135],family:"river",flat:true},
   slatechip:{size:[.20,.032,.13],family:"slate",flat:true},
@@ -73,7 +90,7 @@ export function naturalRock(kind="riverpebble", {color="#70716a",seed=1}={}) {
   geo.computeVertexNormals(); geo.computeBoundingBox(); geo.computeBoundingSphere();
   const material=new THREE.MeshStandardMaterial({
     vertexColors:true,...rockMaps(spec.family),roughness:1,
-    bumpScale:spec.family==="lava"?.008:spec.family==="river"?.0013:.003,
+    bumpScale:spec.family==="pumice"?.012:spec.family==="lava"?.008:spec.family==="river"?.0013:.003,
     metalness:0,envMapIntensity:.45,
   });
   const stone=new THREE.Mesh(geo,material);

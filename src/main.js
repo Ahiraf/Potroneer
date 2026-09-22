@@ -1,5 +1,6 @@
 import { startIntro, introReady, onIntroDone, replayIntro } from "./intro.js";
 import * as THREE from "three";
+import { createWaterStream, updateWaterStream } from "./water-stream.js";
 import { createStudio } from "./scene.js";
 import { CLASSIC_STACK, RAINBOW_STACK, REFERENCE_STACKS } from "./layer-recipes.js";
 import { referencePlanting } from "./reference-garden.js";
@@ -493,7 +494,7 @@ function setJar(typeId) {
   const actualBottom = hasVisibleVessel && Number.isFinite(jarBounds.min.y) ? jarBounds.min.y : fallbackBottom;
   // A model terrarium already sits on its own measured base, so the board goes
   // there; everything else meets the board at its interior floor.
-  const targetBottom = it.modelBottomY ?? fallbackBottom;
+  const targetBottom = it.modelBottomY ?? (type.woodBase && type.referenceJar ? actualBottom : fallbackBottom);
   jarGroup.position.y += targetBottom - actualBottom;
   studio.setBaseY(targetBottom);
   // Frame the camera on *this* vessel: a bell jar and a shallow bowl should
@@ -637,6 +638,7 @@ studio.setOnFrame((now) => {
   // just hiding it and leaving the maths running. Checked per frame because a
   // new jar rebuilds the motes with their visibility fresh.
   const calm = calmMotion();
+  updateWaterStream(pourStream, now, calm);
   if (motes) motes.visible = !calm;
   if (!calm) {
     animateMotes(now);
@@ -2166,14 +2168,15 @@ async function publishCurrent(event) {
 }
 function applyWetness() {
   const w = Math.sqrt(wetLevel); // fast onset so a splash already reads as wet
-  const tint = 1 - 0.6 * w; // strong darkening — wet soil goes deep brown
+  const tint = 1 - 0.38 * w; // strong darkening — wet soil goes deep brown
   substrateGroup.traverse((o) => {
     if (!o.isMesh || !o.material) return;
     const m = o.material;
     if (m.userData.baseRough === undefined) m.userData.baseRough = m.roughness;
-    m.color.setScalar(tint); // multiplies the baked vertex colours darker
+    if (!m.userData.baseColor && m.color) m.userData.baseColor = m.color.clone();
+    if (m.color) m.color.copy(m.userData.baseColor).multiplyScalar(tint);
     m.roughness = m.userData.baseRough * (1 - 0.75 * w);
-    m.metalness = 0.15 * w; // faint wet sheen
+    m.metalness = 0; // wet earth remains a dielectric
   });
   decorGroup.traverse((o) => {
     if (!o.isMesh || !o.material || o.material.userData.noWet) return;
@@ -2192,46 +2195,33 @@ function applyWetness() {
 // A pouring water stream from above the tap point down to the surface — shown
 // while the water tool is dragging, or a quick fade on a single tap.
 let pourStream = null;
+let pourRevision = 0;
 function ensurePour() {
   if (pourStream) return pourStream;
-  const geo = new THREE.CylinderGeometry(0.02, 0.032, 1, 10, 1, true);
-  const mat = new THREE.MeshPhysicalMaterial({
-    color: 0xdff2fb,
-    roughness: 0.02,
-    metalness: 0,
-    transmission: 0.35,
-    transparent: true,
-    opacity: 0.9,
-    ior: 1.33,
-    clearcoat: 1,
-    side: THREE.DoubleSide,
-  });
-  pourStream = new THREE.Mesh(geo, mat);
-  pourStream.visible = false;
+  pourStream = createWaterStream();
   studio.world.add(pourStream);
   return pourStream;
 }
 function showPour(local) {
   const s = ensurePour();
-  const topY = JAR.floorY + JAR.bodyHeight + 0.25;
-  const h = Math.max(0.25, topY - local.y);
-  s.scale.set(1, h, 1);
-  s.position.set(local.x, local.y + h / 2, local.z);
-  s.material.opacity = 0.9;
+  pourRevision++; // an old fade must never hide a fresh stroke
+  s.userData.height = Math.max(.25, JAR.floorY + JAR.bodyHeight + .25 - local.y);
+  s.position.copy(local);
+  s.userData.material.opacity = .68;
   s.visible = true;
+  updateWaterStream(s, performance.now(), calmMotion());
 }
 function fadePour() {
   if (!pourStream) return;
+  const revision = ++pourRevision;
   tween(340, (p) => {
-    if (!pourStream) return;
-    pourStream.material.opacity = 0.9 * (1 - p);
-    if (p >= 1) {
-      pourStream.visible = false;
-      pourStream.material.opacity = 0.9;
-    }
+    if (!pourStream || revision !== pourRevision) return;
+    pourStream.userData.material.opacity = .68 * (1-p);
+    if (p >= 1) pourStream.visible = false;
   }, (x) => x);
 }
 function hidePour() {
+  pourRevision++;
   if (pourStream) pourStream.visible = false;
 }
 
@@ -2239,8 +2229,8 @@ function spawnSplash(worldPoint) {
   const local = studio.world.worldToLocal(worldPoint.clone());
   const y = local.y + 0.012;
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.02, 0.05, 18),
-    new THREE.MeshBasicMaterial({ color: 0xaad8e2, transparent: true, opacity: 0.6, side: THREE.DoubleSide }),
+    new THREE.RingGeometry(0.024, 0.028, 40),
+    new THREE.MeshBasicMaterial({ color: 0xd9eeea, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }),
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(local.x, y, local.z);
@@ -2248,20 +2238,25 @@ function spawnSplash(worldPoint) {
   tween(520, (p) => {
     const s = 1 + p * 3.5;
     ring.scale.set(s, s, s);
-    ring.material.opacity = 0.6 * (1 - p);
-    if (p >= 1) fxGroup.remove(ring);
+    ring.material.opacity = 0.3 * (1 - p) ** 2;
+    if (p >= 1) {
+      fxGroup.remove(ring);
+      ring.geometry.dispose();
+      ring.material.dispose();
+    }
   }, (x) => x);
   for (let i = 0, drops = particleBudget(5); i < drops; i++) {
     const d = new THREE.Mesh(dropGeo, dropMat.clone());
+    d.scale.set(.38, .65, .38);
     const a = Math.random() * Math.PI * 2;
     const r = 0.03 + Math.random() * 0.04;
     const vy = 0.14 + Math.random() * 0.08;
     d.position.set(local.x, y, local.z);
     fxGroup.add(d);
     tween(460, (p) => {
-      d.position.set(local.x + Math.cos(a) * r * p, y + vy * p - 0.6 * p * p, local.z + Math.sin(a) * r * p);
+      d.position.set(local.x + Math.cos(a) * r * p, y + vy * 4 * p * (1-p), local.z + Math.sin(a) * r * p);
       d.material.opacity = 0.55 * (1 - p);
-      if (p >= 1) fxGroup.remove(d);
+      if (p >= 1) { fxGroup.remove(d); d.material.dispose(); }
     }, (x) => x);
   }
 }

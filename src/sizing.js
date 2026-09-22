@@ -100,6 +100,8 @@ const TIERS = {
 // Kind → tier, where the kind's own tier is not what its category implies.
 // Only the exceptions are listed; everything else falls through to CAT_TIER.
 const KIND_TIER = {
+  pumice: "pebble",
+  buttonpebble: "pebble",
   fittoniabush: "botanical",
   aralia: "botanicalTall",
   crag: "landscapeRock",

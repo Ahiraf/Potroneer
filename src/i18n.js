@@ -3,6 +3,11 @@
 // ("মস · সবুজ") are translated part by part.
 
 const EN = {
+  "কাঠের বেস ফুলদানি": "Wood-base vase",
+  "নাশপাতি কর্ক জার": "Pear cork jar",
+  "গোল কর্ক জার": "Cork-ball jar",
+  "ছোট ঝামাপাথর": "Tiny pumice",
+  "গোল ছোট নুড়ি": "Button pebble",
   // tabs
   "ভাস্কর্য": "Sculpting",
   "পেইন্টিং": "Painting",
