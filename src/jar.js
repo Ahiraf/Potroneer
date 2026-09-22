@@ -1056,8 +1056,9 @@ export function buildJar(typeId, envMap, itOverride) {
           // lathed jars stopped writing depth.
           m.depthWrite = false;
           if (m.isMeshPhysicalMaterial && m.transmission > 0) {
-            m.roughness = Math.min(m.roughness, 0.006);
-            m.thickness = Math.min(m.thickness, 0.025);
+            m.roughness = Math.min(m.roughness, 0.001);
+            m.thickness = Math.min(m.thickness, 0.003);
+            m.ior = Math.min(m.ior ?? 1.5, 1.12);
           }
           regGlass(m);
         });
@@ -1254,16 +1255,13 @@ function makeGlassMaterial(envMap) {
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
     metalness: 0,
-    roughness: 0.006,
+    roughness: 0.001,
     transmission: 1.0,
-    // Thin glass. `thickness` drives both the volumetric attenuation and how
-    // far refraction displaces what is behind the pane, and at 0.9 — most of
-    // the jar's own radius — it displaced the contents into a smear. On a
-    // bright room that smear is white, and the whole vessel read as an opaque
-    // white cylinder with the terrarium lost inside it. A real jar's wall is a
-    // couple of millimetres; this is closer to that.
-    thickness: 0.025,
-    ior: 1.5,
+    // Thin, optically clear glass keeps the contents crisp. A stronger IOR or
+    // thicker transmission layer noticeably refracts miniature pieces and
+    // softens their edges through the curved front and back panes.
+    thickness: 0.003,
+    ior: 1.12,
     envMap: envMap || null,
     // A white room reflected at full strength is the other half of the same
     // problem: the surface blows out and there is nothing to see through.
@@ -1280,8 +1278,8 @@ function makeGlassMaterial(envMap) {
     // are drawn first and the glass still depth-*tests*.
     depthWrite: false,
     side: THREE.DoubleSide,
-    clearcoat: 0.2,
-    clearcoatRoughness: 0.015,
+    clearcoat: 0.12,
+    clearcoatRoughness: 0.005,
     attenuationColor: new THREE.Color(0xf4fff9),
     attenuationDistance: 12.0,
     specularIntensity: 0.7,

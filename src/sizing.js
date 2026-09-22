@@ -51,6 +51,9 @@ import { insideJarAt, jarReach, JAR } from "./state.js";
 const TIERS = {
   // ground cover: mosses, carpets, the crawling things. Read as texture.
   carpet: { w: 0.34, cap: 0.1 },
+  // Moss can grow into a visible clump when the builder wants it; its slider
+  // still stops at the vessel wall, like every other decoration.
+  moss: { h: 0.18, cap: 0.36 },
   // small props sitting on the surface: a ladybug, an isopod, a pinecone.
   accent: { h: 0.09, cap: 0.22 },
   // low plants with a spreading rosette rather than a stem.
@@ -206,6 +209,7 @@ const KIND_TIER = {
   nerite: "creatureTiny",
   springtails: "carpet",
   shell: "accent",
+  moss: "moss",
 
   // --- odds and ends ----------------------------------------------------
   mossball: "plantLow",
@@ -221,7 +225,7 @@ const KIND_TIER = {
 
 // Category → tier, for every kind that does not need naming individually.
 const CAT_TIER = {
-  moss: "carpet",
+  moss: "moss",
   plants: "plantMedium",
   flowers: "plantMedium",
   aquatic: "plantTall",

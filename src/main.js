@@ -3345,7 +3345,7 @@ function selectTab(tab) {
     jarPanelEl.classList.add("hidden");
     layerPanelEl.classList.add("hidden");
     itemPanelEl.classList.add("hidden");
-    document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
+    syncBuildingPanelButtons();
   }
   clearHover();
 }
@@ -4475,9 +4475,12 @@ function openJarPanel() {
   layerPanelEl.classList.add("hidden");
   refreshJarSwatches();
   jarPanelEl.classList.remove("hidden");
-  document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
+  syncBuildingPanelButtons("jar-panel");
 }
-document.getElementById("jar-custom-btn").addEventListener("click", openJarPanel);
+document.getElementById("jar-custom-btn").addEventListener("click", () => {
+  if (jarPanelEl.classList.contains("hidden")) openJarPanel();
+  else closeBuildingPanel("jar-panel");
+});
 
 // ---------------------------------------------------------------------------
 // Layer editor
@@ -4562,8 +4565,24 @@ function openLayerPanel() {
   // list nobody is looking at is wasted work — so rendering first and showing
   // second opened an empty panel.
   layerPanelEl.classList.remove("hidden");
+  syncBuildingPanelButtons("layer-panel");
   renderLayerPanel();
   studio.markInteraction();
+}
+
+function syncBuildingPanelButtons(openId = null) {
+  for (const [panelId, buttonId] of [
+    ["jar-panel", "jar-custom-btn"],
+    ["layer-panel", "layer-btn"],
+    ["item-panel", "item-adjust-btn"],
+  ]) {
+    document.getElementById(buttonId)?.setAttribute("aria-expanded", String(panelId === openId));
+  }
+}
+
+function closeBuildingPanel(panelId) {
+  document.getElementById(panelId)?.classList.add("hidden");
+  syncBuildingPanelButtons();
 }
 
 /** Draw the list, the editor for the selected band, and the totals. */
@@ -4659,7 +4678,7 @@ document.getElementById("layer-btn")?.addEventListener("click", () => {
   document.getElementById("more-menu")?.classList.add("hidden");
   layerPanelEl.classList.contains("hidden")
     ? openLayerPanel()
-    : layerPanelEl.classList.add("hidden");
+    : closeBuildingPanel("layer-panel");
 
 });
 document.getElementById("depth-edit")?.addEventListener("click", openLayerPanel);
@@ -4742,8 +4761,7 @@ document.getElementById("layer-del")?.addEventListener("click", () => {
 document.querySelectorAll(".cfg-close").forEach((b) =>
   b.addEventListener("click", () => {
     endGesture();
-    document.getElementById(b.dataset.close).classList.add("hidden");
-    document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
+    closeBuildingPanel(b.dataset.close);
   }),
 );
 document.getElementById("jar-w").addEventListener("input", (e) => {
@@ -4789,7 +4807,7 @@ function showItemPanel() {
   if (!pieces.includes(adjTarget)) adjTarget = null;
   renderItemPanel();
   itemPanelEl.classList.remove("hidden");
-  document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "true");
+  syncBuildingPanelButtons("item-panel");
 }
 
 function openItemPanel(obj) {
@@ -4854,7 +4872,9 @@ function changeItemTint(hex) {
   studio.markInteraction();
 }
 
-document.getElementById("item-adjust-btn").addEventListener("click", showItemPanel);
+document.getElementById("item-adjust-btn").addEventListener("click", () => {
+  itemPanelEl.classList.contains("hidden") ? showItemPanel() : closeBuildingPanel("item-panel");
+});
 document.getElementById("item-select").addEventListener("change", e => {
   endGesture();
   cancelMove();
@@ -4907,17 +4927,30 @@ function applyItemSize(pct) {
   const m = metricsFor(rec);
   const norm = rec.norm ?? 1;
   const want = Math.max(0.05, Number(pct) / 100);
-  const ground = rec.supportId ? rec.y : surfaceY(rec.x, rec.z);
+  let ground = rec.supportId ? rec.y : surfaceY(rec.x, rec.z);
+  let x = rec.x;
+  let z = rec.z;
+  // Ground pieces can start near the glass. Let any unsupported item grow to
+  // the requested size by drawing it inward only when that footprint needs room.
+  if (!rec.supportId &&
+      !bodyFitsAt(x, z, ground, m.r * norm * want, m.h * norm * want, GLASS_CLEARANCE)) {
+    const inside = clampBodyInside(x, z, ground, m.r * norm * want, m.h * norm * want, GLASS_CLEARANCE);
+    x = inside.x;
+    z = inside.z;
+    ground = surfaceY(x, z);
+  }
   // Measured against the native box, so the search is over the same numbers
   // the placement clamp uses and the two can never disagree about a fit.
   const allowed = maxScaleAt(
-    rec.x, rec.z, ground,
+    x, z, ground,
     m.r * norm, m.h * norm,
     want, GLASS_CLEARANCE,
   );
   const sc = Math.max(0.05, allowed);
   rec.scale = sc;
   const applied = finalScale(rec);
+  rec.x = x;
+  rec.z = z;
   adjTarget.userData.baseScale = applied;
   adjTarget.scale.setScalar(applied);
   // A bigger piece needs more elbow room, and its base has to stay on the
@@ -6528,6 +6561,25 @@ initPanelGrip({
   max: () => Math.min(900, window.innerWidth - 24),
   sign: -1,
 });
+
+// The three Building editors share one remembered width, matching the tray's
+// dock. Each panel has its own grip so resizing remains available whichever
+// editor is open.
+for (const [gripId, panelId] of [
+  ["jar-panel-grip", "jar-panel"],
+  ["layer-panel-grip", "layer-panel"],
+  ["item-panel-grip", "item-panel"],
+]) {
+  initPanelGrip({
+    id: "building",
+    gripId,
+    panelId,
+    vars: { "--building-panel-w": 0 },
+    min: 180,
+    max: () => Math.min(420, window.innerWidth * 0.4),
+    sign: 1,
+  });
+}
 
 // --- phone workspace -------------------------------------------------------
 // A phone is not a small desktop. The desktop composition puts a 150px tray

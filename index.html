@@ -214,9 +214,9 @@
       </nav>
 
       <div class="building-tools hidden" id="building-tools" aria-label="Building tools">
-        <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
-        <button id="layer-btn" class="nav-btn" data-i18n="স্তর সাজাও">স্তর সাজাও</button>
-        <button id="item-adjust-btn" class="nav-btn" data-i18n="আইটেম সাজাও" aria-controls="item-panel">আইটেম সাজাও</button>
+        <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও" aria-controls="jar-panel" aria-expanded="false">জার সাজাও</button>
+        <button id="layer-btn" class="nav-btn" data-i18n="স্তর সাজাও" aria-controls="layer-panel" aria-expanded="false">স্তর সাজাও</button>
+        <button id="item-adjust-btn" class="nav-btn" data-i18n="আইটেম সাজাও" aria-controls="item-panel" aria-expanded="false">আইটেম সাজাও</button>
       </div>
 
       <!-- The compact upper-right action row keeps the everyday build actions
@@ -513,7 +513,8 @@
 
       <!-- jar customiser: frame colour, glass tint, shape sliders -->
       <div class="cfg-panel hidden" id="jar-panel">
-        <div class="cfg-head"><span data-i18n="জার কাস্টমাইজ">জার কাস্টমাইজ</span><button class="hud-btn cfg-close" data-close="jar-panel">✕</button></div>
+        <div class="cfg-head"><span data-i18n="জার কাস্টমাইজ">জার কাস্টমাইজ</span><button type="button" class="hud-btn cfg-close" data-close="jar-panel" data-trigger="jar-custom-btn" aria-label="Close jar settings">✕</button></div>
+        <div class="panel-grip panel-grip--right" id="jar-panel-grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize building panel"></div>
         <!-- Colour is picked off a spectrum sheet: a neutral ramp, then hue by
              tone. The glass sheet stays in the pale end of the range, since a
              saturated tint stops reading as glass at all. -->
@@ -545,8 +546,9 @@
       <div class="cfg-panel hidden" id="layer-panel">
         <div class="cfg-head">
           <div><span data-i18n="স্তর সাজাও">স্তর সাজাও</span><small id="layer-context"></small></div>
-          <button class="hud-btn cfg-close" data-close="layer-panel">✕</button>
+          <button type="button" class="hud-btn cfg-close" data-close="layer-panel" data-trigger="layer-btn" aria-label="Close layer editor">✕</button>
         </div>
+        <div class="panel-grip panel-grip--right" id="layer-panel-grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize building panel"></div>
         <ol class="layer-list" id="layer-list" aria-label="স্তরের তালিকা"></ol>
         <p class="layer-empty hidden" id="layer-empty" data-i18n="এখনো কোনো স্তর নেই — ট্রে থেকে বেস ঢালো।">এখনো কোনো স্তর নেই — ট্রে থেকে বেস ঢালো।</p>
         <!-- One layer panel owns the selected-layer tools, recipes, grain and
@@ -624,7 +626,8 @@
 
       <!-- Building's default inspector: also reachable by tapping a piece. -->
       <div class="cfg-panel hidden" id="item-panel">
-        <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context" aria-live="polite"></small></div></div>
+        <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context" aria-live="polite"></small></div><button type="button" class="hud-btn cfg-close" data-close="item-panel" data-trigger="item-adjust-btn" aria-label="Close item settings">✕</button></div>
+        <div class="panel-grip panel-grip--right" id="item-panel-grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize building panel"></div>
         <label class="item-picker-label" for="item-select" data-i18n="বসানো আইটেম বেছে নাও">বসানো আইটেম বেছে নাও</label>
         <select id="item-select" aria-describedby="item-selection-hint"></select>
         <p class="item-selection-hint" id="item-selection-hint"></p>

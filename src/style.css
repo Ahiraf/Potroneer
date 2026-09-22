@@ -5822,3 +5822,62 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
   .building-tools { right: 8px; max-width: calc(100vw - 16px); flex-wrap: wrap; }
   #jar-panel, #layer-panel, #item-panel { top: 218px; right: 8px; bottom: 8px; width: min(280px, calc(100vw - 24px)); }
 }
+
+/* Keep all Building editors on the same resizable left dock as Decorations.
+   This final desktop rule intentionally follows the legacy right-side editor
+   positioning above, while leaving the compact sheet layout unchanged. */
+@media (min-width: 701px) and (min-height: 461px) {
+  .cfg-panel {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    width: var(--building-panel-w, var(--tray-w));
+    height: 100%;
+    max-height: none;
+    padding: 12px 20px 12px 10px;
+    background: var(--hud);
+    border: 0;
+    border-right: 1px solid var(--hud-border);
+    border-radius: 0;
+    z-index: 8;
+    box-shadow: 4px 0 28px rgba(0, 0, 0, 0.26);
+  }
+
+  #jar-panel,
+  #layer-panel,
+  #item-panel {
+    width: var(--building-panel-w, var(--tray-w));
+  }
+
+  .building-tools {
+    left: calc(var(--building-panel-w, var(--tray-w)) + 22px);
+    right: auto;
+    z-index: 14;
+  }
+
+  .cfg-panel > .panel-grip.panel-grip--right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    margin-right: 0;
+    z-index: 10;
+  }
+
+  .cfg-panel > .panel-grip::before {
+    max-height: none;
+    opacity: 0;
+  }
+
+  .cfg-panel:hover > .panel-grip::before,
+  .cfg-panel > .panel-grip:hover::before,
+  .cfg-panel > .panel-grip:focus-visible::before,
+  .cfg-panel > .panel-grip.is-dragging::before {
+    opacity: 1;
+  }
+
+  body.panel-resizing .cfg-panel {
+    transition: none;
+  }
+}
