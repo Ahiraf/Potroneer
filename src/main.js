@@ -6419,7 +6419,7 @@ function applyPanelWidth(grip, w) {
 function syncPanelWidths() {
   const phone = document.body.classList.contains("is-phone");
   for (const grip of panelGrips) {
-    applyPanelWidth(grip, phone ? null : panelWidths[grip.id] ?? null);
+    applyPanelWidth(grip, phone && !grip.allowPhone ? null : panelWidths[grip.id] ?? null);
   }
 }
 
@@ -6428,12 +6428,12 @@ function syncPanelWidths() {
 // else. The tray is the reason that is a map and not a single name: --tray-x and --tray-fx are where things *docked beside* the column
 // measure from, and if they do not follow the drag, widening the tray slides it
 // underneath the toolbar instead of pushing the toolbar over.
-function initPanelGrip({ id, gripId, panelId, vars, min, max, sign }) {
+function initPanelGrip({ id, gripId, panelId, vars, min, max, sign, allowPhone = false }) {
   const grip = document.getElementById(gripId);
   const panel = document.getElementById(panelId);
   if (!grip || !panel) return;
 
-  const entry = { id, vars, min, max };
+  const entry = { id, vars, min, max, allowPhone };
   panelGrips.push(entry);
 
   // Start at the visible edge, including any viewport or CSS width limits.
@@ -6441,6 +6441,7 @@ function initPanelGrip({ id, gripId, panelId, vars, min, max, sign }) {
   // using it made the handle jump or lag behind the pointer.
   const currentWidth = () =>
     Math.round(panel.getBoundingClientRect().width);
+  const direction = () => typeof sign === "function" ? sign() : sign;
 
   const clamp = (w) =>
     Math.max(min, Math.min(typeof max === "function" ? max() : max, w));
@@ -6460,7 +6461,7 @@ function initPanelGrip({ id, gripId, panelId, vars, min, max, sign }) {
   grip.addEventListener("pointerdown", (e) => {
     // Left button / touch / pen only; a right-click on the edge is not a drag.
     if (e.button !== 0) return;
-    if (document.body.classList.contains("is-phone")) return;
+    if (document.body.classList.contains("is-phone") && !allowPhone) return;
     dragging = true;
     startX = e.clientX;
     startW = currentWidth();
@@ -6478,7 +6479,7 @@ function initPanelGrip({ id, gripId, panelId, vars, min, max, sign }) {
 
   grip.addEventListener("pointermove", (e) => {
     if (!dragging) return;
-    setWidth(startW + (e.clientX - startX) * sign, false);
+    setWidth(startW + (e.clientX - startX) * direction(), false);
   });
 
   function endDrag(e) {
@@ -6498,8 +6499,8 @@ function initPanelGrip({ id, gripId, panelId, vars, min, max, sign }) {
   grip.addEventListener("keydown", (e) => {
     const step = e.shiftKey ? 48 : 16;
     let delta = 0;
-    if (e.key === "ArrowLeft") delta = -step * sign;
-    else if (e.key === "ArrowRight") delta = step * sign;
+    if (e.key === "ArrowLeft") delta = -step * direction();
+    else if (e.key === "ArrowRight") delta = step * direction();
     else if (e.key === "Home") delta = -1e4;
     else if (e.key === "End") delta = 1e4;
     else if (e.key === "Enter" || e.key === " ") {
@@ -6576,8 +6577,9 @@ for (const [gripId, panelId] of [
     panelId,
     vars: { "--building-panel-w": 0 },
     min: 180,
-    max: () => Math.min(420, window.innerWidth * 0.4),
-    sign: 1,
+    max: () => Math.min(420, window.innerWidth * (document.body.classList.contains("is-phone") ? 0.84 : 0.4)),
+    sign: () => document.body.classList.contains("is-phone") ? -1 : 1,
+    allowPhone: true,
   });
 }
 

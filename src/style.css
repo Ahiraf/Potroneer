@@ -5820,7 +5820,53 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
 }
 @media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
   .building-tools { right: 8px; max-width: calc(100vw - 16px); flex-wrap: wrap; }
-  #jar-panel, #layer-panel, #item-panel { top: 218px; right: 8px; bottom: 8px; width: min(280px, calc(100vw - 24px)); }
+  #jar-panel, #layer-panel, #item-panel {
+    top: 218px;
+    right: 8px;
+    bottom: 8px;
+    width: min(var(--building-panel-w, 280px), calc(100vw - 24px));
+    max-width: calc(100vw - 16px);
+  }
+  #jar-panel > .cfg-head,
+  #layer-panel > .cfg-head,
+  #item-panel > .cfg-head {
+    position: sticky;
+    top: -12px;
+    z-index: 11;
+    padding: 8px 0;
+    background: var(--hud-solid, var(--hud));
+  }
+  #jar-panel > .panel-grip,
+  #layer-panel > .panel-grip,
+  #item-panel > .panel-grip {
+    display: grid;
+    top: 0;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    width: 16px;
+    margin-left: -8px;
+    margin-right: 0;
+    z-index: 10;
+  }
+  #jar-panel > .panel-grip::before,
+  #layer-panel > .panel-grip::before,
+  #item-panel > .panel-grip::before {
+    max-height: none;
+    opacity: 0.65;
+  }
+  #jar-panel > .panel-grip:hover::before,
+  #layer-panel > .panel-grip:hover::before,
+  #item-panel > .panel-grip:hover::before,
+  #jar-panel > .panel-grip:focus-visible::before,
+  #layer-panel > .panel-grip:focus-visible::before,
+  #item-panel > .panel-grip:focus-visible::before,
+  #jar-panel > .panel-grip.is-dragging::before,
+  #layer-panel > .panel-grip.is-dragging::before,
+  #item-panel > .panel-grip.is-dragging::before {
+    opacity: 1;
+  }
+  body.panel-resizing .cfg-panel { transition: none; }
 }
 
 /* Keep all Building editors on the same resizable left dock as Decorations.
@@ -5842,6 +5888,16 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
     border-radius: 0;
     z-index: 8;
     box-shadow: 4px 0 28px rgba(0, 0, 0, 0.26);
+  }
+
+  #jar-panel > .cfg-head,
+  #layer-panel > .cfg-head,
+  #item-panel > .cfg-head {
+    position: sticky;
+    top: -12px;
+    z-index: 11;
+    padding: 8px 0;
+    background: var(--hud-solid, var(--hud));
   }
 
   #jar-panel,
