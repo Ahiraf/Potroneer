@@ -87,7 +87,6 @@ import { toggleAmbience, playSfx, setVolume, isPlaying } from "./ambience.js";
 import { decorationIcon, baseIcon, jarIcon } from "./icons.js";
 import { t, tLabel, getLang, setLang } from "./i18n.js";
 import { preloadModels, getModelClone, getJarModelInterior } from "./models.js";
-import { createHand } from "./hand.js";
 import { createCursorGhost } from "./ghost.js";
 import { createHandles } from "./handles.js";
 import { createBaseShadow } from "./baseshadow.js";
@@ -210,13 +209,6 @@ if (import.meta.env.DEV) {
   };
 }
 
-// The builder's hand: tweezers pinched over the jar, following the cursor while
-// an ingredient is selected and dipping in to release it — the real gesture the
-// reference clips are all built around. It lives in scene space, not `world`,
-// so it always reaches in over the player's shoulder however the jar is turned.
-const hand = createHand();
-studio.scene.add(hand.group);
-
 // The cursor ghost rides in `world`, on the substrate, so it turns with the jar.
 const cursorGhost = createCursorGhost();
 studio.world.add(cursorGhost.group);
@@ -235,7 +227,7 @@ studio.world.add(baseShadow.group);
 // decorations it is tracking, so it turns with them.
 const hoverHighlight = createHighlight();
 studio.world.add(hoverHighlight.group);
-let handFrame = performance.now();
+let frameTime = performance.now();
 let lastZoomSync = 0;
 const state = createState();
 const social = createSocialClient();
@@ -617,13 +609,12 @@ function easeOut(x) {
   return 1 - Math.pow(1 - x, 3);
 }
 studio.setOnFrame((now) => {
-  const handDt = Math.min(50, now - handFrame);
-  hand.update(now, handDt);
+  const handDt = Math.min(50, now - frameTime);
   cursorGhost.update(now, handDt);
   handles.update(now, handDt);
   baseShadow.update(now, handDt, calmMotion());
   hoverHighlight.update(now, handDt, calmMotion());
-  handFrame = now;
+  frameTime = now;
   syncStrata();
   // The wheel and the pinch move the same zoom the buttons do, so the buttons
   // have to notice when a gesture has reached the end of the range — otherwise
@@ -712,6 +703,7 @@ function rebuildSubstrate(animateLast = false) {
     // The layer below, so this one's underside can be built as the *same*
     // surface as that one's top rather than a flat disc floating on its peaks.
     const mesh = buildLayer(layer, y, isTop, state.layers[idx - 1] ?? null, isTop);
+    mesh.userData.layerIndex = idx;
     substrateGroup.add(mesh);
     if (animateLast && isTop) {
       // The layer's vertices carry absolute heights, so scaling the group about
@@ -738,6 +730,7 @@ function rebuildSubstrate(animateLast = false) {
     const topLayer = state.layers[state.layers.length - 1];
     terrainCap = buildTerrainCap(topDef, substrateTop(state), topLayer?.height ?? 0.16);
     updateTerrainCap(terrainCap, state, substrateTop(state));
+    terrainCap.userData.layerIndex = state.layers.length - 1;
     substrateGroup.add(terrainCap);
   }
   placePickPlane(substrateTop(state));
@@ -1021,11 +1014,12 @@ function placeDecoration(worldPoint, def, support = null) {
   obj.userData.record = record;
   obj.userData.baseScale = targetScale;
   attachSupport(studio.world, obj, spot.support);
-  renderItemPanel();
+  if (activeTool === "place") { adjTarget = obj; showItemPanel(); }
+  else renderItemPanel();
 
   // Reduced motion gets the plant at full size straight away. The feedback that
-  // matters — it appeared, here, where the tweezers were — survives; the
-  // overshooting scale-in is the part that does not.
+  // matters — the new piece is visible right away; the overshooting scale-in
+  // is the part that reduced motion leaves out.
   if (calmMotion()) obj.scale.setScalar(targetScale);
   else tween(420, (p) => obj.scale.setScalar(0.001 + p * targetScale));
   // The ring, the sparks and the plop — the same beat a piece gets when it is
@@ -1199,7 +1193,7 @@ function topDecor(object) {
 // "place" = tap to add / drag decorations. "raise"/"lower" = terrain sculpt
 // brushes. "grass" = paint moss-grass tufts along the drag path.
 const TOOLS = [
-  { id: "place", label: "চিমটা", glyph: "🥢" },
+  { id: "place", label: "বসাও", glyph: "↖" },
   { id: "water", label: "পানি", glyph: "💧" },
   { id: "mist", label: "স্প্রে", glyph: "💦" },
   { id: "raise", label: "উঁচু", glyph: "⛰️" },
@@ -1209,6 +1203,7 @@ const TOOLS = [
   { id: "moss", label: "মস ব্রাশ", glyph: "🖌️" },
   { id: "pebble", label: "নুড়িপথ", glyph: "🪨" },
 ];
+let waterAmount = 50;
 let activeTool = "place";
 let lastPaint = null; // throttles grass spawns along a stroke
 
@@ -1218,7 +1213,7 @@ let lastPaint = null; // throttles grass spawns along a stroke
 // before the bottom of this file is evaluated — a const declared down there is
 // a temporal-dead-zone throw that takes the rest of main.js with it.
 const TOOL_MODES = {
-  place: { mode: "বসানোর মোড", glyph: "🥢" },
+  place: { mode: "বসানোর মোড", glyph: "↖" },
   water: { mode: "পানির মোড", glyph: "💧", does: "ট্যাপ বা টেনে মাটিতে পানি দাও" },
   mist: { mode: "স্প্রে মোড", glyph: "💦", does: "কাঁচে স্প্রে করতে ট্যাপ করো" },
   raise: { mode: "ভাস্কর্য মোড", glyph: "⛰️", does: "মাটি উঁচু করতে টেনে নাও" },
@@ -2205,6 +2200,7 @@ function ensurePour() {
 function showPour(local) {
   const s = ensurePour();
   pourRevision++; // an old fade must never hide a fresh stroke
+  s.userData.amount = waterAmount / 50;
   s.userData.height = Math.max(.25, JAR.floorY + JAR.bodyHeight + .25 - local.y);
   s.position.copy(local);
   s.userData.material.opacity = .68;
@@ -2245,7 +2241,7 @@ function spawnSplash(worldPoint) {
       ring.material.dispose();
     }
   }, (x) => x);
-  for (let i = 0, drops = particleBudget(5); i < drops; i++) {
+  for (let i = 0, drops = particleBudget(Math.max(1, Math.round(5 * waterAmount / 50))); i < drops; i++) {
     const d = new THREE.Mesh(dropGeo, dropMat.clone());
     d.scale.set(.38, .65, .38);
     const a = Math.random() * Math.PI * 2;
@@ -2266,7 +2262,7 @@ function water(screen, isTap) {
   const hit = studio.raycast(screen, surfaceTargets());
   if (!hit) return;
   if (isTap && screen?.x != null) impact(screen.x, screen.y, { size: 64, tone: "water" });
-  wetLevel = Math.min(1, wetLevel + (isTap ? 0.28 : 0.06));
+  wetLevel = Math.min(1, wetLevel + (isTap ? 0.28 : 0.06) * waterAmount / 50);
   applyWetness();
   const local = studio.world.worldToLocal(hit.point.clone());
   showPour(local); // pouring stream from above
@@ -2278,8 +2274,8 @@ function water(screen, isTap) {
   }
   if (isTap || now - lastWaterGameAction > 700) {
     lastWaterGameAction = now;
-    game.care.water = Math.min(1, game.care.water + (isTap ? 0.22 : 0.08));
-    game.care.humidity = Math.min(1, game.care.humidity + 0.03);
+    game.care.water = Math.min(1, game.care.water + (isTap ? 0.22 : 0.08) * waterAmount / 50);
+    game.care.humidity = Math.min(1, game.care.humidity + 0.03 * waterAmount / 50);
     gameAction("water");
   }
   studio.markInteraction();
@@ -2330,7 +2326,7 @@ studio.setGrabHandler((screen) => {
   if (!hit) return false;
   const obj = topDecor(hit.object);
   if (!obj) return false;
-  if (activeTab === "building") openItemPanel(obj);
+  openItemPanel(obj);
   grabbed = obj;
   snapshot();
   // The shell follows the piece up, so on a finger — which never had a hover
@@ -2789,7 +2785,7 @@ function tryAddLayer(id) {
   gameAction("layer", id);
 }
 
-// Place a decoration at a screen point (used by tap and by drag-from-strip).
+// Place a decoration at a screen point (from a tap or a dragged catalog item).
 function tryPlaceDecoration(screen, id) {
   if (!hasBase(state)) {
     flashHint("আগে অন্তত একটা বেস স্তর দাও, তারপর গাছ বসাও।");
@@ -2800,30 +2796,23 @@ function tryPlaceDecoration(screen, id) {
   const def = DECORATIONS.find((d) => d.id === id);
   if (def) {
     snapshot();
-    // The tweezers dip, open, and *then* the plant appears — the hand is doing
-    // the placing, not decorating a placement that already happened.
-    hand.carry(handPreview(def));
     cursorGhost.hide();
     handles.hide();
-    handCarrying = null; // the tweezers are empty again once this one is let go
-    hand.placeAt(hit.point, () => {
-      placeDecoration(hit.point, def, supportFromHit(hit));
-      if (screen?.x != null) {
-        impact(screen.x, screen.y, { size: 52, tone: "leaf" });
-        burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
-      }
-      updateHint();
-    });
+    previewItemId = null;
+    placeDecoration(hit.point, def, supportFromHit(hit));
+    if (screen?.x != null) {
+      impact(screen.x, screen.y, { size: 52, tone: "leaf" });
+      burst(screen.x, screen.y, { count: 8, spread: 34, colors: ["#8a6b47", "#a9895f", "#c7b18b"] });
+    }
+    updateHint();
   }
 }
 
-// A miniature of the item, pinched between the tweezer tips while the hand
-// carries it to the spot it will be planted.
-function handPreview(def) {
+// A lightweight visual copy follows the pointer, showing where the item will land.
+function placementPreview(def) {
   const { obj } = buildItem(def);
-  // The same normalisation the real placement uses, so what is pinched in the
-  // tweezers is the piece that lands — a preview at a different size is a
-  // preview of something else.
+  // Use the same normalisation as real placement, so the pointer preview
+  // matches the size of the item that will land.
   obj.scale.setScalar(normalizeFactor(def, obj) * jarSizeK());
   return obj;
 }
@@ -2841,11 +2830,10 @@ canvas.addEventListener("pointerdown", (e) => {
   lastPress = { x: e.clientX, y: e.clientY };
 });
 
-// Hover is where the interface tells you what a press would do: the tweezers
-// carry the piece to the spot it would be planted, a ghost of it stands there,
+// Hover shows where the selected item will land with a ghost preview,
 // a brush ring shows exactly the area a sculpt or paint stroke would cover, and
 // every piece already planted wears a handle saying it can be picked back up.
-let handCarrying = null;
+let previewItemId = null;
 const BRUSH_TOOLS = new Set(["raise", "lower", "flatten", "grass", "moss", "pebble"]);
 
 function decorHandlePoints() {
@@ -2858,7 +2846,6 @@ function decorHandlePoints() {
 }
 
 function clearHover() {
-  hand.hide();
   cursorGhost.hide();
   handles.hide();
   baseShadow.hide();
@@ -2976,7 +2963,6 @@ canvas.addEventListener("pointermove", (e) => {
   // Sculpt and paint tools: ring the exact patch the stroke would touch.
   if (BRUSH_TOOLS.has(activeTool)) {
     handles.hide();
-    hand.hide();
     setHoverPiece(null);
     const hit = hasBase(state) ? studio.raycast(screen, surfaceTargets()) : null;
     if (!hit) {
@@ -2988,12 +2974,11 @@ canvas.addEventListener("pointermove", (e) => {
     return;
   }
 
-  // Holding a substrate material: the marker, not the tweezers. This comes
+  // Holding a substrate material: the marker. This comes
   // before the hasBase() gate below, because the very first layer — the one
   // where there is no ground at all yet and nothing on screen to aim at — is
   // precisely the pour that most needs showing.
   if (activeTab !== "building" && activeTool === "place" && selected.group === "base") {
-    hand.hide();
     cursorGhost.hide();
     handles.hide();
     setHoverPiece(null);
@@ -3004,7 +2989,7 @@ canvas.addEventListener("pointermove", (e) => {
 
   if (activeTool !== "place" || !hasBase(state)) {
     clearHover();
-    handCarrying = null;
+    previewItemId = null;
     return;
   }
 
@@ -3021,39 +3006,32 @@ canvas.addEventListener("pointermove", (e) => {
   const placingOnItems = stackPlacement && activeTab !== "building" && selected.group === "decor";
   setHoverPiece(onPiece && !placingOnItems ? topDecor(onPiece.object) : null);
   if (onPiece && !placingOnItems) {
-    hand.hide();
     cursorGhost.hide();
     return;
   }
 
-  aimTweezers(screen);
+  aimPlacement(screen);
 });
 canvas.addEventListener("pointerleave", clearHover);
 
-// Reach the tweezers toward `screen` carrying whatever is selected, and report
-// the spot they would plant it in (or null if that is nowhere). The mouse
-// calls this from its hover; touch, which has no hover, calls it from the
-// finger — see the aim handler below.
-function aimTweezers(screen) {
+// Show a placement preview at the pointer and report a valid target. Mouse
+// hover and touch both use this after resolving their screen coordinates.
+function aimPlacement(screen) {
   if (activeTab === "building" || selected.group !== "decor") {
-    hand.hide();
     cursorGhost.hide();
-    handCarrying = null;
+    previewItemId = null;
     return null;
   }
   const hit = studio.raycast(screen, placementTargets());
   if (!hit) {
-    hand.hide();
     cursorGhost.hide();
     return null;
   }
   const def = DECORATIONS.find((d) => d.id === selected.id);
-  if (handCarrying !== selected.id) {
-    handCarrying = selected.id;
-    hand.carry(def ? handPreview(def) : null);
-    cursorGhost.setItem(def ? handPreview(def) : null);
+  if (previewItemId !== selected.id) {
+    previewItemId = selected.id;
+    cursorGhost.setItem(def ? placementPreview(def) : null);
   }
-  hand.hoverTo(hit.point);
   const local = studio.world.worldToLocal(hit.point.clone());
   // The tap target is deliberately a little wider than the interior (see
   // buildPickPlane), so a hit on it is not by itself a licence to plant. The
@@ -3079,19 +3057,14 @@ function aimTweezers(screen) {
 }
 
 // --- planting with a finger ------------------------------------------------
-// The tweezers are the whole gesture of this app — reach, hover, dip, release
-// — and on a phone none of it was reachable: the hand rides the mouse's hover,
-// and a finger has none, so a tap planted instantly at a point hidden under
-// the fingertip. Contact stands in for hover here. Press with something picked
-// from the tray and the hand reaches in carrying it; drag and it follows; lift
-// and it dips and lets go. Turning the jar stays on one finger with nothing
-// selected, and on two fingers always.
+// Touch uses a raised aim point while dragging so the fingertip does not hide
+// the target. A tap remains at the point the user touched.
 //
 // The aim also rides above the fingertip, or you would be planting into the
 // one spot on the glass you cannot see. It eases up rather than jumping, so a
 // straight tap still lands where it was tapped and only a drag lifts clear.
 const TOUCH_LIFT = 64;
-let aimAt = null; // the lifted screen point the tweezers are held over
+let aimAt = null; // the lifted aim point above a finger drag
 let aimLift = 0;
 
 // Where the finger is actually pointing. The full lift is only taken if there
@@ -3121,15 +3094,15 @@ studio.setAimHandler({
     aimAt = aimScreen(p);
     if (!aimAt) return false; // pressed off the jar → turn it instead
     handles.hide();
-    aimTweezers(aimAt);
+    aimPlacement(aimAt);
     return true;
   },
   move(p) {
     aimLift += (TOUCH_LIFT - aimLift) * 0.25;
     aimAt = aimScreen(p);
-    // Dragged off the substrate: the tweezers withdraw, so lifting there
+    // Dragged off the substrate: the placement preview hides, so lifting there
     // plants nothing rather than guessing.
-    aimTweezers(aimAt ?? { x: p.x, y: p.y });
+    aimPlacement(aimAt ?? { x: p.x, y: p.y });
   },
   end() {
     const screen = aimAt;
@@ -3178,7 +3151,20 @@ studio.setTapHandler((screen) => {
   }
   // Building edits what is already there. An empty-space tap must not pour
   // the last selected layer or accidentally add another animal/structure.
-  if (activeTab === "building") return;
+  if (activeTab === "building") {
+    const hit = studio.raycast(screen, substrateGroup.children);
+    if (hit) {
+      let band = hit.object;
+      while (band && band.userData.layerIndex === undefined) band = band.parent;
+      if (band && band.userData.layerIndex >= 0) {
+        layerSel = band.userData.layerIndex;
+        selected = {group: "base", id: state.layers[layerSel].type};
+        openLayerPanel();
+        renderDepth();
+      }
+    } else if (jarGroup && studio.raycast(screen, [jarGroup])) openJarPanel();
+    return;
+  }
   if (selected.group === "base") {
     // Any tap *inside* the jar drops another substrate layer. A tap on the
     // glass itself is not a placement — see aimInsideJar.
@@ -3240,6 +3226,7 @@ function selectTool(id) {
   document
     .querySelectorAll(".tool-row[data-id]")
     .forEach((c) => c.classList.toggle("is-active", c.dataset.id === id));
+  document.getElementById("water-controls")?.classList.toggle("hidden", id !== "water");
   updateSliderState();
   updateFocusHud();
   studio.markInteraction();
@@ -3250,6 +3237,18 @@ function selectTool(id) {
 // and showing all of them all of the time taxes every glance at the screen.
 const TOOLS_SHOWN = 2;
 let toolsExpanded = false;
+
+function setWaterAmount(value) {
+  waterAmount = Math.max(10, Math.min(100, Math.round((Number.isFinite(Number(value)) ? Number(value) : 50) / 10) * 10));
+  const input = document.getElementById("water-amount");
+  if (input) input.value = String(waterAmount);
+  const output = document.getElementById("water-amount-value");
+  if (output) output.textContent = `${toUiDigits(waterAmount)}%`;
+  const less = document.getElementById("water-less"), more = document.getElementById("water-more");
+  if (less) less.disabled = waterAmount === 10;
+  if (more) more.disabled = waterAmount === 100;
+  if (pourStream) pourStream.userData.amount = waterAmount / 50;
+}
 
 function renderTools() {
   toolItemsEl.innerHTML = "";
@@ -3280,6 +3279,23 @@ function renderTools() {
     });
     toolItemsEl.appendChild(more);
   }
+  if (ids.includes("water")) {
+    const control = document.createElement("div");
+    control.id = "water-controls";
+    control.className = "water-controls" + (activeTool === "water" ? "" : " hidden");
+    control.innerHTML = `<label for="water-amount">${t("পানির পরিমাণ")}</label>
+      <div class="water-amount-row">
+        <button type="button" id="water-less" aria-label="${t("পানি কমাও")}">−</button>
+        <input id="water-amount" type="range" min="10" max="100" step="10" value="${waterAmount}">
+        <button type="button" id="water-more" aria-label="${t("পানি বাড়াও")}">+</button>
+        <output id="water-amount-value" for="water-amount">${toUiDigits(waterAmount)}%</output>
+      </div>`;
+    toolItemsEl.appendChild(control);
+    control.querySelector("input").addEventListener("input", e => setWaterAmount(e.target.value));
+    control.querySelector("#water-less").addEventListener("click", () => setWaterAmount(waterAmount-10));
+    control.querySelector("#water-more").addEventListener("click", () => setWaterAmount(waterAmount+10));
+    setWaterAmount(waterAmount);
+  }
   toolItemsEl.style.display = ids.length ? "" : "none";
   if (activeTab === "decor" || activeTab === "paint") {
     const stack = document.createElement("button");
@@ -3305,6 +3321,7 @@ function selectTab(tab) {
   endGesture();
   cancelMove();
   activeTab = tab;
+  document.getElementById("building-btn")?.setAttribute("aria-pressed", String(tab === "building"));
   toolsExpanded = false; // each tab opens on its everyday tools
   // reflect the active tab on <body> so CSS can shift the tool list when the
   // Decorate sidebar is present
@@ -3323,8 +3340,10 @@ function selectTab(tab) {
   if (tab === "sculpt") selectTool("raise");
   else if (tab === "paint") selectTool("grass");
   else selectTool("place");
-  if (tab === "building") showItemPanel();
+  if (tab === "building") openJarPanel();
   else {
+    jarPanelEl.classList.add("hidden");
+    layerPanelEl.classList.add("hidden");
     itemPanelEl.classList.add("hidden");
     document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
   }
@@ -3394,7 +3413,7 @@ function applyComfortSettings() {
 }
 
 // What the user is currently holding, in one line: a brush tool says which
-// brush, and "place" says which item is on the tweezers, because in Focus Build
+// brush, and "place" says which item is selected, because in Focus Build
 // the tray that would otherwise have told you is folded away.
 function currentSelectionLabel() {
   if (activeTool !== "place") {
@@ -3404,7 +3423,7 @@ function currentSelectionLabel() {
   const source =
     selected.group === "jar" ? JAR_TYPES : selected.group === "base" ? BASE_LAYERS : DECORATIONS;
   const item = source.find((entry) => entry.id === selected.id);
-  return item ? `🥢 ${tLabel(item.label)}` : t("বসাও");
+  return item ? `↖ ${tLabel(item.label)}` : t("বসাও");
 }
 
 // Keeps both readouts of the current selection — the focus HUD and the radial's
@@ -3808,7 +3827,7 @@ buildToggleEl.addEventListener("click", () => {
     catBtnEl.querySelector(".cat-icon").textContent = "🧰";
     catBtnEl.querySelector(".cat-name").textContent = t("ট্রে");
     catFlyoutEl.classList.add("hidden");
-    // jump to Decorate so the tray palette + tweezers/water/spray tools are all
+    // jump to Decorate so the tray palette + placement/water/spray tools are all
     // ready together — the full build-from-tray flow
     if (activeTab !== "decor") selectTab("decor");
     flashHint("ট্রে থেকে বেছে চিমটা দিয়ে বসাও, পানি ঢালো, স্প্রে করো।");
@@ -3898,7 +3917,7 @@ window.addEventListener("pointerup", (e) => {
       snapshot();
       // Swapping the vessel rebuilds every piece of glass geometry and every
       // layer inside it. On a full jar that is long enough to read as a hang.
-      withSceneLoading("নতুন জার বসানো হচ্ছে…", () => setJar(item.id));
+      withSceneLoading("নতুন জার বসানো হচ্ছে…", () => { setJar(item.id); openJarPanel(); });
     }
   } else if (group === "base") {
     selected = { group: "base", id: item.id };
@@ -4023,13 +4042,20 @@ function renderStrip() {
         if (group === "jar") {
           if (item.id !== currentJarId) {
             snapshot();
-            withSceneLoading("নতুন জার বসানো হচ্ছে…", () => setJar(item.id));
-          }
+            withSceneLoading("নতুন জার বসানো হচ্ছে…", () => { setJar(item.id); openJarPanel(); });
+          } else openJarPanel();
         } else {
           selected = { group, id: item.id };
           rememberUse(group, item.id);
           if (activeTab === "building") selectTab("decor");
           selectTool("place"); // picking a material returns to place mode
+          if (group === "base") {
+            layerSel = state.layers.findLastIndex(layer => layer.type === item.id);
+            openLayerPanel();
+          } else {
+            adjTarget = livePieces().find(obj => obj.userData.record.id === item.id) ?? null;
+            showItemPanel();
+          }
         }
         renderStrip();
         updateHint();
@@ -4438,15 +4464,20 @@ function refreshJarSwatches() {
   });
 }
 
-document.getElementById("jar-custom-btn").addEventListener("click", () => {
+function revealEditor() {
+  if (focusMode) setFocusMode(false);
+}
+
+function openJarPanel() {
   endGesture();
+  revealEditor();
   itemPanelEl.classList.add("hidden");
   layerPanelEl.classList.add("hidden");
   refreshJarSwatches();
-  jarPanelEl.classList.toggle("hidden");
+  jarPanelEl.classList.remove("hidden");
   document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
-  if (jarPanelEl.classList.contains("hidden") && activeTab === "building") showItemPanel();
-});
+}
+document.getElementById("jar-custom-btn").addEventListener("click", openJarPanel);
 
 // ---------------------------------------------------------------------------
 // Layer editor
@@ -4519,6 +4550,7 @@ function reseatDecorations() {
 
 function openLayerPanel() {
   endGesture();
+  revealEditor();
   itemPanelEl.classList.add("hidden");
   document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
   jarPanelEl.classList.add("hidden");
@@ -4628,7 +4660,7 @@ document.getElementById("layer-btn")?.addEventListener("click", () => {
   layerPanelEl.classList.contains("hidden")
     ? openLayerPanel()
     : layerPanelEl.classList.add("hidden");
-  if (layerPanelEl.classList.contains("hidden") && activeTab === "building") showItemPanel();
+
 });
 document.getElementById("depth-edit")?.addEventListener("click", openLayerPanel);
 
@@ -4711,7 +4743,7 @@ document.querySelectorAll(".cfg-close").forEach((b) =>
   b.addEventListener("click", () => {
     endGesture();
     document.getElementById(b.dataset.close).classList.add("hidden");
-    if (activeTab === "building") showItemPanel();
+    document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "false");
   }),
 );
 document.getElementById("jar-w").addEventListener("input", (e) => {
@@ -4750,10 +4782,11 @@ let adjTarget = null;
 let adjSelection = -1;
 
 function showItemPanel() {
+  revealEditor();
   jarPanelEl.classList.add("hidden");
   layerPanelEl.classList.add("hidden");
   const pieces = livePieces();
-  if (!pieces.includes(adjTarget)) adjTarget = pieces[0] ?? null;
+  if (!pieces.includes(adjTarget)) adjTarget = null;
   renderItemPanel();
   itemPanelEl.classList.remove("hidden");
   document.getElementById("item-adjust-btn").setAttribute("aria-expanded", "true");
@@ -4764,8 +4797,7 @@ function openItemPanel(obj) {
   endGesture();
   if (movePending && movePending !== obj) cancelMove();
   adjTarget = obj;
-  if (activeTab !== "building") selectTab("building");
-  else showItemPanel();
+  showItemPanel();
   studio.markInteraction();
 }
 
@@ -5287,9 +5319,7 @@ function updateToolStatus() {
   let mode = entry.mode;
   let does = entry.does ?? "";
 
-  // The tweezers are three modes wearing one name, and which one you are in
-  // depends entirely on what is on them — so this is the case worth spelling
-  // out rather than just printing "place".
+  // Placement status includes the selected item so the next action stays clear.
   // Item names are catalog labels and the verb phrases are dictionary keys, so
   // each half is translated on its own and only then joined — running the
   // joined sentence through t() would miss every time and print raw Bengali
@@ -5463,14 +5493,14 @@ async function captureFilteredPhoto() {
 // The filters and the save button were already here; what was missing is the
 // *mode* around them. A photograph of a terrarium should not have the shelf,
 // the mode tabs and a tool pill in it, and it should not be framed for
-// building — which leaves room above the jar for the tweezers to come down.
+// building — which leaves room above the jar for a clear view.
 //
 // So opening photo mode clears the building chrome away, pulls the camera in,
 // and offers the four angles. Closing it puts all of that back, including the
 // camera pose, so stepping in to take a picture never costs you the view you
 // were working in.
 // A photograph is framed tighter than a workbench. 0.76 leaves headroom for
-// the tweezers to come down into; nothing reaches into a picture.
+// the cursor can move freely; nothing reaches into a picture.
 const PHOTO_FILL = 0.9;
 
 function setPhotoMode(on) {
@@ -5478,7 +5508,7 @@ function setPhotoMode(on) {
   // Softer key-to-fill and a firmer contact shadow — see setPhotoLighting.
   studio.setPhotoLighting?.(on);
   if (on) {
-    clearHover(); // no marker, ghost or tweezers in the shot
+    clearHover(); // no marker or placement ghost in the shot
     photoReturnView = activeView;
     studio.setView?.("three-quarter", { fill: PHOTO_FILL });
     activeView = null;

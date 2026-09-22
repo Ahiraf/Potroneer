@@ -910,7 +910,7 @@ export function createStudio(canvas) {
   let grabHandler = null;
   let objectDragHandler = null;
   let objectDropHandler = null;
-  // Touch has no hover, so the tweezers cannot follow a cursor that is only
+  // Touch has no hover, so a cursor preview cannot follow a pointer that is only
   // over the glass when nothing is being pressed. On a finger they are
   // summoned by contact instead — press to reach in, drag to aim, lift to
   // plant — and this is the hook main.js drives that with. It gets first
@@ -1021,7 +1021,7 @@ export function createStudio(canvas) {
       return;
     }
     // A finger with something picked out of the tray reaches in with the
-    // tweezers instead of turning the jar.
+    // placement cursor instead of turning the jar.
     if (aimHandler?.start?.(p)) {
       mode = "aim";
       return;
@@ -1098,7 +1098,7 @@ export function createStudio(canvas) {
       markInteraction();
       return;
     }
-    // Lifting the finger is the release: the tweezers dip and let go.
+    // Lifting the finger is the release: the placement preview clears.
     if (mode === "aim") {
       aimHandler?.end?.(pointer(e));
       mode = null;

@@ -3,6 +3,9 @@
 // ("মস · সবুজ") are translated part by part.
 
 const EN = {
+  "পানির পরিমাণ": "Water amount",
+  "পানি কমাও": "Less water",
+  "পানি বাড়াও": "More water",
   "কাঠের বেস ফুলদানি": "Wood-base vase",
   "নাশপাতি কর্ক জার": "Pear cork jar",
   "গোল কর্ক জার": "Cork-ball jar",
@@ -480,7 +483,7 @@ const EN = {
   "ট্রেতে যোগ করা হয়েছে": "Added to tray",
   "আগে ট্রেতে আইটেম যোগ করো (＋)": "Add items to the tray first (＋)",
   "ট্রে থেকে বেছে চিমটা দিয়ে বসাও, পানি ঢালো, স্প্রে করো।":
-    "Pick from your tray, place with tweezers, pour water, and mist.",
+    "Pick from your tray, place items, pour water, and mist.",
   // folding the left column away
   "সাইডবার লুকাও": "Hide sidebar",
   "সাইডবার দেখাও": "Show sidebar",

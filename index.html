@@ -209,13 +209,14 @@
         <button class="tab" data-tab="sculpt">ভাস্কর্য</button>
         <button class="tab" data-tab="paint">পেইন্টিং</button>
         <button class="tab is-active" data-tab="decor">সাজানো</button>
-        <button class="tab" data-tab="building" data-i18n="বিল্ডিং">বিল্ডিং</button>
+        <button id="undo" class="nav-btn utility-icon" type="button" data-i18n-title="ফেরাও" title="ফেরাও" aria-label="ফেরাও"><span class="nav-ico"><img class="ui-icon" src="/undo%20icon.png" alt="" aria-hidden="true"></span></button>
+        <button id="redo" class="nav-btn utility-icon is-disabled" type="button" data-i18n-title="আবার" title="আবার" aria-label="আবার"><span class="nav-ico"><img class="ui-icon" src="/Redo%20icon.png" alt="" aria-hidden="true"></span></button>
       </nav>
 
       <div class="building-tools hidden" id="building-tools" aria-label="Building tools">
-        <button id="item-adjust-btn" class="nav-btn" data-i18n="আইটেম সাজাও" aria-controls="item-panel">আইটেম সাজাও</button>
         <button id="jar-custom-btn" class="nav-btn" data-i18n="জার সাজাও">জার সাজাও</button>
         <button id="layer-btn" class="nav-btn" data-i18n="স্তর সাজাও">স্তর সাজাও</button>
+        <button id="item-adjust-btn" class="nav-btn" data-i18n="আইটেম সাজাও" aria-controls="item-panel">আইটেম সাজাও</button>
       </div>
 
       <!-- The compact upper-right action row keeps the everyday build actions
@@ -225,8 +226,7 @@
         <button id="focus-btn" class="nav-btn nav-btn--focus" data-i18n="ফোকাস বিল্ড" title="ফোকাস বিল্ড" aria-pressed="false">
           <span class="nav-ico"><img class="ui-icon" src="/Focus%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text">ফোকাস বিল্ড</span>
         </button>
-        <button id="undo" class="nav-btn utility-icon" type="button" data-i18n-title="ফেরাও" title="ফেরাও" aria-label="ফেরাও"><span class="nav-ico"><img class="ui-icon" src="/undo%20icon.png" alt="" aria-hidden="true"></span></button>
-        <button id="redo" class="nav-btn utility-icon is-disabled" type="button" data-i18n-title="আবার" title="আবার" aria-label="আবার"><span class="nav-ico"><img class="ui-icon" src="/Redo%20icon.png" alt="" aria-hidden="true"></span></button>
+        <button class="tab nav-btn" id="building-btn" data-tab="building" data-i18n="বিল্ডিং">বিল্ডিং</button>
         <button id="autospin" class="nav-btn" data-i18n="ঘোরাও" title="ঘোরাও" aria-pressed="false">
           <span class="nav-ico"><img class="ui-icon" src="/Rotate%20icon.png" alt="" aria-hidden="true"></span><span class="nav-text">ঘোরাও</span>
         </button>
@@ -969,7 +969,7 @@
       <div class="strata hidden" id="strata" aria-hidden="true"></div>
 
       <aside class="tool-status" id="tool-status" aria-live="polite">
-        <span class="tool-status-glyph" id="tool-status-glyph">🥢</span>
+        <span class="tool-status-glyph" id="tool-status-glyph">↖</span>
         <span class="tool-status-body">
           <strong class="tool-status-mode" id="tool-status-mode">বসানোর মোড</strong>
           <span class="tool-status-does" id="tool-status-does"></span>

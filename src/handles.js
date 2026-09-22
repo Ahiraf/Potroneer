@@ -6,7 +6,7 @@ import * as THREE from "three";
 // Pottery Master puts little dots on the clay: before you touch anything, the
 // object has already told you where it can be taken hold of. Potroneer's placed
 // pieces have always been draggable, but nothing said so. These are those dots
-// — one hovering over every planted piece while the tweezers are out, with the
+// — one hovering over every planted piece during a placement, with the
 // one under the cursor swelling to say "this is the one you'd pick up".
 
 function makeDotTexture() {

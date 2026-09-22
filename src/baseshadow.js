@@ -6,7 +6,7 @@ import { JAR, jarPointAt, jarReach } from "./state.js";
 // ---------------------------------------------------------------------------
 // Pouring a substrate layer is the one move in the app where what you are
 // holding has no shape you can see. A plant has a ghost of itself under the
-// tweezers; a scoop of leca has nothing, so the first layer always lands as a
+// placement preview; a scoop of leca has nothing, so the first layer always lands as a
 // surprise. This draws it before you commit: the jar's own cross-section, at
 // the exact height the layer would settle, tinted green while the pour is
 // possible and dulled to red when it is not.

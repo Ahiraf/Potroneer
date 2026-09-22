@@ -37,6 +37,7 @@ const context = vm.createContext({
   activeTab: "decor", adjTarget: null, adjSelection: -1, movePending: null,
   toolsExpanded: false, SPECTRUM_COLS: 12, pieces: [], tintCalls: [], saves: 0, gestures: 0,
   studio: { markInteraction() {} },
+  revealEditor() {}, refreshJarSwatches() {},
   endGesture() {}, cancelMove() {}, renderTools() {}, selectTool() {}, clearHover() {}, stopTerrainBrush() {},
 });
 vm.runInContext(`
@@ -53,13 +54,14 @@ vm.runInContext(`
   const hudBottomEl = document.getElementById('hud-bottom');
   const catFlyoutEl = document.getElementById('cat-flyout');
 `, context);
-for (const name of ["hslHex", "spectrumSheet", "buildSpectrum", "selectTab", "showItemPanel", "openItemPanel", "renderItemPanel", "renderItemColors", "renderItemSize", "changeItemTint"]) {
+for (const name of ["hslHex", "spectrumSheet", "buildSpectrum", "selectTab", "openJarPanel", "showItemPanel", "openItemPanel", "renderItemPanel", "renderItemColors", "renderItemSize", "changeItemTint"]) {
   const fn = source.match(new RegExp(`^function ${name}\\([^]*?^}`, "m"))?.[0];
   assert.ok(fn, `${name} is the production implementation`);
   vm.runInContext(fn, context);
 }
 vm.runInContext("const ITEM_TINTS = spectrumSheet({neutral:[.08,.97],tones:[[.6,.2],[.66,.34],[.62,.48],[.54,.63],[.4,.78]]}); selectTab('building');", context);
-assert.equal(elements.get("item-panel").classList.contains("hidden"), false, "Building opens even with an empty jar");
+assert.equal(elements.get("jar-panel").classList.contains("hidden"), false, "Building starts with Customize jar");
+vm.runInContext("showItemPanel()", context);
 assert.equal(elements.get("item-controls").disabled, true);
 assert.equal(elements.get("item-swatches").children.length, 72);
 const variants = DECORATIONS.filter(d => ["animals", "structures"].includes(d.cat));
@@ -84,7 +86,8 @@ assert.equal(context.saves, 2);
 vm.runInContext("selectTab('decor')", context);
 assert.ok(elements.get("item-panel").classList.contains("hidden"));
 vm.runInContext("selectTab('building')", context);
-assert.equal(elements.get("item-panel").classList.contains("hidden"), false);
+assert.equal(elements.get("jar-panel").classList.contains("hidden"), false);
+vm.runInContext("showItemPanel()", context);
 assert.equal(context.adjTarget, context.pieces.at(-1), "selection survives switching tabs");
 context.pieces = [];
 vm.runInContext("renderItemPanel()", context);

@@ -5790,3 +5790,35 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
     width: var(--tray-w);
   }
 }
+
+/* Selection editors live opposite the catalog, below the navigation. */
+.tabs > .utility-icon { position: relative; z-index: 1; width: 36px; padding: 6px; }
+.tabs > .utility-icon .ui-icon { width: 22px; height: 22px; object-fit: contain; }
+.building-tools { left: auto; right: 12px; z-index: 14; }
+#jar-panel, #layer-panel, #item-panel {
+  left: auto;
+  right: 12px;
+  top: 154px;
+  bottom: 12px;
+  width: min(300px, calc(100vw - 24px));
+  max-height: none;
+  border: 1px solid var(--hud-border);
+  border-radius: 12px;
+  box-shadow: -4px 8px 28px rgba(0,0,0,.26);
+  z-index: 8;
+}
+.water-controls { width: 190px; padding: 8px; color: var(--ink); }
+.water-controls.hidden { display: none; }
+.water-controls label { display: block; font-size: 12px; margin-bottom: 8px; }
+.water-amount-row { display: flex; gap: 5px; align-items: center; }
+.water-amount-row input { width: 70px; min-width: 0; accent-color: var(--accent); }
+.water-amount-row button { width: 28px; height: 30px; border-radius: 6px; border: 1px solid var(--hud-border); background: var(--hud-raised); color: var(--ink); cursor: pointer; }
+.water-amount-row button:disabled { opacity: .4; cursor: default; }
+.water-amount-row output { min-width: 36px; font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (min-width: 701px) and (max-width: 1260px) and (min-height: 461px) {
+  #jar-panel, #layer-panel, #item-panel { top: 244px; }
+}
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  .building-tools { right: 8px; max-width: calc(100vw - 16px); flex-wrap: wrap; }
+  #jar-panel, #layer-panel, #item-panel { top: 218px; right: 8px; bottom: 8px; width: min(280px, calc(100vw - 24px)); }
+}
