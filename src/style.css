@@ -1915,7 +1915,7 @@ body.focus-mode .tray-show {
 .cat-flyout {
   position: absolute;
   left: var(--tray-fx);
-  top: 12px;
+  top: 160px;
   display: flex;
   flex-direction: column;
   width: 224px;
