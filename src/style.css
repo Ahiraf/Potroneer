@@ -5917,9 +5917,11 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
 
   .cfg-panel > .panel-grip.panel-grip--right {
     top: 0;
-    right: 0;
+    right: auto;
     bottom: 0;
+    left: 0;
     width: 16px;
+    margin-left: -8px;
     margin-right: 0;
     z-index: 10;
   }
