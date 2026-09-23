@@ -3207,6 +3207,17 @@ const scenePanelEl = document.getElementById("scene-panel");
 const buildingToolsEl = document.getElementById("building-tools");
 const hudBottomEl = document.getElementById("hud-bottom");
 
+// Keep the floating tool list aligned with the Decorations tab itself. The
+// navigation leaf changes width with language and text scale, so a fixed
+// left offset makes this panel drift away from the button it belongs to.
+function alignToolPanel() {
+  const decorationsTab = document.querySelector('.tab[data-tab="decor"]');
+  if (!decorationsTab || !toolItemsEl) return;
+  const rect = decorationsTab.getBoundingClientRect();
+  toolItemsEl.style.left = `${rect.left}px`;
+  toolItemsEl.style.top = `${rect.bottom + 8}px`;
+}
+
 function selectTool(id) {
   stopTerrainBrush();
   activeTool = id;
@@ -3340,6 +3351,7 @@ function selectTab(tab) {
   }
   renderStrip();
   renderTools();
+  alignToolPanel();
   // sensible default tool per tab
   if (tab === "sculpt") selectTool("raise");
   else selectTool("place");
@@ -3352,6 +3364,8 @@ function selectTab(tab) {
   }
   clearHover();
 }
+
+window.addEventListener("resize", alignToolPanel);
 
 function persistComfort() {
   localStorage.setItem(COMFORT_KEY, JSON.stringify(comfort));
