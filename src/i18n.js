@@ -477,6 +477,9 @@ const EN = {
   "ট্রে থেকে বানাও": "Build from tray",
   "ট্রেতে যোগ করা হয়েছে": "Added to tray",
   "আগে ট্রেতে আইটেম যোগ করো (＋)": "Add items to the tray first (＋)",
+  "＋ দিয়ে ট্রেতে যোগ করো": "Use ＋ to add items to the Tray",
+  "কার্ডে ট্যাপ করে সরাসরি বসাও": "Tap a card to place it directly",
+  "ট্রে খুলে তালিকা থেকে বানাও": "Open Tray to build from your list",
   "ট্রে থেকে বেছে বসাও, পানি ঢালো, স্প্রে করো।":
     "Pick from your tray, place items, pour water, and mist.",
   // folding the left column away

@@ -2126,6 +2126,21 @@ body.focus-mode .tray-show {
   white-space: nowrap;
   transition: background 0.12s ease;
 }
+.decor-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  color: var(--ink-dim);
+  font-size: calc(11px * var(--text-scale));
+  line-height: 1.35;
+}
+.decor-guide strong {
+  color: var(--ink);
+  font-size: calc(12.5px * var(--text-scale));
+  font-weight: 600;
+}
+.decor-guide.hidden { display: none; }
 .build-toggle:hover {
   background: rgba(255, 255, 255, 0.08);
 }

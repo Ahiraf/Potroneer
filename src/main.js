@@ -3321,7 +3321,24 @@ function selectTab(tab) {
   buildingToolsEl?.classList.toggle("hidden", tab !== "building");
   hudBottomEl.style.display = tab === "decor" || tab === "tray" ? "" : "none";
   catFlyoutEl.classList.add("hidden");
-  if (tab === "tray") setTrayHidden(false);
+  const trayMode = tab === "tray";
+  const guide = document.getElementById("decor-guide");
+  const buildToggle = document.getElementById("build-toggle");
+  guide?.classList.toggle("hidden", trayMode || tab !== "decor");
+  if (buildToggle) buildToggle.style.display = trayMode ? "" : "none";
+  catBtnEl.classList.toggle("is-locked", trayMode || buildMode);
+  if (trayMode) {
+    activeCat = "tray";
+    catBtnEl.querySelector(".cat-icon").textContent = "🧰";
+    catBtnEl.querySelector(".cat-name").textContent = t("ট্রে");
+    setTrayHidden(false);
+  } else if (tab === "decor" && !buildMode && activeCat === "tray") {
+    activeCat = shelf.cat === "tray" ? "plants" : shelf.cat || "plants";
+    const cat = CATEGORIES.find((entry) => entry.id === activeCat) || CATEGORIES[0];
+    catBtnEl.querySelector(".cat-icon").textContent = cat.icon;
+    catBtnEl.querySelector(".cat-name").textContent = t(cat.label);
+  }
+  renderStrip();
   renderTools();
   // sensible default tool per tab
   if (tab === "sculpt") selectTool("raise");
@@ -3691,6 +3708,9 @@ const shelf = {
   ...JSON.parse(localStorage.getItem(SHELF_KEY) || "{}"),
 };
 let activeCat = shelf.cat || "plants";
+// The Tray is a top-level mode, not a Decorations category. Older saved
+// shelves may still contain it, so return Decorations to its normal list.
+if (activeCat === "tray") activeCat = "plants";
 function persistShelf() {
   localStorage.setItem(SHELF_KEY, JSON.stringify(shelf));
 }
@@ -3785,7 +3805,7 @@ function renderFlyout() {
 
 catBtnEl.addEventListener("click", (e) => {
   e.stopPropagation();
-  if (buildMode) return; // palette is locked to the tray while building
+  if (buildMode || activeTab === "tray") return; // Tray already is the selected list
   renderFlyout();
   catFlyoutEl.classList.toggle("hidden");
 });
