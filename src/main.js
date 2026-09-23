@@ -3193,11 +3193,11 @@ studio.setTapHandler((screen) => {
   }
 });
 
-// --- HUD: mode tabs (ভাস্কর্য / পেইন্টিং / সাজানো / বিল্ডিং) ------------------
+// --- HUD: mode tabs (ট্রে / ভাস্কর্য / সাজানো / বিল্ডিং) ----------------------
 // Each tab exposes its own tool subset in the left panel, like the reference.
 const TAB_TOOLS = {
-  sculpt: ["raise", "lower", "flatten"],
-  paint: ["grass", "moss", "pebble"],
+  tray: [],
+  sculpt: ["raise", "lower", "flatten", "grass", "pebble"],
   decor: ["place", "water", "mist"],
   building: [],
 };
@@ -3284,7 +3284,7 @@ function renderTools() {
     setWaterAmount(waterAmount);
   }
   toolItemsEl.style.display = ids.length ? "" : "none";
-  if (activeTab === "decor" || activeTab === "paint") {
+  if (activeTab === "decor") {
     const stack = document.createElement("button");
     stack.type = "button";
     stack.className = "tool-row";
@@ -3312,19 +3312,19 @@ function selectTab(tab) {
   toolsExpanded = false; // each tab opens on its everyday tools
   // reflect the active tab on <body> so CSS can shift the tool list when the
   // Decorate sidebar is present
-  document.body.classList.remove("tab-sculpt", "tab-paint", "tab-decor", "tab-building");
+  document.body.classList.remove("tab-tray", "tab-sculpt", "tab-paint", "tab-decor", "tab-building");
   document.body.classList.add(`tab-${tab}`);
   document
     .querySelectorAll(".tab")
     .forEach((b) => b.classList.toggle("is-active", b.dataset.tab === tab));
   scenePanelEl.classList.remove("hidden");
   buildingToolsEl?.classList.toggle("hidden", tab !== "building");
-  hudBottomEl.style.display = tab === "decor" ? "" : "none";
+  hudBottomEl.style.display = tab === "decor" || tab === "tray" ? "" : "none";
   catFlyoutEl.classList.add("hidden");
+  if (tab === "tray") setTrayHidden(false);
   renderTools();
   // sensible default tool per tab
   if (tab === "sculpt") selectTool("raise");
-  else if (tab === "paint") selectTool("grass");
   else selectTool("place");
   if (tab === "building") openJarPanel();
   else {
@@ -5188,7 +5188,7 @@ function removePiece(obj) {
 }
 
 // --- language toggle -------------------------------------------------------
-const TAB_LABELS = { sculpt: "ভাস্কর্য", paint: "পেইন্টিং", decor: "সাজানো", building: "বিল্ডিং" };
+const TAB_LABELS = { tray: "ট্রে", sculpt: "ভাস্কর্য", decor: "সাজানো", building: "বিল্ডিং" };
 const langBtn = document.getElementById("lang");
 
 function applyLang() {
