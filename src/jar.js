@@ -509,11 +509,13 @@ const SECT_NY = 28; // height samples
 export function jarSectionFor(typeId, it, glassMeshes) {
   const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
   // The octagon house has a hinged, open face. Measuring its panes from the
-  // inside therefore records a shorter reach on that face than on the other
-  // seven faces, leaving part of the base floor visible through the door.
-  // Its declared octagonal footprint and silhouette already describe the
-  // exact fillable interior, so keep this one jar on that analytic path.
-  if (typeId === "hexhouse") return null;
+  // inside therefore records a near-zero reach through that face, leaving a
+  // wedge of the base floor visible. Keep its established circular layer
+  // profile, but provide a complete analytic section for this jar only.
+  if (typeId === "hexhouse") {
+    const radius = Math.max(0.05, it.innerRadius - it.wallThickness);
+    return sampleSection(it.floorY, it.floorY + it.bodyHeight, () => radius);
+  }
   const analytic = jarInnerSection(typeId, it);
   if (type.bottle) return analytic;
   return measureInnerSection(glassMeshes, it, analytic, jarIsRound(typeId, it));
