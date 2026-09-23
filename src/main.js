@@ -3207,13 +3207,13 @@ const scenePanelEl = document.getElementById("scene-panel");
 const buildingToolsEl = document.getElementById("building-tools");
 const hudBottomEl = document.getElementById("hud-bottom");
 
-// Keep the floating tool list aligned with the Decorations tab itself. The
-// navigation leaf changes width with language and text scale, so a fixed
-// left offset makes this panel drift away from the button it belongs to.
+// Keep the floating tool list aligned with the active mode tab. The navigation
+// leaf changes width with language and text scale, so a fixed left offset makes
+// this panel drift away from the button it belongs to.
 function alignToolPanel() {
-  const decorationsTab = document.querySelector('.tab[data-tab="decor"]');
-  if (!decorationsTab || !toolItemsEl) return;
-  const rect = decorationsTab.getBoundingClientRect();
+  const activeTabEl = document.querySelector("#tabs .tab.is-active");
+  if (!activeTabEl || !toolItemsEl) return;
+  const rect = activeTabEl.getBoundingClientRect();
   toolItemsEl.style.left = `${rect.left}px`;
   toolItemsEl.style.top = `${rect.bottom + 8}px`;
 }
