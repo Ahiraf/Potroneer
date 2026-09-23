@@ -510,11 +510,19 @@ export function jarSectionFor(typeId, it, glassMeshes) {
   const type = JAR_BY_ID[typeId] || JAR_TYPES[0];
   // The octagon house has a hinged, open face. Measuring its panes from the
   // inside therefore records a near-zero reach through that face, leaving a
-  // wedge of the base floor visible. Keep its established circular layer
-  // profile, but provide a complete analytic section for this jar only.
-  if (typeId === "hexhouse") {
-    const radius = Math.max(0.05, it.innerRadius - it.wallThickness);
-    return sampleSection(it.floorY, it.floorY + it.bodyHeight, () => radius);
+  // wedge of the base floor visible. Use this jar's own octagonal outline
+  // instead, so both poured layers and cursor-painted substrate reach every
+  // corner without depending on the open door pane.
+  if (type.geo === "hexhouse") {
+    const footprint = geoFootprint(geoSpecFor(typeId));
+    const reachAt = (a) => {
+      const n = footprint.length;
+      const t = ((((a / (Math.PI * 2)) % 1) + 1) % 1) * n;
+      const i = Math.floor(t) % n;
+      const j = (i + 1) % n;
+      return it.innerRadius * (footprint[i] + (footprint[j] - footprint[i]) * (t - Math.floor(t)));
+    };
+    return sampleSection(it.floorY, it.floorY + it.bodyHeight, (_y, a) => reachAt(a));
   }
   const analytic = jarInnerSection(typeId, it);
   if (type.bottle) return analytic;
