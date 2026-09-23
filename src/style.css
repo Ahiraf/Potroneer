@@ -5901,3 +5901,120 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
     transition: none;
   }
 }
+
+/* Final phone layout pass.  The text-scaling tokens above are intentionally
+   global, but they used to overwrite the smaller phone shelf tokens later in
+   the cascade.  That left the shelf taking most of the viewport and forced
+   the mode/category flyouts into narrow vertical columns. */
+@media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
+  :root {
+    --furniture-scale: min(1.15, var(--text-scale));
+    --tray-w: min(205px, 54vw);
+    --tray-x: calc(var(--tray-w) + 8px);
+    --tray-fx: 8px;
+  }
+
+  .utility-bar {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    justify-content: space-between;
+    gap: 2px;
+    padding: 14px 18px 18px;
+    overflow: visible;
+  }
+
+  .utility-bar .nav-btn {
+    min-height: 44px;
+    min-width: 0;
+    padding-inline: 7px;
+  }
+
+  .utility-bar .nav-btn--lang {
+    flex: 0 0 auto;
+  }
+
+  .tabs {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    justify-content: stretch;
+    gap: 3px;
+    padding: 14px 18px 18px;
+    overflow: visible;
+  }
+
+  .tabs > .tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
+  }
+
+  .tabs > .utility-icon {
+    flex: 0 0 36px;
+  }
+
+  .building-tools {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    justify-content: stretch;
+    overflow: visible;
+  }
+
+  .building-tools .nav-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hud-bottom {
+    width: var(--tray-w);
+    padding-top: 150px;
+  }
+
+  .cat-flyout {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: 164px;
+    width: auto;
+    max-width: none;
+    max-height: min(58dvh, 480px);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    padding: 8px;
+    overflow-y: auto;
+    z-index: 25;
+  }
+
+  .cat-row {
+    min-width: 0;
+    min-height: 48px;
+    padding: 8px 10px;
+    gap: 7px;
+    font-size: calc(13px * var(--text-scale));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cat-row .c-icon {
+    flex: 0 0 22px;
+  }
+
+  .tool-row {
+    width: min(220px, calc(100vw - 24px));
+    min-height: 44px;
+    padding-block: 9px;
+  }
+}

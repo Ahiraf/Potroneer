@@ -781,6 +781,12 @@ function currentSnapshot() {
     terrain: Array.from(state.terrain),
     terrainMat: Array.from(state.terrainMat),
     painted: state.painted,
+    wetLevel,
+    mist: mistSnapshot(),
+    care: {
+      water: game.care.water,
+      humidity: game.care.humidity,
+    },
   });
 }
 
@@ -826,13 +832,20 @@ function restoreSnapshot(snap) {
   state.terrain.set(d.terrain);
   if (d.terrainMat) state.terrainMat.set(d.terrainMat);
   state.painted = d.painted ?? false;
+  wetLevel = d.wetLevel ?? 0;
+  if (d.care) {
+    game.care.water = d.care.water ?? game.care.water;
+    game.care.humidity = d.care.humidity ?? game.care.humidity;
+  }
   rebuildAll();
+  restoreMist(d.mist);
   studio.markInteraction();
   updateHistoryUi();
   // Undo can add, remove, re-cut or reorder bands, so both readouts of the
   // stack have to catch up with the array they describe.
   renderDepth();
   renderLayerPanel();
+  renderGameHud();
   scheduleAutosave(); // includes reverting a layer's grain amount or colour
 }
 
@@ -1354,6 +1367,29 @@ const dropMat = new THREE.MeshPhysicalMaterial({
   clearcoat: 1,
 });
 const rnd = (a) => (Math.random() - 0.5) * 2 * a;
+
+// Condensation is part of the visible build, so it travels with undo/redo
+// instead of being left behind when the rest of the scene is rebuilt.
+function mistSnapshot() {
+  return mistGroup.children.map((drop) => ({
+    position: drop.position.toArray(),
+    scale: drop.scale.toArray(),
+    quaternion: drop.quaternion.toArray(),
+  }));
+}
+
+function restoreMist(drops = []) {
+  mistGroup.clear();
+  if (!Array.isArray(drops)) return;
+  drops.forEach((data) => {
+    if (!data?.position || !data?.scale || !data?.quaternion) return;
+    const drop = new THREE.Mesh(dropGeo, dropMat);
+    drop.position.fromArray(data.position);
+    drop.scale.fromArray(data.scale);
+    drop.quaternion.fromArray(data.quaternion);
+    mistGroup.add(drop);
+  });
+}
 
 // --- placement confirmation ------------------------------------------------
 // The moment a piece becomes real. Three small things at once, because one
@@ -2302,10 +2338,12 @@ studio.setGrabHandler((screen) => {
   if (movePending) return false;
   // Care tools capture the drag as a continuous spray/water stroke.
   if (activeTool === "mist") {
+    beginGesture();
     sprayMist(screen);
     return true;
   }
   if (activeTool === "water") {
+    beginGesture();
     water(screen, false);
     return true;
   }
@@ -2414,6 +2452,7 @@ studio.setObjectDrag((screen) => {
 studio.setObjectDrop(() => {
   stopTerrainBrush();
   if (activeTool === "water") fadePour(); // stop the pour when the stroke ends
+  if (activeTool === "mist" || activeTool === "water") endGesture();
   if (basePress) {
     const wasPainting = basePainting;
     const press = basePress;
@@ -3149,11 +3188,15 @@ studio.setTapHandler((screen) => {
   if (focusMode) focusToolArmed = false;
   // care tools act on a single tap too
   if (activeTool === "mist") {
+    beginGesture();
     sprayMist(screen);
+    endGesture();
     return;
   }
   if (activeTool === "water") {
+    beginGesture();
     water(screen, true);
+    endGesture();
     return;
   }
   // tapping a placed decoration opens the item adjuster instead of placing
@@ -3214,7 +3257,15 @@ function alignToolPanel() {
   const activeTabEl = document.querySelector("#tabs .tab.is-active");
   if (!activeTabEl || !toolItemsEl) return;
   const rect = activeTabEl.getBoundingClientRect();
-  toolItemsEl.style.left = `${rect.left}px`;
+  // On a phone the active tab can be the rightmost button. Keep the tool list
+  // under that mode without letting its fixed-width rows run off-screen and
+  // collapse their labels into one-letter columns.
+  const phone = document.body.classList.contains("is-phone") || window.innerWidth <= 700;
+  const panelWidth = Math.min(220, Math.max(0, window.innerWidth - 16));
+  const left = phone
+    ? Math.max(8, Math.min(rect.left, window.innerWidth - panelWidth - 8))
+    : rect.left;
+  toolItemsEl.style.left = `${left}px`;
   toolItemsEl.style.top = `${rect.bottom + 8}px`;
 }
 
@@ -3817,10 +3868,19 @@ function renderFlyout() {
   });
 }
 
+function positionCatFlyout() {
+  const phone = document.body.classList.contains("is-phone") || window.innerWidth <= 700;
+  if (!phone || !catBtnEl || !catFlyoutEl) return;
+  const rect = catBtnEl.getBoundingClientRect();
+  const maxTop = Math.max(8, window.innerHeight - Math.min(240, window.innerHeight * 0.58) - 8);
+  catFlyoutEl.style.top = `${Math.min(rect.bottom + 8, maxTop)}px`;
+}
+
 catBtnEl.addEventListener("click", (e) => {
   e.stopPropagation();
   if (buildMode || activeTab === "tray") return; // Tray already is the selected list
   renderFlyout();
+  if (catFlyoutEl.classList.contains("hidden")) positionCatFlyout();
   catFlyoutEl.classList.toggle("hidden");
 });
 
@@ -6709,6 +6769,8 @@ if (focusDock && window.ResizeObserver) {
 window.addEventListener("resize", () => {
   placeCameraControls();
   placeMoreMenu();
+  alignToolPanel();
+  if (!catFlyoutEl.classList.contains("hidden")) positionCatFlyout();
   syncDockHeight();
 });
 placeCameraControls();

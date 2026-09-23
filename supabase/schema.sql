@@ -413,8 +413,6 @@ revoke execute on function public.leave_coop_room(uuid) from anon;
 -- receiving snapshots and seeing who is present, and INSERT covers sending
 -- them and announcing yourself.
 
-alter table realtime.messages enable row level security;
-
 drop policy if exists "Co-op members can read room messages" on realtime.messages;
 create policy "Co-op members can read room messages"
   on realtime.messages for select to authenticated
