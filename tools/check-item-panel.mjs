@@ -38,6 +38,7 @@ const context = vm.createContext({
   toolsExpanded: false, SPECTRUM_COLS: 12, pieces: [], tintCalls: [], saves: 0, gestures: 0,
   studio: { markInteraction() {} },
   revealEditor() {}, refreshJarSwatches() {},
+  syncBuildingPanelButtons() {},
   endGesture() {}, cancelMove() {}, renderTools() {}, selectTool() {}, clearHover() {}, stopTerrainBrush() {},
 });
 vm.runInContext(`
@@ -64,15 +65,15 @@ assert.equal(elements.get("jar-panel").classList.contains("hidden"), false, "Bui
 vm.runInContext("showItemPanel()", context);
 assert.equal(elements.get("item-controls").disabled, true);
 assert.equal(elements.get("item-swatches").children.length, 72);
+assert.equal(elements.has("item-select"), false, "item selection uses the jar, not a dropdown");
 const variants = DECORATIONS.filter(d => ["animals", "structures"].includes(d.cat));
 context.pieces = variants.map(def => ({userData: {record: {id:def.id, rotation:0, scale:1, tint:null}}}));
 vm.runInContext("showItemPanel()", context);
-assert.equal(elements.get("item-select").children.length, variants.length + 1, "no structure or animal excluded");
-for (const [index, obj] of context.pieces.entries()) {
+assert.equal(elements.get("item-controls").disabled, true, "items stay unselected until tapped in the jar");
+for (const obj of context.pieces) {
   context.next = obj;
   vm.runInContext("openItemPanel(next)", context);
   assert.equal(context.adjTarget, obj);
-  assert.equal(elements.get("item-select").value, String(index));
   assert.equal(elements.get("item-controls").disabled, false);
 }
 vm.runInContext("changeItemTint('#124abc')", context);

@@ -18,7 +18,6 @@ const EN = {
   "দৃশ্য": "Scene",
   // tools
   "বসাও": "Place",
-  "চিমটা": "Tweezers",
   "পানি": "Water",
   "স্প্রে": "Spray",
   "উঁচু": "Raise",
@@ -36,10 +35,6 @@ const EN = {
   "বেলেপাথর": "Sandstone",
   "পাথর, কাঠ বা অন্য আইটেমের উপরে বসাতে চালু করো।": "Turn on to place on rocks, wood or other items.",
   "এই জায়গায় আইটেমের জন্য যথেষ্ট জায়গা নেই।": "There is not enough room for this item here.",
-  // sliders
-  "ব্যাসার্ধ": "Radius",
-  "শক্তি": "Strength",
-  "ফলঅফ": "Falloff",
   // categories
   "পছন্দের": "Favorites",
   "জার": "Jars",
@@ -462,7 +457,7 @@ const EN = {
   "বসানো আইটেম বেছে নাও": "Choose a placed item",
   "আইটেম বেছে নাও": "Select an item",
   "আগে সাজানো থেকে একটি আইটেম বসাও।": "Place an item from Decorations first.",
-  "তালিকা থেকে বেছে নাও অথবা জারের আইটেমে ট্যাপ করো।": "Choose from the list or tap an item in the jar.",
+  "জারের আইটেমে ট্যাপ করো।": "Tap an item in the jar.",
   "নিজের রং": "Custom colour",
   "সাইজ": "Size",
   "ঘোরাও": "Rotate",
@@ -482,7 +477,7 @@ const EN = {
   "ট্রে থেকে বানাও": "Build from tray",
   "ট্রেতে যোগ করা হয়েছে": "Added to tray",
   "আগে ট্রেতে আইটেম যোগ করো (＋)": "Add items to the tray first (＋)",
-  "ট্রে থেকে বেছে চিমটা দিয়ে বসাও, পানি ঢালো, স্প্রে করো।":
+  "ট্রে থেকে বেছে বসাও, পানি ঢালো, স্প্রে করো।":
     "Pick from your tray, place items, pour water, and mist.",
   // folding the left column away
   "সাইডবার লুকাও": "Hide sidebar",

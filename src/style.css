@@ -180,70 +180,6 @@ body {
   border-color: var(--green);
 }
 
-/* ============ slider chips (sculpt/paint) ============ */
-.sliders {
-  position: absolute;
-  top: 54px;
-  left: 410px; /* right of the tray column and the tool list */
-  display: flex;
-  gap: 6px;
-  z-index: 6;
-}
-.sliders.hidden {
-  display: none;
-}
-
-.slider-chip {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 148px;
-  height: 26px;
-  background: var(--hud);
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  font-size: calc(12px * var(--text-scale));
-  user-select: none;
-}
-.slider-chip .s-fill {
-  position: absolute;
-  inset: 0;
-  width: 50%;
-  background: var(--green-soft);
-  transition: width 0.05s linear;
-}
-.slider-chip .s-label {
-  position: relative;
-  z-index: 1;
-  padding-left: 9px;
-  flex: 1;
-  color: var(--ink);
-  font-weight: 500;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-.slider-chip .s-val {
-  position: relative;
-  z-index: 1;
-  padding-right: 9px;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-}
-.slider-chip input[type="range"] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: ew-resize;
-  margin: 0;
-}
-.slider-chip.is-disabled {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
 .hud-btn {
   display: grid;
   place-items: center;
@@ -510,7 +446,6 @@ body.rail-hidden .rail-show {
 body.rail-hidden .tabs,
 body.rail-hidden .hud-bottom,
 body.rail-hidden .hud-tools,
-body.rail-hidden .sliders,
 body.rail-hidden .hint,
 body.rail-hidden .empty-call,
 body.rail-hidden .game-panel {
@@ -1232,11 +1167,26 @@ textarea.social-input {
 #item-controls { display: flex; flex-direction: column; gap: 12px; border: 0; padding: 0; margin: 0; min-width: 0; }
 #item-controls:disabled { opacity: .45; }
 #item-panel input[type="range"] { min-width: 0; width: 0; }
-.item-picker-label, .item-selection-hint { color: var(--ink-dim); font-size: calc(11px * var(--text-scale)); }
+.item-picker-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+  min-width: 0;
+}
+.item-picker-meta small,
+.item-picker-label,
+.item-selection-hint { color: var(--ink-dim); font-size: calc(11px * var(--text-scale)); }
+.item-picker-meta small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-picker-label { flex: none; margin: 0; }
 .item-selection-hint { margin: 0; line-height: 1.45; }
-#item-select, #item-color-hex { min-width: 0; color: var(--ink); background: var(--hud-raised); border: 1px solid var(--control-border); border-radius: 6px; padding: 7px; font: inherit; font-size: calc(12px * var(--text-scale)); }
-#item-select { width: 100%; }
-#item-select option { background: var(--hud-strong); }
+#item-color-hex { min-width: 0; color: var(--ink); background: var(--hud-raised); border: 1px solid var(--control-border); border-radius: 6px; padding: 7px; font: inherit; font-size: calc(12px * var(--text-scale)); }
 .item-custom-color { display: flex; align-items: center; gap: 8px; font-size: calc(11px * var(--text-scale)); }
 .item-custom-color label { flex: 1; }
 #item-color { width: 34px; height: 30px; border: 0; padding: 0; background: transparent; cursor: pointer; }
@@ -2221,8 +2171,7 @@ body.focus-mode .tray-show {
 .nav-primary,
 .game-panel,
 .hud-bottom,
-.hud-tools,
-.sliders {
+.hud-tools {
   transition: background-color 0.2s ease;
 }
 body.soft-ui .nav-primary,
@@ -2524,7 +2473,6 @@ body.focus-mode .radial-current {
 body.focus-mode .tabs,
 body.focus-mode .hud-bottom,
 body.focus-mode .hud-tools,
-body.focus-mode .sliders,
 body.focus-mode .game-panel,
 body.focus-mode .scene-panel,
 body.focus-mode #jar-panel,
@@ -2567,9 +2515,6 @@ body.focus-mode .hint {
 }
 
 @media (max-width: 700px), (max-height: 460px) and (orientation: landscape) {
-  .sliders {
-    display: none;
-  }
   /* Phones keep the column but narrow it to icons-plus-a-word. */
   :root { --tray-w: 150px; --tray-x: 158px; --tray-fx: 158px; }
   .hud-bottom { width: var(--tray-w); padding: 8px 6px; }
@@ -3826,8 +3771,7 @@ body.reduced-motion .empty-call { animation: none; }
 .game-collapse,
 .small-action,
 .sound-toggle,
-.table-chip,
-.slider-chip {
+.table-chip {
   position: relative;
   min-height: 24px;
   min-width: 24px;

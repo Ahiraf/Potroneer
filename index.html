@@ -626,10 +626,12 @@
 
       <!-- Building's default inspector: also reachable by tapping a piece. -->
       <div class="cfg-panel hidden" id="item-panel">
-        <div class="cfg-head"><div><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><small id="item-context" aria-live="polite"></small></div><button type="button" class="hud-btn cfg-close" data-close="item-panel" data-trigger="item-adjust-btn" aria-label="Close item settings">✕</button></div>
+        <div class="cfg-head"><span data-i18n="আইটেম সাজাও">আইটেম সাজাও</span><button type="button" class="hud-btn cfg-close" data-close="item-panel" data-trigger="item-adjust-btn" aria-label="Close item settings">✕</button></div>
         <div class="panel-grip panel-grip--right" id="item-panel-grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize building panel"></div>
-        <label class="item-picker-label" for="item-select" data-i18n="বসানো আইটেম বেছে নাও">বসানো আইটেম বেছে নাও</label>
-        <select id="item-select" aria-describedby="item-selection-hint"></select>
+        <div class="item-picker-meta">
+          <small id="item-context" aria-live="polite"></small>
+          <span class="item-picker-label" data-i18n="বসানো আইটেম বেছে নাও">বসানো আইটেম বেছে নাও</span>
+        </div>
         <p class="item-selection-hint" id="item-selection-hint"></p>
         <fieldset id="item-controls" disabled>
         <legend class="sr-only" data-i18n="আইটেম সাজাও">আইটেম সাজাও</legend>
@@ -931,28 +933,6 @@
           <label class="comfort-row"><span data-i18n="বোতামের ক্লিক">বোতামের ক্লিক</span><input id="comfort-click" type="checkbox" checked /></label>
 
           <button id="comfort-camera" class="social-primary" data-i18n="ক্যামেরা শান্ত করো">ক্যামেরা শান্ত করো</button>
-        </div>
-      </div>
-
-      <!-- brush parameter sliders (sculpt/paint tabs) -->
-      <div class="sliders" id="sliders">
-        <div class="slider-chip" data-param="radius">
-          <span class="s-label">ব্যাসার্ধ</span>
-          <div class="s-fill"></div>
-          <span class="s-val">50</span>
-          <input type="range" min="0" max="100" value="50" />
-        </div>
-        <div class="slider-chip" data-param="strength">
-          <span class="s-label">শক্তি</span>
-          <div class="s-fill"></div>
-          <span class="s-val">50</span>
-          <input type="range" min="0" max="100" value="50" />
-        </div>
-        <div class="slider-chip" data-param="falloff">
-          <span class="s-label">ফলঅফ</span>
-          <div class="s-fill"></div>
-          <span class="s-val">50</span>
-          <input type="range" min="0" max="100" value="50" />
         </div>
       </div>
 

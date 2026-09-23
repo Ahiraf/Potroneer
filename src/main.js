@@ -1236,13 +1236,16 @@ const TOOL_MODES = {
   pebble: { mode: "পেইন্ট মোড", glyph: "🪨", does: "নুড়ি ছড়াতে টেনে নাও" },
 };
 
-// Brush parameters driven by the top slider chips (0–100 each, mapped here).
-const brushParams = { radius: 50, strength: 50, falloff: 50 };
+// Sculpt and paint keep a stable built-in stroke profile. The old parameter
+// chips exposed controls for a brush that the app does not present as a tool.
+const BRUSH_RADIUS = 0.12 + (50 / 100) * 0.45;
+const BRUSH_STRENGTH = 50;
+const BRUSH_FALLOFF = 0.3 + (50 / 100) * 1.3;
 function brushRadius() {
-  return 0.12 + (brushParams.radius / 100) * 0.45;
+  return BRUSH_RADIUS;
 }
 function brushFalloff() {
-  return 0.3 + (brushParams.falloff / 100) * 1.3;
+  return BRUSH_FALLOFF;
 }
 
 function applyBrush(screen) {
@@ -1310,7 +1313,7 @@ function tickTerrainBrush(now) {
   if (stroke.target) {
     const radius = brushRadius(), falloff = brushFalloff();
     strokeTerrain(state,stroke.previous,stroke.target,dt,{
-      radius,strength:brushParams.strength,falloff,
+      radius,strength:BRUSH_STRENGTH,falloff,
       tool:stroke.base ? "raise" : activeTool,
       material:stroke.base ? BASE_LAYERS.findIndex(b => b.id === selected.id) : -1,
     });
@@ -3190,32 +3193,6 @@ studio.setTapHandler((screen) => {
   }
 });
 
-// --- HUD: slider chips -----------------------------------------------------
-// Only the brush tools use the sliders; grey them out in place mode, like the
-// reference UI greys inactive params.
-const sliderChips = document.querySelectorAll(".slider-chip");
-sliderChips.forEach((chip) => {
-  const param = chip.dataset.param;
-  const input = chip.querySelector("input");
-  const fill = chip.querySelector(".s-fill");
-  const val = chip.querySelector(".s-val");
-  const render = () => {
-    fill.style.width = `${input.value}%`;
-    val.textContent = input.value;
-  };
-  input.addEventListener("input", () => {
-    brushParams[param] = Number(input.value);
-    render();
-    studio.markInteraction();
-  });
-  render();
-});
-
-function updateSliderState() {
-  const brushy = activeTool !== "place";
-  sliderChips.forEach((c) => c.classList.toggle("is-disabled", !brushy));
-}
-
 // --- HUD: mode tabs (ভাস্কর্য / পেইন্টিং / সাজানো / বিল্ডিং) ------------------
 // Each tab exposes its own tool subset in the left panel, like the reference.
 const TAB_TOOLS = {
@@ -3226,7 +3203,6 @@ const TAB_TOOLS = {
 };
 let activeTab = "decor";
 const toolItemsEl = document.getElementById("tool-items");
-const slidersEl = document.getElementById("sliders");
 const scenePanelEl = document.getElementById("scene-panel");
 const buildingToolsEl = document.getElementById("building-tools");
 const hudBottomEl = document.getElementById("hud-bottom");
@@ -3239,7 +3215,6 @@ function selectTool(id) {
     .querySelectorAll(".tool-row[data-id]")
     .forEach((c) => c.classList.toggle("is-active", c.dataset.id === id));
   document.getElementById("water-controls")?.classList.toggle("hidden", id !== "water");
-  updateSliderState();
   updateFocusHud();
   studio.markInteraction();
 }
@@ -3344,7 +3319,6 @@ function selectTab(tab) {
     .forEach((b) => b.classList.toggle("is-active", b.dataset.tab === tab));
   scenePanelEl.classList.remove("hidden");
   buildingToolsEl?.classList.toggle("hidden", tab !== "building");
-  slidersEl.classList.toggle("hidden", tab !== "sculpt" && tab !== "paint");
   hudBottomEl.style.display = tab === "decor" ? "" : "none";
   catFlyoutEl.classList.add("hidden");
   renderTools();
@@ -3842,7 +3816,7 @@ buildToggleEl.addEventListener("click", () => {
     // jump to Decorate so the tray palette + placement/water/spray tools are all
     // ready together — the full build-from-tray flow
     if (activeTab !== "decor") selectTab("decor");
-    flashHint("ট্রে থেকে বেছে চিমটা দিয়ে বসাও, পানি ঢালো, স্প্রে করো।");
+    flashHint("ট্রে থেকে বেছে বসাও, পানি ঢালো, স্প্রে করো।");
   }
   updateTrayUI();
   renderStrip();
@@ -4837,20 +4811,11 @@ function renderItemPanel() {
   const pieces = livePieces();
   if (!pieces.includes(adjTarget)) adjTarget = null;
   adjSelection = pieces.indexOf(adjTarget);
-  const picker = document.getElementById("item-select");
-  picker.replaceChildren();
-  picker.add(new Option(t("আইটেম বেছে নাও"), ""));
   // No category filter or unlock gate here: every item already in the jar
   // remains editable, including tiny animals and items restored from a save.
-  pieces.forEach((obj, index) => {
-    const def = DECOR_BY_ID[obj.userData.record.id];
-    picker.add(new Option(`${toUiDigits(index + 1)} · ${def ? tLabel(def.label) : obj.userData.record.id}`, String(index)));
-  });
-  picker.value = adjSelection < 0 ? "" : String(adjSelection);
-  picker.disabled = pieces.length === 0;
   document.getElementById("item-controls").disabled = !adjTarget;
   document.getElementById("item-selection-hint").textContent = t(pieces.length
-    ? "তালিকা থেকে বেছে নাও অথবা জারের আইটেমে ট্যাপ করো।"
+    ? "জারের আইটেমে ট্যাপ করো।"
     : "আগে সাজানো থেকে একটি আইটেম বসাও।");
   const rec = adjTarget?.userData.record;
   const context = document.getElementById("item-context");
@@ -4888,13 +4853,6 @@ function changeItemTint(hex) {
 
 document.getElementById("item-adjust-btn").addEventListener("click", () => {
   itemPanelEl.classList.contains("hidden") ? showItemPanel() : closeBuildingPanel("item-panel");
-});
-document.getElementById("item-select").addEventListener("change", e => {
-  endGesture();
-  cancelMove();
-  const obj = e.target.value === "" ? null : livePieces()[Number(e.target.value)];
-  if (obj) openItemPanel(obj);
-  else { adjTarget = null; renderItemPanel(); }
 });
 document.getElementById("item-color").addEventListener("input", e => changeItemTint(e.target.value));
 for (const event of ["change", "blur"]) document.getElementById("item-color").addEventListener(event, endGesture);
@@ -5239,10 +5197,6 @@ function applyLang() {
   langBtn.title = getLang() === "bn" ? "Switch to English" : "বাংলায় বদলাও";
   document.querySelectorAll(".tab").forEach((b) => {
     b.textContent = t(TAB_LABELS[b.dataset.tab]);
-  });
-  document.querySelectorAll(".slider-chip").forEach((chip) => {
-    const names = { radius: "ব্যাসার্ধ", strength: "শক্তি", falloff: "ফলঅফ" };
-    chip.querySelector(".s-label").textContent = t(names[chip.dataset.param]);
   });
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     // Icon buttons keep their glyph: only the label span gets rewritten, and

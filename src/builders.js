@@ -370,6 +370,11 @@ export function buildLayer(layer, baseY, isTop, below = null, coveredByTerrain =
     // Smooth the broad body so the material colour reads as a real packed
     // layer. The separate grains below keep the surface from becoming plastic.
     flatShading: false,
+    // A measured model jar can turn the layer footprint into a non-circular
+    // outline. Keep every surface visible while that outline is interpolated;
+    // an isolated reversed winding must not make one section of the base
+    // disappear from the viewer.
+    side: THREE.DoubleSide,
   });
 
   // A second top face underneath the sculptable cap intersects it, producing
