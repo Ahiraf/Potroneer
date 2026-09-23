@@ -1570,8 +1570,19 @@ textarea.social-input {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
   font-size: calc(13px * var(--text-scale));
   font-weight: 600;
+}
+.cfg-head > :first-child { min-width: 0; }
+.cfg-head .cfg-close {
+  position: relative;
+  z-index: 12;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 30px;
+  font-size: calc(16px * var(--text-scale));
 }
 .cfg-row {
   display: flex;
@@ -5873,12 +5884,14 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
    This final desktop rule intentionally follows the legacy right-side editor
    positioning above, while leaving the compact sheet layout unchanged. */
 @media (min-width: 701px) and (min-height: 461px) {
-  .cfg-panel {
+  #jar-panel,
+  #layer-panel,
+  #item-panel {
     top: 0;
     right: auto;
     bottom: 0;
     left: 0;
-    width: var(--building-panel-w, var(--tray-w));
+    width: var(--building-panel-w, var(--tray-w, 248px));
     height: 100%;
     max-height: none;
     padding: 12px 20px 12px 10px;
@@ -5886,7 +5899,7 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
     border: 0;
     border-right: 1px solid var(--hud-border);
     border-radius: 0;
-    z-index: 8;
+    z-index: 16;
     box-shadow: 4px 0 28px rgba(0, 0, 0, 0.26);
   }
 
@@ -5903,11 +5916,11 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
   #jar-panel,
   #layer-panel,
   #item-panel {
-    width: var(--building-panel-w, var(--tray-w));
+    width: var(--building-panel-w, var(--tray-w, 248px));
   }
 
   .building-tools {
-    left: calc(var(--building-panel-w, var(--tray-w)) + 22px);
+    left: calc(var(--building-panel-w, var(--tray-w, 248px)) + 22px);
     right: auto;
     z-index: 14;
   }

@@ -940,16 +940,28 @@ function buildItem(def) {
 }
 
 /** The native metrics for whatever a record points at, or a safe guess. */
-function metricsFor(rec) {
+function metricsFor(rec, sample = null) {
   const def = rec ? DECOR_BY_ID[rec.id] : null;
-  return (def && nativeMetrics(def, null)) ?? { h: 0.3, w: 0.3, r: 0.15, minY: 0 };
+  const known = def && nativeMetrics(def, null);
+  if (known) return known;
+  // Older saves can contain an item whose catalogue entry was not measured in
+  // this session yet. Measure an identity-scale clone instead of sizing that
+  // item against the generic fallback box; that fallback made some plants,
+  // mosses, and structures appear not to respond to the size controls.
+  if (sample?.clone) {
+    const probe = sample.clone(true);
+    probe.scale.setScalar(1);
+    if (def) return nativeMetrics(def, probe);
+    return measureObject(probe);
+  }
+  return { h: 0.3, w: 0.3, r: 0.15, minY: 0 };
 }
 
 /** The upright cylinder a placed piece occupies, at its current scale. */
 function bodyOf(objOrRec) {
   const rec = objOrRec?.userData?.record ?? objOrRec;
   const s = objOrRec?.userData?.baseScale ?? finalScale(rec);
-  const m = metricsFor(rec);
+  const m = metricsFor(rec, objOrRec?.userData?.record ? objOrRec : null);
   return { r: m.r * s, h: m.h * s };
 }
 
@@ -4759,7 +4771,9 @@ document.getElementById("layer-del")?.addEventListener("click", () => {
   rebuildStack();
 });
 document.querySelectorAll(".cfg-close").forEach((b) =>
-  b.addEventListener("click", () => {
+  b.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     endGesture();
     closeBuildingPanel(b.dataset.close);
   }),
@@ -4924,9 +4938,10 @@ function renderItemSize() {
 function applyItemSize(pct) {
   if (!adjTarget) return 100;
   const rec = adjTarget.userData.record;
-  const m = metricsFor(rec);
-  const norm = rec.norm ?? 1;
-  const want = Math.max(0.05, Number(pct) / 100);
+  const m = metricsFor(rec, adjTarget);
+  const norm = Number.isFinite(Number(rec.norm)) ? Number(rec.norm) : 1;
+  const requested = Number(pct);
+  const want = Math.max(0.05, Number.isFinite(requested) ? requested / 100 : (rec.scale ?? 1));
   let ground = rec.supportId ? rec.y : surfaceY(rec.x, rec.z);
   let x = rec.x;
   let z = rec.z;
@@ -4946,7 +4961,14 @@ function applyItemSize(pct) {
     m.r * norm, m.h * norm,
     want, GLASS_CLEARANCE,
   );
-  const sc = Math.max(0.05, allowed);
+  // Never let a failed fit calculation turn a working item into a tiny dot.
+  // A requested size that is too large stops at the largest valid size, while
+  // a malformed/legacy measurement keeps the item's current size until its
+  // real geometry has been measured.
+  const current = Math.max(0.05, Number(rec.scale) || 1);
+  const sc = Number.isFinite(allowed)
+    ? Math.max(0.05, Math.min(want, Math.max(allowed, current)))
+    : current;
   rec.scale = sc;
   const applied = finalScale(rec);
   rec.x = x;
