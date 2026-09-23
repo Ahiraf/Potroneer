@@ -6600,7 +6600,9 @@ for (const [gripId, panelId] of [
     vars: { "--building-panel-w": 0 },
     min: 180,
     max: () => Math.min(420, window.innerWidth * (document.body.classList.contains("is-phone") ? 0.84 : 0.4)),
-    sign: () => document.body.classList.contains("is-phone") ? -1 : 1,
+    // The editor is right-anchored on both desktop and phone layouts, so
+    // dragging left is what widens it in either layout.
+    sign: -1,
     allowPhone: true,
   });
 }

@@ -5816,7 +5816,7 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
   border: 1px solid var(--hud-border);
   border-radius: 12px;
   box-shadow: -4px 8px 28px rgba(0,0,0,.26);
-  z-index: 8;
+  z-index: 16;
 }
 .water-controls { width: 190px; padding: 8px; color: var(--ink); }
 .water-controls.hidden { display: none; }
@@ -5880,27 +5880,17 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
   body.panel-resizing .cfg-panel { transition: none; }
 }
 
-/* Keep all Building editors on the same resizable left dock as Decorations.
-   This final desktop rule intentionally follows the legacy right-side editor
-   positioning above, while leaving the compact sheet layout unchanged. */
+/* Keep all Building editors on the same resizable right dock as the existing
+   editor layout, while leaving the compact sheet layout unchanged. */
 @media (min-width: 701px) and (min-height: 461px) {
   #jar-panel,
   #layer-panel,
   #item-panel {
-    top: 0;
-    right: auto;
-    bottom: 0;
-    left: 0;
+    right: 12px;
+    left: auto;
     width: var(--building-panel-w, var(--tray-w, 248px));
-    height: 100%;
     max-height: none;
-    padding: 12px 20px 12px 10px;
-    background: var(--hud);
-    border: 0;
-    border-right: 1px solid var(--hud-border);
-    border-radius: 0;
     z-index: 16;
-    box-shadow: 4px 0 28px rgba(0, 0, 0, 0.26);
   }
 
   #jar-panel > .cfg-head,
@@ -5920,8 +5910,8 @@ body.reduced-transparency .top-nav-leaf { fill: var(--hud-solid); }
   }
 
   .building-tools {
-    left: calc(var(--building-panel-w, var(--tray-w, 248px)) + 22px);
-    right: auto;
+    left: auto;
+    right: 12px;
     z-index: 14;
   }
 
